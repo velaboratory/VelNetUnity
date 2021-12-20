@@ -18,22 +18,36 @@ Join room - The server will put you in a valid room, or it will create a room an
 
 2:room:password\n 
 
+2:-1\n - Leave room, this should choose a new room owner or something
+
 Send message - You can say "all", "others", or list specific users that should receive the message.  
 3:0:Message\n - others in room
-3:1:Message\n - others in room
-3:2:u1:u2...:uN:Message\n - others
+3:1:Message\n - all in room
+3:2:Message\n - others in the room, at once, meaning order is maintained
+3:3:Message\n - all in room, order maintained
+3:4:u1:u2...:uN:Message\n - others
 
 OUTGOING MESSAGES (send by server)
 
 Session_started - you know you are logged in, subsequent commands will succeed
 0:[client_id]\n
 
-Session_ended - you know you are logged out, subsequent commands will fail
-0:-1\n
+rooms - a list of rooms on the server, with counts
+1:r1-N,r2-N...\n
 
-rooms - a list of rooms on the server, each with a list of user_ids that are in the room. 
-1:r1,u1,u2:r2,u3,u4:r3,u5,u6:r4\n
+2:user_id:room_joined\n - room joined
+2:user_id:\n - room left
 
-message - a message sent by someone on the server, who may or may not be in your room.  This is simply interpreted by the user, so it's not the server's problem to solve.  It will be the client's responsibility to do something.  This can be used, for example to ask a user to join your room, or implement a party system.  
+3:user_id:Message\n - message from sender user_id
 
-3:Message\n
+
+Unity-side. 
+
+Instantiate message creates a network id, assigning that player as owner
+--A network id is a simple number + the creator server id, which uniquely identifies it
+
+Take ownership reassigns a player as owner. Must use the order_maintained parts above.
+
+Update network id sends a packet to specifically serialize parts of an object that have changed.  A change flag indicates what parts have changed.  
+
+

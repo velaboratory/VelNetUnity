@@ -3,18 +3,12 @@ import socket
 from _thread import *
 import threading
 import types
-#each room gets a message queue.  This is created upon joining a room.  
-#List of room message queues is a locked resource for all threads.  
-#List of clients is a locked resource for all threads.
-#Each client has a message queue.  
-#client write thread draws from this message queue
-#client read thread reads from client, and when it gets a complete message, adds it to the message queue
-#client has a read thread, write thread, 
 
 rooms = {} #will be a list of room objects.  #this must be locked when when adding or removing rooms
 rooms_lock = threading.Lock()
 client_dict = {} #will be a list of client objects.  #this must be locked when adding or removing clients
 client_lock = threading.Lock()
+
 HOST = ""
 PORT = 80
 
@@ -162,7 +156,6 @@ def client_read_thread(conn, addr, client):
     del client_dict[client.id] #remove the client from the list of clients...
     rooms_lock.release()
     client_lock.release()
-    print("sending room message")
     send_room_message(client.room, f"2:{client.id}:\n")
     print("client destroyed")
 def client_write_thread(conn, addr, client):
@@ -179,6 +172,7 @@ def client_write_thread(conn, addr, client):
         client.message_ready.wait()
         client.message_ready.clear()
     client.write_thread_dead = True
+
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
    
@@ -192,7 +186,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                                         alive=True, 
                                         message_queue=[],
                                         message_lock=threading.Lock(), 
-                                        inb='',
+                                        inb='', #read buffer
                                         message_ready=threading.Event(),
                                         logged_in=False,
                                         username='',
