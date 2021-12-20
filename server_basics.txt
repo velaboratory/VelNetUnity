@@ -1,0 +1,39 @@
+This is a text-based server.  Text can be relatively efficient for servers, as long as you don't try to make it inefficient with long text values.  Using base64 for messages greatly reduces the inefficiency, or even using binary for parts of the messages that could be longer.  
+
+You start by making an ordinary tcp connection to the server. 
+
+The server relies upon usernames and passwords.  Some out-of-band process is required to create these.  
+
+INCOMING MESSSAGES (sent by clients)
+
+Join server - Provide a username and password.  If valid, the server will create a new session for you, and send you message saying connected with the session id.  It will mark that session as logged in.  All subsequent commands require logged in.  If you are in another session, it will end that session.
+
+0:username:password\n (note, usernames and passwords cannot contain :s)
+
+Get rooms - Assuming the session is logged in, you can get a list of public rooms.  The server will retrieve the list of public rooms from its database, including who is in those rooms and send them to the client.
+
+1:password\n 
+
+Join room - The server will put you in a valid room, or it will create a room and put you in it.  You will start receiving messages from that room, starting with a room_joined message, and then all subsequent messages.  
+
+2:room:password\n 
+
+Send message - You can say "all", "others", or list specific users that should receive the message.  
+3:0:Message\n - others in room
+3:1:Message\n - others in room
+3:2:u1:u2...:uN:Message\n - others
+
+OUTGOING MESSAGES (send by server)
+
+Session_started - you know you are logged in, subsequent commands will succeed
+0:[client_id]\n
+
+Session_ended - you know you are logged out, subsequent commands will fail
+0:-1\n
+
+rooms - a list of rooms on the server, each with a list of user_ids that are in the room. 
+1:r1,u1,u2:r2,u3,u4:r3,u5,u6:r4\n
+
+message - a message sent by someone on the server, who may or may not be in your room.  This is simply interpreted by the user, so it's not the server's problem to solve.  It will be the client's responsibility to do something.  This can be used, for example to ask a user to join your room, or implement a party system.  
+
+3:Message\n
