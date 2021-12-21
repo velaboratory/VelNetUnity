@@ -3,9 +3,8 @@ import time
 from _thread import *
 import threading
 
-server_addr = ('localhost', 3290)
+server_addr = ('127.0.0.1', 80)
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 sock.connect_ex(server_addr)
 
 
@@ -26,7 +25,7 @@ def writeThread(sock):
     while True:
             sock.sendall(f'3:0:{"thasdl;fjasd;lfjasl;dfjal;skdjlask;dflasd;jkjfjkjfsfjfjakfjafjdfjakjflfjadjf;jfakdjfdjfakdjfsdj;ldjf;laskdflsdjfasdkjfkdjflskdjfskdjflkfjlkdjfskdjfkjfskdjf;kfjs;kfjadkfjas;ldfalsdkfsdkfjasdkjfasdkfjlkdjfkdjflkdjf;djfadkfjaldkfjalkfja;kfja;kfjadkfjadkfja;sdkfa;dkfj;dfkjaslkfjas;dkfs;dkfjsldfjasdfjaldfjaldkfj;lkj"}\n'.encode('utf-8'))
             i = i+1
-            time.sleep(0.01)
+            time.sleep(0.1)
     
     
 

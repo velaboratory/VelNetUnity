@@ -10,7 +10,7 @@ client_dict = {} #will be a list of client objects.  #this must be locked when a
 client_lock = threading.Lock()
 
 HOST = ""
-PORT = 3290
+PORT = 80
 
 
 def send_synced_room_message(roomName, message, exclude_client=None): #guaranteed to be received by all clients in order, mostly use for handling ownership
@@ -86,18 +86,14 @@ def decode_message(client,message):
                 send_room_message(client.room, f"2:{client.id}:\n")
                 send_client_message(client,f"2:{client.id}:\n")
                 client.room = ''
-            elif roomName != '': #join or create the room
+            else: #join or create the room
                 rooms_lock.acquire()
-                
                 if roomName in rooms:
                     #join the room
                     rooms[roomName].clients.append(client)
-                    
                 else:
                     #create the room and join
                     rooms[roomName] = types.SimpleNamespace(name=roomName,clients=[client],room_lock=threading.Lock())
-                
-                
                 rooms_lock.release()
 
                 if (client.room != '') and (client.room != roomName): #client left the previous room
@@ -106,12 +102,6 @@ def decode_message(client,message):
                 client.room = roomName #client joins the new room
                 #send a message to the clients new room that they joined!
                 send_room_message(roomName, f"2:{client.id}:{client.room}\n")
-                
-                for c in rooms[roomName].clients:
-                    if c.id != client.id:
-                        send_client_message(client,f"2:{c.id}:{client.room}\n")
-
-                
             
 
                 
@@ -134,6 +124,11 @@ def client_read_thread(conn, addr, client):
     global rooms_lock
     global client_dict
     global client_lock
+    buffer = bytearray()
+    state = 0
+    buffer_size = 0
+    #valid messages are at least 2 bytes (size)
+
     while client.alive:
         try:
             recv_data = conn.recv(1024)
@@ -145,14 +140,17 @@ def client_read_thread(conn, addr, client):
             client.alive = False
             client.message_ready.set() #in case it's waiting for a message
         else:
-            m = recv_data.decode("utf-8")
-            messages = m.split("\n")
-            if len(messages) > 1:
-                messages[0]= client.inb + messages[0]
-                client.inb = ""
-            for message in messages[:-1]:
-                decode_message(client, message)
-            client.inb += messages[-1]
+            buffer.extend(recv_data) #read
+            if (state == 0) and (len(buffer) > 2):
+                buffer_size = int.from_bytes(buffer[0:2], byteorder='big')
+                state = 1
+            if (state == 1) and (len(buffer) >= buffer_size):
+                #we have a complete packet, process it
+                message = buffer[2:buffer_size]
+                decode_message(client,message)
+                buffer = buffer[buffer_size:]
+                state = 0
+
     while not client.write_thread_dead:
         client.message_ready.set()
         pass
@@ -192,7 +190,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
     while True:
 
         c, addr = sock.accept() #blocks until a connection is made
-        c.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         client = types.SimpleNamespace(id=next_client_id, 
                                         alive=True, 
                                         message_queue=[],

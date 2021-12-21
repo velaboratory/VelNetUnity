@@ -405,6 +405,7 @@ MonoBehaviour:
   sendInput: {fileID: 945446555}
   roomInput: {fileID: 711524768}
   messages: {fileID: 1894247854}
+  messageBuffer: []
 --- !u!1 &440509381
 GameObject:
   m_ObjectHideFlags: 0
@@ -1090,8 +1091,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   host: localhost
-  port: 80
+  port: 3290
   userid: 0
+  room: 
+  playerPrefab: {fileID: 6139051692386484099, guid: d4158ab9c4a204cdbba28d3273fc1fb3, type: 3}
   connected: 0
 --- !u!1 &1235343400
 GameObject:

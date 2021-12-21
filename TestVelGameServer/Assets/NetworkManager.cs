@@ -13,8 +13,12 @@ public class NetworkManager : MonoBehaviour
 	#region private members 	
 	private TcpClient socketConnection;
 	private Thread clientReceiveThread;
-	public int userid;
+	public int userid = -1;
+	public string room;
 	int messagesReceived = 0;
+	public GameObject playerPrefab;
+	public Dictionary<int, NetworkPlayer> players = new Dictionary<int, NetworkPlayer>();
+	
 	#endregion
 	// Use this for initialization
 	public class Message
@@ -27,6 +31,7 @@ public class NetworkManager : MonoBehaviour
 	void Start()
 	{
 		ConnectToTcpServer();
+		
 	}
 
 	private void addMessage(Message m)
@@ -42,6 +47,59 @@ public class NetworkManager : MonoBehaviour
         lock(receivedMessages) {
 			foreach(Message m in receivedMessages)
             {
+				if(m.type == 0) //when you join the server
+                {
+					this.userid = m.sender;
+					Debug.Log("joined server");
+                }
+
+				if (m.type == 2)
+				{
+					//if this message is for me, that means I joined a new room...
+					if (this.userid == m.sender)
+					{
+						foreach (KeyValuePair<int, NetworkPlayer> kvp in players)
+						{
+							Destroy(kvp.Value.gameObject);
+						}
+						players.Clear(); //we clear the list, but will recreate as we get messages from people in our room
+
+						if (m.text != "")
+						{
+							NetworkPlayer player = GameObject.Instantiate<GameObject>(playerPrefab).GetComponent<NetworkPlayer>();
+							player.userid = m.sender;
+							players.Add(userid, player);
+							player.room = m.text;
+							player.manager = this;
+						}
+					}
+					else //not for me, a player is joining or leaving
+					{
+						NetworkPlayer me = players[userid];
+
+						if (me.room != m.text)
+						{
+							//we got a left message, kill it
+							Destroy(players[m.sender].gameObject);
+							players.Remove(m.sender);
+						}
+						else
+						{
+							//we got a join mesage, create it
+							NetworkPlayer player = GameObject.Instantiate<GameObject>(playerPrefab).GetComponent<NetworkPlayer>();
+							player.room = m.text;
+							player.userid = m.sender;
+							player.manager = this;
+							players.Add(m.sender, player);
+						}
+					}
+				}
+				if(m.type == 3)
+                {
+
+					players[m.sender]?.handleMessage(m);
+                    
+                }
 				messageReceived(m);
             }
 			receivedMessages.Clear();
@@ -88,9 +146,9 @@ public class NetworkManager : MonoBehaviour
 					{ 
 						if(sections.Length > 1)
                         {
-							int user_id = int.Parse(sections[1]);
+							
 							m.type = type;
-							m.sender = user_id;
+							m.sender = int.Parse(sections[1]);
 							m.text = "";
 							addMessage(m);
                         }
@@ -109,9 +167,8 @@ public class NetworkManager : MonoBehaviour
 							m.type = 2;
 							int user_id = int.Parse(sections[1]);
 							m.sender = user_id;
-							
-							string room_name = sections[2];
-							m.text = room_name;
+							string new_room = sections[2];
+							m.text = new_room;
 
 							addMessage(m);
                         }

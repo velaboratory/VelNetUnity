@@ -40,6 +40,10 @@ public class NetworkGUI : MonoBehaviour
             string s = m.type + ":" + m.sender +":" + m.text;
             messageBuffer.Add(s);
             messages.text = "";
+
+
+            
+
             if(messageBuffer.Count > 10)
             {
                 messageBuffer.RemoveAt(0);
