@@ -54,7 +54,7 @@ namespace DaikonForge.VoIP
 		protected ulong nextFrameIndex = 0;
 		protected ulong nextExpectedIndex = 0;
 
-		protected virtual void Awake()
+		protected virtual void init()
 		{
 			codec = GetCodec();
 

@@ -26,7 +26,7 @@ public class VelVoiceController : VoiceControllerBase
     void Start()
     {
         player = GetComponent<NetworkPlayer>();
-        VoiceControllerCollection<VelVoiceController>.RegisterVoiceController(this);
+        init();
     }
 
     // Update is called once per frame

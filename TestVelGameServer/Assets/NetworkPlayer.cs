@@ -83,6 +83,6 @@ public class NetworkPlayer : MonoBehaviour
         //base64 encode
         string b64_headers = Convert.ToBase64String(headers);
         string b64_data = Convert.ToBase64String(data);
-        manager.sendTo(1, "2," + b64_headers +","+b64_data + ";");
+        manager.sendTo(0, "2," + b64_headers +","+b64_data + ";");
     }
 }
