@@ -67,6 +67,7 @@ public class NetworkManager : MonoBehaviour
 						if (m.text != "")
 						{
 							NetworkPlayer player = GameObject.Instantiate<GameObject>(playerPrefab).GetComponent<NetworkPlayer>();
+							player.isLocal = true;
 							player.userid = m.sender;
 							players.Add(userid, player);
 							player.room = m.text;
@@ -87,6 +88,7 @@ public class NetworkManager : MonoBehaviour
 						{
 							//we got a join mesage, create it
 							NetworkPlayer player = GameObject.Instantiate<GameObject>(playerPrefab).GetComponent<NetworkPlayer>();
+							player.isLocal = false;
 							player.room = m.text;
 							player.userid = m.sender;
 							player.manager = this;

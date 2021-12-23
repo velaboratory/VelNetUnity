@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Text;
+using System;
 
 public class NetworkPlayer : MonoBehaviour
 {
@@ -9,7 +11,8 @@ public class NetworkPlayer : MonoBehaviour
     public string room;
     public NetworkManager manager;
     Vector3 networkPosition;
-    
+
+    public bool isLocal = false;
     // Start is called before the first frame update
     void Start()
     {
@@ -64,8 +67,22 @@ public class NetworkPlayer : MonoBehaviour
                         networkPosition = new Vector3(x, y, z);
                         break;
                     }
+                case "2": //audio data
+                    {
+                        byte[] headers = Convert.FromBase64String(sections[1]);
+                        byte[] data = Convert.FromBase64String(sections[2]);
+                        this.GetComponent<VelVoiceController>()?.receiveAudioFrame(headers, data);
+                        break;
+                    }
             }
         }
 
+    }
+    public void sendAudioData(byte[] headers, byte[] data)
+    {
+        //base64 encode
+        string b64_headers = Convert.ToBase64String(headers);
+        string b64_data = Convert.ToBase64String(data);
+        manager.sendTo(1, "2," + b64_headers +","+b64_data + ";");
     }
 }
