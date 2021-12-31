@@ -11,16 +11,38 @@ public class NetworkPlayer : MonoBehaviour
     public string room;
     public NetworkManager manager;
     Vector3 networkPosition;
+    velmicrophone mic;
+    AudioClip speechClip;
+    AudioSource source;
+    bool buffering = false;
+    public List<FixedArray> toSend = new List<FixedArray>();
 
     public bool isLocal = false;
+    int lastSample = 0;
+    int lastPlayTime = 0;
+    int totalbuffered = 0;
+    int totalPlayed = 0;
     // Start is called before the first frame update
     void Start()
     {
+        source = GetComponent<AudioSource>();
+        speechClip = AudioClip.Create("speechclip", 160000, 1, 16100, false);
+        source.clip = speechClip;
+        source.Stop();
+        source.loop = true;
+        source.spatialBlend = 0;
         if (manager.userid == userid) //this is me, I send updates
         {
             StartCoroutine(syncTransformCoroutine());
         }
     }
+
+    public void attachMic(velmicrophone mic)
+    {
+        this.mic = mic;
+        this.mic.encodedFrameAvailable += this.sendAudioData;
+    }
+
 
     // Update is called once per frame
     void Update()
@@ -36,6 +58,25 @@ public class NetworkPlayer : MonoBehaviour
             Vector3 delta = h * Vector3.right + v * Vector3.up;
             transform.position = transform.position + delta * Time.deltaTime;
         }
+
+        //we also need to deal with the audio source
+
+        int numSamplesPlayedSinceLast = source.timeSamples - lastPlayTime;
+
+        if(numSamplesPlayedSinceLast < 0) //looped
+        {
+            numSamplesPlayedSinceLast = source.clip.samples - lastPlayTime + source.timeSamples;
+        }
+        totalPlayed += numSamplesPlayedSinceLast;
+        if(totalPlayed >= totalbuffered)
+        {
+            int left = numSamplesPlayedSinceLast - totalbuffered;
+            source.Pause();
+            
+        }
+        lastPlayTime = source.timeSamples;
+        
+        
     }
 
     IEnumerator syncTransformCoroutine()
@@ -69,20 +110,44 @@ public class NetworkPlayer : MonoBehaviour
                     }
                 case "2": //audio data
                     {
-                        byte[] headers = Convert.FromBase64String(sections[1]);
-                        byte[] data = Convert.FromBase64String(sections[2]);
-                        this.GetComponent<VelVoiceController>()?.receiveAudioFrame(headers, data);
+                        
+                        byte[] data = Convert.FromBase64String(sections[1]);
+                        
+                        this.receiveAudioData(mic.decodeOpusData(data));
                         break;
                     }
             }
         }
 
     }
-    public void sendAudioData(byte[] headers, byte[] data)
+
+    public void receiveAudioData(float[] data)
     {
-        //base64 encode
-        string b64_headers = Convert.ToBase64String(headers);
-        string b64_data = Convert.ToBase64String(data);
-        manager.sendTo(0, "2," + b64_headers +","+b64_data + ";");
+
+        speechClip.SetData(data, lastSample);
+        lastSample += data.Length;
+        lastSample %= speechClip.samples;
+        totalbuffered += data.Length;
+        if (!source.isPlaying && !buffering)
+        {
+            StartCoroutine(startSoundIn(2));
+        }
+        
+
+    }
+    IEnumerator startSoundIn(int frames)
+    {
+        buffering = true;
+        for(int i = 0; i < frames; i++)
+        {
+            yield return null;
+        }
+        source.Play();
+        buffering = false;
+    }
+    public void sendAudioData(FixedArray a)
+    {
+        string b64_data = Convert.ToBase64String(a.array,0,a.count);
+        manager.sendTo(1, "2,"+b64_data + ";");
     }
 }

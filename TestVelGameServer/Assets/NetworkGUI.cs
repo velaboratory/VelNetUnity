@@ -10,6 +10,13 @@ public class NetworkGUI : MonoBehaviour
     public InputField roomInput;
     public Text messages;
     public List<string> messageBuffer;
+    public Dropdown microphones;
+    public string microphone;
+    public velmicrophone mic;
+    public void onMicrophoneChanged(string mic)
+    {
+        
+    }
     public void handleSend()
     {
         if(sendInput.text != "")
@@ -28,6 +35,7 @@ public class NetworkGUI : MonoBehaviour
     {
         if(roomInput.text != "")
         {
+            mic.startMicrophone(microphones.options[microphones.value].text);
             networkManager.join(roomInput.text);
         }
 
@@ -36,6 +44,8 @@ public class NetworkGUI : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        List<string> temp = new List<string>(Microphone.devices);
+        microphones.AddOptions(temp);
         networkManager.messageReceived += (m) => {
             string s = m.type + ":" + m.sender +":" + m.text;
             messageBuffer.Add(s);

@@ -18,6 +18,8 @@ public class NetworkManager : MonoBehaviour
 	int messagesReceived = 0;
 	public GameObject playerPrefab;
 	public Dictionary<int, NetworkPlayer> players = new Dictionary<int, NetworkPlayer>();
+
+	public velmicrophone mic; //to hand to the player
 	
 	#endregion
 	// Use this for initialization
@@ -34,11 +36,13 @@ public class NetworkManager : MonoBehaviour
 		
 	}
 
+	
+
 	private void addMessage(Message m)
 	{
 		lock (receivedMessages)
 		{
-			Debug.Log(messagesReceived++);
+			//Debug.Log(messagesReceived++);
 			receivedMessages.Add(m);
 		}
 	}
@@ -67,6 +71,7 @@ public class NetworkManager : MonoBehaviour
 						if (m.text != "")
 						{
 							NetworkPlayer player = GameObject.Instantiate<GameObject>(playerPrefab).GetComponent<NetworkPlayer>();
+							player.attachMic(mic); //gets a microphone to send voice
 							player.isLocal = true;
 							player.userid = m.sender;
 							players.Add(userid, player);
