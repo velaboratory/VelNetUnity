@@ -21,6 +21,7 @@ public class NetworkManager : MonoBehaviour
 
 	public Action<NetworkPlayer> onJoinedRoom = delegate { };
 	public Action<NetworkPlayer> onPlayerJoined = delegate { };
+	public Action<NetworkPlayer> onPlayerLeft = delegate { };
 	#endregion
 	// Use this for initialization
 	public class Message

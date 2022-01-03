@@ -52,26 +52,27 @@ namespace Dissonance
             
             manager.onJoinedRoom += (player) =>
             {
+                //this is me joining a vel room
                 myPlayer = player;
                 myPlayer.commsNetwork = this;
                 myPlayer.setDissonanceID(playerName); //need to let that new player know my dissonance id (tell everyone again)
-                
             };
 
             manager.onPlayerJoined += (player) =>
             {
+                //this is someone else joining the vel room
                 myPlayer.setDissonanceID(playerName); //need to let that new player know my dissonance id (tell everyone again)
-
                 player.commsNetwork = this; //this will tell us when various things happen of importance
-
             };
+
+
 
         }
 
         public void voiceReceived(string sender,byte[] data,uint sequenceNumber)
         {
             Debug.Log(sequenceNumber);
-            VoicePacket vp = new VoicePacket(sender, ChannelPriority.Default, 1, false, new ArraySegment<byte>(data,0,data.Length), sequenceNumber);
+            VoicePacket vp = new VoicePacket(sender, ChannelPriority.Default, 1, true, new ArraySegment<byte>(data,0,data.Length), sequenceNumber);
             VoicePacketReceived(vp);
         }
 
@@ -84,8 +85,6 @@ namespace Dissonance
         {
             myPlayer?.sendAudioData(data);  
         }
-
-
 
         // Start is called before the first frame update
         void Start()
@@ -105,15 +104,23 @@ namespace Dissonance
             PlayerEnteredRoom(re);
         }
 
+        public void playerLeft(string id)
+        {
+            RoomEvent re = new RoomEvent();
+            re.Joined = false;
+            re.Room = "Global";
+            re.PlayerName = id;
+            PlayerExitedRoom(re);
+            PlayerLeft(id);
+        }
+
         public void playerStartedSpeaking(string id)
         {
             PlayerStartedSpeaking(id);
-            Debug.Log("player " + id + " started speaking");
         }
         public void playerStoppedSpeaking(string id)
         {
             PlayerStoppedSpeaking(id);
-            Debug.Log("player " + id + " stopped speaking");
         }
 
     }

@@ -3,48 +3,45 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Text;
 using System;
+using Dissonance;
 
-public class NetworkPlayer : MonoBehaviour
+public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
 {
     public int userid;
     public string username;
-    public string dissonanceID;
+
     public string room;
     public NetworkManager manager;
     Vector3 networkPosition;
-
-
-    bool buffering = false;
-    public List<FixedArray> toSend = new List<FixedArray>();
-
     public bool isLocal = false;
-    int lastSample = 0;
-    int lastPlayTime = 0;
-    int totalbuffered = 0;
-    int totalPlayed = 0;
-    uint lastAudioId = 0;
-    // Start is called before the first frame update
+    
     public Dissonance.VelCommsNetwork commsNetwork;
     bool isSpeaking = false;
+    uint lastAudioId = 0;
+    public string dissonanceID;
+    //required by dissonance for spatial audio
+    public string PlayerId => dissonanceID;
+    public Vector3 Position => transform.position;
+    public Quaternion Rotation => transform.rotation;
+    public NetworkPlayerType Type => isLocal?NetworkPlayerType.Local:NetworkPlayerType.Remote;
+    public bool IsTracking => true;
+
     void Start()
     {
-        
         if (manager.userid == userid) //this is me, I send updates
         {
             StartCoroutine(syncTransformCoroutine());
         }
     }
 
-
     // Update is called once per frame
     void Update()
     {
 
-        
-
-        if (userid != manager.userid) //not me, I move to wherever I should
+        if (!isLocal) //not me, I move to wherever I should
         {
             transform.position = Vector3.Lerp(transform.position, networkPosition, .1f);
+            
         }
         else
         {
@@ -54,7 +51,7 @@ public class NetworkPlayer : MonoBehaviour
             transform.position = transform.position + delta * Time.deltaTime;
 
             //if we're not speaking, and the comms say we are, send a speaking event, which will be received on other network players and sent to their comms accordingly
-            if(commsNetwork.comms.FindPlayer(dissonanceID).IsSpeaking != isSpeaking)
+            if(commsNetwork.comms.FindPlayer(dissonanceID).IsSpeaking != isSpeaking) //unfortunately, there does not seem to be an event for this
             {
                 isSpeaking = !isSpeaking;
                 manager.sendTo(0, "4," + (isSpeaking?1:0) + ";");
@@ -65,8 +62,6 @@ public class NetworkPlayer : MonoBehaviour
                 
             }
         }
-
-        
 
     }
 
@@ -80,6 +75,7 @@ public class NetworkPlayer : MonoBehaviour
     }
     public void handleMessage(NetworkManager.Message m)
     {
+        //these are generally things that come from the "owner" and should be enacted locally, where appropriate
         //we need to parse the message
 
         //types of messages
@@ -111,13 +107,14 @@ public class NetworkPlayer : MonoBehaviour
                         
                         break;
                     }
-                case "3": //dissonance id
+                case "3": //dissonance id (player joined)
                     {
                         if (dissonanceID == "")
                         {
                             dissonanceID = sections[1];
                             //tell the comms network that this player joined the channel
-                            commsNetwork.playerJoined(dissonanceID);
+                            commsNetwork.playerJoined(dissonanceID); //tell dissonance
+                            commsNetwork.comms.TrackPlayerPosition(this); //tell dissonance to track the remote player
                         }
                         break;
                     }
@@ -140,7 +137,10 @@ public class NetworkPlayer : MonoBehaviour
 
     }
 
-    
+    public void OnDestroy()
+    {
+        commsNetwork.playerLeft(dissonanceID);
+    }
 
     public void sendAudioData(ArraySegment<byte> data)
     {
@@ -148,9 +148,10 @@ public class NetworkPlayer : MonoBehaviour
         manager.sendTo(0, "2,"+b64_data + ","+ (lastAudioId++) +";");
     }
 
-    public void setDissonanceID(string id)
+    public void setDissonanceID(string id) //this sort of all initializes dissonance
     {
         dissonanceID = id;
-        manager.sendTo(0, "3," + id+";"); 
+        manager.sendTo(0, "3," + id+";");
+        commsNetwork.comms.TrackPlayerPosition(this);
     }
 }
