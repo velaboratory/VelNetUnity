@@ -5,7 +5,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine;
-
+using Dissonance;
 public class NetworkManager : MonoBehaviour
 {
 	public string host;
@@ -19,8 +19,8 @@ public class NetworkManager : MonoBehaviour
 	public GameObject playerPrefab;
 	public Dictionary<int, NetworkPlayer> players = new Dictionary<int, NetworkPlayer>();
 
-	public velmicrophone mic; //to hand to the player
-	
+	public Action<NetworkPlayer> onJoinedRoom = delegate { };
+	public Action<NetworkPlayer> onPlayerJoined = delegate { };
 	#endregion
 	// Use this for initialization
 	public class Message
@@ -71,12 +71,13 @@ public class NetworkManager : MonoBehaviour
 						if (m.text != "")
 						{
 							NetworkPlayer player = GameObject.Instantiate<GameObject>(playerPrefab).GetComponent<NetworkPlayer>();
-							player.attachMic(mic); //gets a microphone to send voice
+							
 							player.isLocal = true;
 							player.userid = m.sender;
 							players.Add(userid, player);
 							player.room = m.text;
 							player.manager = this;
+							onJoinedRoom(player);
 						}
 					}
 					else //not for me, a player is joining or leaving
@@ -98,6 +99,7 @@ public class NetworkManager : MonoBehaviour
 							player.userid = m.sender;
 							player.manager = this;
 							players.Add(m.sender, player);
+							onPlayerJoined(player);
 						}
 					}
 				}

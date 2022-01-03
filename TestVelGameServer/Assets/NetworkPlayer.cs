@@ -8,6 +8,7 @@ public class NetworkPlayer : MonoBehaviour
 {
     public int userid;
     public string username;
+    public string dissonanceID;
     public string room;
     public NetworkManager manager;
     Vector3 networkPosition;
@@ -22,11 +23,14 @@ public class NetworkPlayer : MonoBehaviour
     int lastPlayTime = 0;
     int totalbuffered = 0;
     int totalPlayed = 0;
+    uint lastAudioId = 0;
     // Start is called before the first frame update
+    public Dissonance.VelCommsNetwork commsNetwork;
+    bool isSpeaking = false;
     void Start()
     {
         source = GetComponent<AudioSource>();
-        speechClip = AudioClip.Create("speechclip", 160000, 1, 16100, false);
+        speechClip = AudioClip.Create("speechclip", 160000, 1, 16000, false);
         source.clip = speechClip;
         source.Stop();
         source.loop = true;
@@ -37,16 +41,13 @@ public class NetworkPlayer : MonoBehaviour
         }
     }
 
-    public void attachMic(velmicrophone mic)
-    {
-        this.mic = mic;
-        this.mic.encodedFrameAvailable += this.sendAudioData;
-    }
-
 
     // Update is called once per frame
     void Update()
     {
+
+        
+
         if (userid != manager.userid) //not me, I move to wherever I should
         {
             transform.position = Vector3.Lerp(transform.position, networkPosition, .1f);
@@ -57,26 +58,18 @@ public class NetworkPlayer : MonoBehaviour
             float v = Input.GetAxis("Vertical");
             Vector3 delta = h * Vector3.right + v * Vector3.up;
             transform.position = transform.position + delta * Time.deltaTime;
+
+            //if we're not speaking, and the comms say we are, send a speaking event, which will be received on other network players and sent to their comms accordingly
+            if(commsNetwork.comms.FindPlayer(dissonanceID).IsSpeaking != isSpeaking)
+            {
+                isSpeaking = !isSpeaking;
+                manager.sendTo(1, "4," + (isSpeaking?1:0) + ";");
+                
+            }
         }
 
-        //we also need to deal with the audio source
-
-        int numSamplesPlayedSinceLast = source.timeSamples - lastPlayTime;
-
-        if(numSamplesPlayedSinceLast < 0) //looped
-        {
-            numSamplesPlayedSinceLast = source.clip.samples - lastPlayTime + source.timeSamples;
-        }
-        totalPlayed += numSamplesPlayedSinceLast;
-        if(totalPlayed >= totalbuffered)
-        {
-            int left = numSamplesPlayedSinceLast - totalbuffered;
-            source.Pause();
-            
-        }
-        lastPlayTime = source.timeSamples;
         
-        
+
     }
 
     IEnumerator syncTransformCoroutine()
@@ -112,8 +105,32 @@ public class NetworkPlayer : MonoBehaviour
                     {
                         
                         byte[] data = Convert.FromBase64String(sections[1]);
+                        uint sequenceNumber = uint.Parse(sections[2]);
+                        commsNetwork.voiceReceived(dissonanceID,data,sequenceNumber);
                         
-                        this.receiveAudioData(mic.decodeOpusData(data));
+                        break;
+                    }
+                case "3": //dissonance id
+                    {
+                        if (dissonanceID == "")
+                        {
+                            dissonanceID = sections[1];
+                            //tell the comms network that this player joined the channel
+                            commsNetwork.playerJoined(dissonanceID);
+                        }
+                        break;
+                    }
+                case "4": //speaking state
+                    {
+                        if(sections[1] == "0")
+                        {
+                            commsNetwork.playedStoppedSpeaking(dissonanceID);
+                            lastAudioId = 0;
+                        }
+                        else
+                        {
+                            commsNetwork.playerStartedSpeaking(dissonanceID);
+                        }
                         break;
                     }
             }
@@ -121,20 +138,8 @@ public class NetworkPlayer : MonoBehaviour
 
     }
 
-    public void receiveAudioData(float[] data)
-    {
+    
 
-        speechClip.SetData(data, lastSample);
-        lastSample += data.Length;
-        lastSample %= speechClip.samples;
-        totalbuffered += data.Length;
-        if (!source.isPlaying && !buffering)
-        {
-            StartCoroutine(startSoundIn(2));
-        }
-        
-
-    }
     IEnumerator startSoundIn(int frames)
     {
         buffering = true;
@@ -145,9 +150,15 @@ public class NetworkPlayer : MonoBehaviour
         source.Play();
         buffering = false;
     }
-    public void sendAudioData(FixedArray a)
+    public void sendAudioData(ArraySegment<byte> data)
     {
-        string b64_data = Convert.ToBase64String(a.array,0,a.count);
-        manager.sendTo(1, "2,"+b64_data + ";");
+        string b64_data = Convert.ToBase64String(data.Array,data.Offset,data.Count);
+        manager.sendTo(1, "2,"+b64_data + ","+lastAudioId +";");
+    }
+
+    public void setDissonanceID(string id)
+    {
+        dissonanceID = id;
+        manager.sendTo(1, "3," + id+";"); 
     }
 }
