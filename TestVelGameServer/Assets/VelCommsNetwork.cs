@@ -70,7 +70,7 @@ namespace Dissonance
 
         public void voiceReceived(string sender,byte[] data,uint sequenceNumber)
         {
-            VoicePacket vp = new VoicePacket(sender, ChannelPriority.Default, 1, true, new ArraySegment<byte>(data), sequenceNumber);
+            VoicePacket vp = new VoicePacket(sender, ChannelPriority.Default, 1, false, new ArraySegment<byte>(data), sequenceNumber);
             VoicePacketReceived(vp);
         }
 
@@ -107,16 +107,13 @@ namespace Dissonance
         public void playerStartedSpeaking(string id)
         {
             PlayerStartedSpeaking(id);
+            Debug.Log("player " + id + " started speaking");
         }
-        public void playedStoppedSpeaking(string id)
+        public void playerStoppedSpeaking(string id)
         {
             PlayerStoppedSpeaking(id);
+            Debug.Log("player " + id + " stopped speaking");
         }
-        // Update is called once per frame
-        void Update()
-        {
-            
-            
-        }
+
     }
 }

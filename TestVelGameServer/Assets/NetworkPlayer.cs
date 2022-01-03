@@ -103,10 +103,13 @@ public class NetworkPlayer : MonoBehaviour
                     }
                 case "2": //audio data
                     {
-                        
-                        byte[] data = Convert.FromBase64String(sections[1]);
-                        uint sequenceNumber = uint.Parse(sections[2]);
-                        commsNetwork.voiceReceived(dissonanceID,data,sequenceNumber);
+
+                        if (isSpeaking)
+                        {
+                            byte[] data = Convert.FromBase64String(sections[1]);
+                            uint sequenceNumber = uint.Parse(sections[2]);
+                            commsNetwork.voiceReceived(dissonanceID, data, sequenceNumber);
+                        }
                         
                         break;
                     }
@@ -124,12 +127,15 @@ public class NetworkPlayer : MonoBehaviour
                     {
                         if(sections[1] == "0")
                         {
-                            commsNetwork.playedStoppedSpeaking(dissonanceID);
+                            commsNetwork.playerStoppedSpeaking(dissonanceID);
                             lastAudioId = 0;
+                            isSpeaking = false;
                         }
                         else
                         {
                             commsNetwork.playerStartedSpeaking(dissonanceID);
+                            lastAudioId = 0;
+                            isSpeaking = true;
                         }
                         break;
                     }
@@ -153,7 +159,7 @@ public class NetworkPlayer : MonoBehaviour
     public void sendAudioData(ArraySegment<byte> data)
     {
         string b64_data = Convert.ToBase64String(data.Array,data.Offset,data.Count);
-        manager.sendTo(0, "2,"+b64_data + ","+lastAudioId +";");
+        manager.sendTo(0, "2,"+b64_data + ","+lastAudioId++ +";");
     }
 
     public void setDissonanceID(string id)
