@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 6854617867369839}
   - component: {fileID: 5845716565458182149}
   - component: {fileID: 5713671764962751473}
+  - component: {fileID: 2513801069545108573}
   m_Layer: 0
   m_Name: PlayerPrefab
   m_TagString: Untagged
@@ -108,10 +109,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d8d3b6de660834e3e898725928251405, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  myObject: {fileID: 2513801069545108573}
   userid: 0
   username: 
-  dissonanceID: 
   room: 
   manager: {fileID: 0}
   isLocal: 0
+  lastObjectId: 0
   commsNetwork: {fileID: 0}
+  dissonanceID: 
+--- !u!114 &2513801069545108573
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6139051692386484099}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3f1f9b0bbd93a484a987c51f1107ebe5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  owner: {fileID: 5713671764962751473}
+  networkId: 
+  targetPosition: {x: 0, y: 0, z: 0}
+  targetRotation: {x: 0, y: 0, z: 0, w: 0}

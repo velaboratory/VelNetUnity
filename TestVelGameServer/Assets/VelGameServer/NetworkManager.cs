@@ -24,7 +24,7 @@ public class NetworkManager : MonoBehaviour
 	public Action<NetworkPlayer> onPlayerLeft = delegate { };
 
 	public List<NetworkObject> prefabs = new List<NetworkObject>();
-
+	NetworkObject[] sceneObjects;
 	public Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
 	NetworkPlayer masterPlayer = null;
 	#endregion
@@ -39,7 +39,8 @@ public class NetworkManager : MonoBehaviour
 	void Start()
 	{
 		ConnectToTcpServer();
-		
+		sceneObjects = GameObject.FindObjectsOfType<NetworkObject>(); //add all local network objects
+
 	}
 
 	
@@ -122,7 +123,7 @@ public class NetworkManager : MonoBehaviour
 						masterPlayer = players[m.sender];
 						
 						//no master player yet, add the scene objects
-						NetworkObject[] sceneObjects = GameObject.FindObjectsOfType<NetworkObject>(); //add all local network objects
+						
 						for (int i = 0; i < sceneObjects.Length; i++)
 						{
 							sceneObjects[i].networkId = -1 + "-" + i;

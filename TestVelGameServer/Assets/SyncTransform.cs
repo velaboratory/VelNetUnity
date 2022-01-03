@@ -6,13 +6,16 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
 
+/// <summary>
+/// A simple class that will sync the position and rotation of a network object
+/// </summary>
 public class SyncTransform : NetworkObject
 {
     
     public Vector3 targetPosition;
     public Quaternion targetRotation;
 
-    
+
     public override byte[] getSyncMessage()
     {
         float[] data = new float[7];
@@ -50,7 +53,9 @@ public class SyncTransform : NetworkObject
     {
         while (true)
         {
-            if (owner != null && owner.isLocal) {
+            if (owner != null && owner.isLocal)
+            {
+                
                 owner.syncObject(this);
             }
             yield return new WaitForSeconds(.1f);
@@ -59,10 +64,11 @@ public class SyncTransform : NetworkObject
     // Update is called once per frame
     void Update()
     {
-        if(owner != null && !owner.isLocal)
+        if (owner != null && !owner.isLocal)
         {
             transform.position = Vector3.Lerp(transform.position, targetPosition, .1f);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, .1f);
         }
     }
+
 }
