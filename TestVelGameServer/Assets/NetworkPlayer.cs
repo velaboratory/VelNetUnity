@@ -12,9 +12,8 @@ public class NetworkPlayer : MonoBehaviour
     public string room;
     public NetworkManager manager;
     Vector3 networkPosition;
-    velmicrophone mic;
-    AudioClip speechClip;
-    AudioSource source;
+
+
     bool buffering = false;
     public List<FixedArray> toSend = new List<FixedArray>();
 
@@ -29,12 +28,7 @@ public class NetworkPlayer : MonoBehaviour
     bool isSpeaking = false;
     void Start()
     {
-        source = GetComponent<AudioSource>();
-        speechClip = AudioClip.Create("speechclip", 160000, 1, 16000, false);
-        source.clip = speechClip;
-        source.Stop();
-        source.loop = true;
-        source.spatialBlend = 0;
+        
         if (manager.userid == userid) //this is me, I send updates
         {
             StartCoroutine(syncTransformCoroutine());
@@ -64,6 +58,10 @@ public class NetworkPlayer : MonoBehaviour
             {
                 isSpeaking = !isSpeaking;
                 manager.sendTo(0, "4," + (isSpeaking?1:0) + ";");
+                if (!isSpeaking)
+                {
+                    lastAudioId = 0;
+                }
                 
             }
         }
@@ -128,13 +126,11 @@ public class NetworkPlayer : MonoBehaviour
                         if(sections[1] == "0")
                         {
                             commsNetwork.playerStoppedSpeaking(dissonanceID);
-                            lastAudioId = 0;
                             isSpeaking = false;
                         }
                         else
                         {
                             commsNetwork.playerStartedSpeaking(dissonanceID);
-                            lastAudioId = 0;
                             isSpeaking = true;
                         }
                         break;
@@ -146,20 +142,10 @@ public class NetworkPlayer : MonoBehaviour
 
     
 
-    IEnumerator startSoundIn(int frames)
-    {
-        buffering = true;
-        for(int i = 0; i < frames; i++)
-        {
-            yield return null;
-        }
-        source.Play();
-        buffering = false;
-    }
     public void sendAudioData(ArraySegment<byte> data)
     {
         string b64_data = Convert.ToBase64String(data.Array,data.Offset,data.Count);
-        manager.sendTo(0, "2,"+b64_data + ","+lastAudioId++ +";");
+        manager.sendTo(0, "2,"+b64_data + ","+ (lastAudioId++) +";");
     }
 
     public void setDissonanceID(string id)
