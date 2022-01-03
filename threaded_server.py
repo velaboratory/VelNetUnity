@@ -46,6 +46,36 @@ def send_client_message(client, message):
     client.message_lock.release()
     client.message_ready.set()
 
+def leave_room(client, clientDisconnected=False):
+    global rooms
+    global rooms_lock
+    choseNewMaster = False
+    newMasterId = -1
+    rooms_lock.acquire()
+    try: 
+        rooms[client.room].clients.remove(client)
+        if(len(rooms[client.room].clients) == 0):
+            del rooms[client.room]
+        elif rooms[client.room].master == client:
+            rooms[client.room].master = rooms[client.room].clients[0]
+            newMasterId = rooms[client.room].master.id
+            choseNewMaster = True
+            
+
+    except Exception as e: 
+        print("not in room")
+    rooms_lock.release()
+    send_room_message(client.room, f"2:{client.id}:\n") #client not in the room anymore
+    if not clientDisconnected:
+        send_client_message(client,f"2:{client.id}:\n") #so send again to them
+    else:
+        client_lock.acquire()
+        del client_dict[client.id] #remove the client from the list of clients...
+        client_lock.release()
+    if choseNewMaster:
+        send_room_message(client.room,f"4:{newMasterId}\n")
+    client.room = ""
+    
 def decode_message(client,message):
     global rooms
     global rooms_lock
@@ -68,50 +98,46 @@ def decode_message(client,message):
         if messageType == '2' and len(decodedMessage) > 1:
 
             #join or create a room
-            
+            print("request to join " + decodedMessage[1] + " from " + str(client.id))
             roomName = decodedMessage[1]
             if client.room == roomName: #don't join the same room
+                print("Client trying to join the same room")
                 pass
             elif (roomName == '-1') and client.room != '': #can't leave a room if you aren't in one
                 #leave the room
-                rooms_lock.acquire()
-                try: 
-                    
-                    rooms[client.room].clients.remove(client)
-                    if(len(rooms[client.room].clients) == 0):
-                        del rooms[client.room]
-                except Exception as e: 
-                    print("not in room")
-                rooms_lock.release()
-                send_room_message(client.room, f"2:{client.id}:\n")
-                send_client_message(client,f"2:{client.id}:\n")
-                client.room = ''
+                leave_room(client)
             elif roomName != '': #join or create the room
-                rooms_lock.acquire()
                 
+                
+                if client.room != '':
+                    #leave that room
+                    leave_room(client)
+                
+                masterId = -1
+                rooms_lock.acquire()
+
                 if roomName in rooms:
                     #join the room
                     rooms[roomName].clients.append(client)
-                    
+                    masterId = rooms[roomName].master.id
                 else:
-                    #create the room and join
-                    rooms[roomName] = types.SimpleNamespace(name=roomName,clients=[client],room_lock=threading.Lock())
-                
-                
-                rooms_lock.release()
+                    #create the room and join it as master
+                    rooms[roomName] = types.SimpleNamespace(name=roomName,clients=[client],master=client,room_lock=threading.Lock())
+                    masterId = client.id
 
-                if (client.room != '') and (client.room != roomName): #client left the previous room
-                    send_room_message(client.room, f"2:{client.id}:{roomName}:\n") 
+                current_clients = rooms[roomName].clients
+                rooms_lock.release()
                 
                 client.room = roomName #client joins the new room
                 #send a message to the clients new room that they joined!
                 send_room_message(roomName, f"2:{client.id}:{client.room}\n")
                 
-                for c in rooms[roomName].clients:
+                
+                for c in current_clients: #tell that client about all the other clients in the room
                     if c.id != client.id:
                         send_client_message(client,f"2:{c.id}:{client.room}\n")
-
                 
+                send_client_message(client, f"4:{masterId}\n") #tell the client who the master is
             
 
                 
@@ -157,16 +183,10 @@ def client_read_thread(conn, addr, client):
         client.message_ready.set()
         pass
     #now we can kill the client, removing the client from the rooms
-    client_lock.acquire()
-    rooms_lock.acquire()
-    if client.room != '':
-        rooms[client.room].clients.remove(client)
-        if(len(rooms[client.room].clients) == 0):
-            del rooms[client.room]
-    del client_dict[client.id] #remove the client from the list of clients...
-    rooms_lock.release()
-    client_lock.release()
-    send_room_message(client.room, f"2:{client.id}:\n")
+    
+
+    leave_room(client,True)
+
     print("client destroyed")
 def client_write_thread(conn, addr, client):
     while client.alive:

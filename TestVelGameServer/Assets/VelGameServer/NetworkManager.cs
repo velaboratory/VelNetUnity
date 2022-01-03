@@ -22,6 +22,11 @@ public class NetworkManager : MonoBehaviour
 	public Action<NetworkPlayer> onJoinedRoom = delegate { };
 	public Action<NetworkPlayer> onPlayerJoined = delegate { };
 	public Action<NetworkPlayer> onPlayerLeft = delegate { };
+
+	public List<NetworkObject> prefabs = new List<NetworkObject>();
+
+	public Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
+	NetworkPlayer masterPlayer = null;
 	#endregion
 	// Use this for initialization
 	public class Message
@@ -47,9 +52,9 @@ public class NetworkManager : MonoBehaviour
 			receivedMessages.Add(m);
 		}
 	}
-    private void Update()
+    private void Update() 
     {
-        lock(receivedMessages) {
+        lock(receivedMessages) { //the main thread, which can do Unity stuff
 			foreach(Message m in receivedMessages)
             {
 				if(m.type == 0) //when you join the server
@@ -57,7 +62,7 @@ public class NetworkManager : MonoBehaviour
 					this.userid = m.sender;
 					Debug.Log("joined server");
                 }
-
+				 
 				if (m.type == 2)
 				{
 					//if this message is for me, that means I joined a new room...
@@ -104,12 +109,44 @@ public class NetworkManager : MonoBehaviour
 						}
 					}
 				}
-				if(m.type == 3)
+				if(m.type == 3) //generic message
                 {
 
 					players[m.sender]?.handleMessage(m);
                     
                 }
+				if(m.type == 4) //change master player (this should only happen when the first player joins or if the master player leaves)
+                {
+					if (masterPlayer == null)
+					{
+						masterPlayer = players[m.sender];
+						
+						//no master player yet, add the scene objects
+						NetworkObject[] sceneObjects = GameObject.FindObjectsOfType<NetworkObject>(); //add all local network objects
+						for (int i = 0; i < sceneObjects.Length; i++)
+						{
+							sceneObjects[i].networkId = -1 + "-" + i;
+							sceneObjects[i].owner = masterPlayer;
+							objects.Add(sceneObjects[i].networkId,sceneObjects[i]);
+						}
+						
+					}
+                    else
+                    {
+						masterPlayer = players[m.sender];
+                    }
+
+					masterPlayer.setAsMasterPlayer();
+
+					//master player should take over any objects that do not have an owner
+
+					foreach(KeyValuePair<string,NetworkObject> kvp in objects)
+                    {
+						kvp.Value.owner = masterPlayer;
+                    }
+
+				}
+				
 				messageReceived(m);
             }
 			receivedMessages.Clear();
@@ -142,7 +179,7 @@ public class NetworkManager : MonoBehaviour
 			Debug.Log("On client connect exception " + e);
 		}
 	}
-	void handleMessage(string s)
+	void handleMessage(string s) //this parses messages from the server, and adds them to a queue to be processed on the main thread
     {
 		Message m = new Message();
 		string[] sections = s.Split(':');
@@ -191,6 +228,16 @@ public class NetworkManager : MonoBehaviour
 							m.type = 3;
 							m.sender = int.Parse(sections[1]);
 							m.text = sections[2];
+							addMessage(m);
+                        }
+						break;
+					}
+				case 4: //change master client
+                    {
+						if(sections.Length > 1)
+                        {
+							m.type = 4;
+							m.sender = int.Parse(sections[1]);
 							addMessage(m);
                         }
 						break;

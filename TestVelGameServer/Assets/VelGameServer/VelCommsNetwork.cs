@@ -8,6 +8,7 @@ using UnityEngine;
 
 namespace Dissonance
 {
+    [RequireComponent(typeof(DissonanceComms),typeof(NetworkManager))]
     public class VelCommsNetwork : MonoBehaviour, ICommsNetwork
     {
         public ConnectionStatus Status
@@ -39,8 +40,6 @@ namespace Dissonance
         ConnectionStatus _status = ConnectionStatus.Disconnected;
         CodecSettings initSettings;
         public string dissonanceId;
-        List<VoicePacket> packets = new List<VoicePacket>();
-        bool loopBackSound = false;
         public DissonanceComms comms;
         public NetworkManager manager;
         NetworkPlayer myPlayer;

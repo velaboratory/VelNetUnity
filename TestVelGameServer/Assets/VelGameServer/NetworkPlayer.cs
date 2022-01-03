@@ -14,6 +14,7 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
     public NetworkManager manager;
     Vector3 networkPosition;
     public bool isLocal = false;
+    public int lastObjectId=0; //for instantiation
     
     public Dissonance.VelCommsNetwork commsNetwork;
     bool isSpeaking = false;
@@ -25,6 +26,7 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
     public Quaternion Rotation => transform.rotation;
     public NetworkPlayerType Type => isLocal?NetworkPlayerType.Local:NetworkPlayerType.Remote;
     public bool IsTracking => true;
+    bool isMaster = false;
 
     void Start()
     {
@@ -132,6 +134,66 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
                         }
                         break;
                     }
+                case "5": //sync update for an object I may own
+                    {
+
+                        string objectKey = sections[1];
+                        string syncMessage = sections[2];
+                        byte[] messageBytes = Convert.FromBase64String(syncMessage);
+                        if (manager.objects.ContainsKey(objectKey))
+                        {
+                            if(manager.objects[objectKey].owner == this)
+                            {
+                                manager.objects[objectKey].handleSyncMessage(messageBytes);
+                            }
+                        }
+
+                        break;
+                    }
+                case "6": //I'm trying to take ownership of an object 
+                    {
+                        int objectId = int.Parse(sections[1]);
+                        int creatorId = int.Parse(sections[2]);
+                        string objectKey = creatorId + "-" + objectId;
+                        if (manager.objects.ContainsKey(objectKey))
+                        {
+                            manager.objects[objectKey].owner = this;
+                            
+                        }
+                        
+                        break;
+                    }
+                case "7": //I'm trying to instantiate an object (sent to everyone)
+                    {
+                        int objectId = int.Parse(sections[1]);
+                        string prefabName = sections[2];
+                        NetworkObject temp = manager.prefabs.Find((prefab) => prefab.name == prefabName);
+                        if (temp != null)
+                        {
+                            NetworkObject instance = GameObject.Instantiate<NetworkObject>(temp);
+                            instance.networkId = this.userid + "-" + objectId;
+                            
+                            instance.owner = this;
+                            manager.objects.Add(instance.networkId, instance);
+                        }
+
+                        break;
+                    }
+                case "8": //I'm trying to destroy a gameobject I own (I guess this is sent to everyone)
+                    {
+                        int objectId = int.Parse(sections[1]);
+                        int creatorId = int.Parse(sections[2]);
+                        string objectKey = creatorId + "-" + objectId;
+                        if (manager.objects.ContainsKey(objectKey))
+                        {
+                            if (manager.objects[objectKey].owner == this)
+                            {
+                                GameObject.Destroy(manager.objects[objectKey].gameObject);
+                            }
+                            manager.objects.Remove(objectKey);
+                        }
+                        break;
+                    }
             }
         }
 
@@ -153,5 +215,22 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
         dissonanceID = id;
         manager.sendTo(0, "3," + id+";");
         commsNetwork.comms.TrackPlayerPosition(this);
+    }
+
+    public void setAsMasterPlayer()
+    {
+        isMaster = true;
+        //if I'm master, I'm now responsible for updating all scene objects
+        //FindObjectsOfType<NetworkObject>();
+    }
+    public void syncObject(NetworkObject obj)
+    {
+        byte[] data = obj.getSyncMessage();
+        manager.sendTo(0, "5," + obj.networkId + "," + Convert.ToBase64String(data));
+    }
+
+    public void instantiateObject(string prefab)
+    {
+
     }
 }

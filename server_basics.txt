@@ -40,6 +40,7 @@ rooms - a list of rooms on the server, with counts
 
 3:user_id:Message\n - message from sender user_id
 
+4:user_id\n - You are the master client
 
 Unity-side. 
 
