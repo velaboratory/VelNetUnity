@@ -63,7 +63,7 @@ public class NetworkPlayer : MonoBehaviour
             if(commsNetwork.comms.FindPlayer(dissonanceID).IsSpeaking != isSpeaking)
             {
                 isSpeaking = !isSpeaking;
-                manager.sendTo(1, "4," + (isSpeaking?1:0) + ";");
+                manager.sendTo(0, "4," + (isSpeaking?1:0) + ";");
                 
             }
         }
@@ -153,12 +153,12 @@ public class NetworkPlayer : MonoBehaviour
     public void sendAudioData(ArraySegment<byte> data)
     {
         string b64_data = Convert.ToBase64String(data.Array,data.Offset,data.Count);
-        manager.sendTo(1, "2,"+b64_data + ","+lastAudioId +";");
+        manager.sendTo(0, "2,"+b64_data + ","+lastAudioId +";");
     }
 
     public void setDissonanceID(string id)
     {
         dissonanceID = id;
-        manager.sendTo(1, "3," + id+";"); 
+        manager.sendTo(0, "3," + id+";"); 
     }
 }
