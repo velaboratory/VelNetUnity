@@ -279,6 +279,7 @@ public class NetworkManager : MonoBehaviour
 		try
 		{
 			socketConnection = new TcpClient(host, port);
+			socketConnection.NoDelay = true; 
 			Byte[] bytes = new Byte[1024];
 			string partialMessage = "";
 			while (true)

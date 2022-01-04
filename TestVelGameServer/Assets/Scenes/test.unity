@@ -1819,7 +1819,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 03a4d4e1a7fd74c7ab2eccca4ce168db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  host: localhost
+  host: neko.ugavel.com
   port: 3290
   userid: -1
   room: 

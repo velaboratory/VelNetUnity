@@ -99,8 +99,9 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
             {
                 case "1": //update my object's data
                     {
-                        byte[] message = Convert.FromBase64String(sections[1]);
-                        myObject.handleSyncMessage(message);
+                        string identifier = sections[1];
+                        byte[] message = Convert.FromBase64String(sections[2]);
+                        myObject.handleMessage(identifier, message);
                         break;
                     }
                 case "2": //audio data
@@ -144,13 +145,14 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
                     {
 
                         string objectKey = sections[1];
-                        string syncMessage = sections[2];
+                        string identifier = sections[2];
+                        string syncMessage = sections[3];
                         byte[] messageBytes = Convert.FromBase64String(syncMessage);
                         if (manager.objects.ContainsKey(objectKey))
                         {
                             if(manager.objects[objectKey].owner == this)
                             {
-                                manager.objects[objectKey].handleSyncMessage(messageBytes);
+                                manager.objects[objectKey].handleMessage(identifier, messageBytes);
                             }
                         }
 
@@ -223,7 +225,6 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
     public void setDissonanceID(string id) //this sort of all initializes dissonance
     {
         dissonanceID = id;
-        Debug.Log("here");
         manager.sendTo(NetworkManager.MessageType.OTHERS, "3," + id+";");
         commsNetwork.comms.TrackPlayerPosition(this);
     }
@@ -234,17 +235,18 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
         //if I'm master, I'm now responsible for updating all scene objects
         //FindObjectsOfType<NetworkObject>();
     }
-    public void syncObject(NetworkObject obj)
+    
+
+    public void sendMessage(NetworkObject obj, string identifier, byte[] data)
     {
-        byte[] data = obj.getSyncMessage();
         if (obj == myObject)
         {
-            manager.sendTo(NetworkManager.MessageType.OTHERS, "1," + Convert.ToBase64String(data));
+            manager.sendTo(NetworkManager.MessageType.OTHERS, "1," + identifier +"," + Convert.ToBase64String(data));
         }
         else
         {
-            
-            manager.sendTo(NetworkManager.MessageType.OTHERS, "5," + obj.networkId + "," + Convert.ToBase64String(data));
+
+            manager.sendTo(NetworkManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data));
         }
     }
 

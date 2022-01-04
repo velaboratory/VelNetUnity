@@ -10,7 +10,7 @@ public class PlayerController : NetworkObject
     public Quaternion targetRotation;
 
 
-    public override byte[] getSyncMessage()
+    public byte[] getSyncMessage()
     {
         float[] data = new float[7];
         for (int i = 0; i < 3; i++)
@@ -25,16 +25,21 @@ public class PlayerController : NetworkObject
         return toReturn;
     }
 
-    public override void handleSyncMessage(byte[] message)
+    public override void handleMessage(string identifier, byte[] message)
     {
-        float[] data = new float[7];
-        Buffer.BlockCopy(message, 0, data, 0, message.Length);
-        for (int i = 0; i < 3; i++)
+        switch (identifier)
         {
-            targetPosition[i] = data[i];
-            targetRotation[i] = data[i + 3];
+            case "s":
+                float[] data = new float[7];
+                Buffer.BlockCopy(message, 0, data, 0, message.Length);
+                for (int i = 0; i < 3; i++)
+                {
+                    targetPosition[i] = data[i];
+                    targetRotation[i] = data[i + 3];
+                }
+                targetRotation[3] = data[6];
+                break;
         }
-        targetRotation[3] = data[6];
     }
 
     // Start is called before the first frame update
@@ -50,7 +55,7 @@ public class PlayerController : NetworkObject
             if (owner != null && owner.isLocal)
             {
 
-                owner.syncObject(this);
+                owner.sendMessage(this, "s", getSyncMessage());
             }
             yield return new WaitForSeconds(.1f);
         }
