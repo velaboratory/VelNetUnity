@@ -8,7 +8,6 @@ using UnityEngine;
 
 namespace Dissonance
 {
-    [RequireComponent(typeof(DissonanceComms),typeof(NetworkManager))]
     public class VelCommsNetwork : MonoBehaviour, ICommsNetwork
     {
         public ConnectionStatus Status
@@ -95,6 +94,7 @@ namespace Dissonance
 
         public void playerJoined(string id)
         {
+            Debug.Log("dissonance player joined");
             PlayerJoined(id, initSettings);
             RoomEvent re = new RoomEvent();
             re.Joined = true;

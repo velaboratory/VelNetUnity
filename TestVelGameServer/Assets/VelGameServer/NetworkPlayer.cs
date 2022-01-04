@@ -32,8 +32,8 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
     public bool IsTracking => true;
     bool isMaster = false;
 
-    
-
+    public List<int> closePlayers = new List<int>(); //for testing audio communications
+    public bool changeClosePlayers = true;
     void Start()
     {
         myObject.owner = this;
@@ -47,18 +47,22 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
         //handle dissonance comms
         if(isLocal)
         {
+            
             //if we're not speaking, and the comms say we are, send a speaking event, which will be received on other network players and sent to their comms accordingly
-            if(commsNetwork.comms.FindPlayer(dissonanceID).IsSpeaking != isSpeaking) //unfortunately, there does not seem to be an event for this
+            if (commsNetwork.comms.FindPlayer(dissonanceID).IsSpeaking != isSpeaking) //unfortunately, there does not seem to be an event for this
             {
                 isSpeaking = !isSpeaking;
-                manager.sendTo(0, "4," + (isSpeaking?1:0) + ";");
+                manager.sendTo(NetworkManager.MessageType.OTHERS, "4," + (isSpeaking?1:0) + ";");
                 if (!isSpeaking)
                 {
                     lastAudioId = 0;
                 }
                 
             }
+            
         }
+
+
 
     }
 
@@ -71,7 +75,7 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
             {
                 if(kvp.Value.owner == this && kvp.Value.prefabName != "")
                 {
-                    manager.sendTo(0, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
+                    manager.sendTo(NetworkManager.MessageType.OTHERS, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
                     
                 }
             }
@@ -206,14 +210,21 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
 
     public void sendAudioData(ArraySegment<byte> data)
     {
+        if (changeClosePlayers)
+        {
+            manager.setupMessageGroup("close", closePlayers.ToArray());
+            changeClosePlayers = false;
+        }
         string b64_data = Convert.ToBase64String(data.Array,data.Offset,data.Count);
-        manager.sendTo(0, "2,"+b64_data + ","+ (lastAudioId++) +";");
+        //manager.sendTo(NetworkManager.MessageType.OTHERS, "2," + b64_data + "," + (lastAudioId++) + ";");
+        manager.sendToGroup("close", "2,"+b64_data + ","+ (lastAudioId++) +";");
     }
 
     public void setDissonanceID(string id) //this sort of all initializes dissonance
     {
         dissonanceID = id;
-        manager.sendTo(0, "3," + id+";");
+        Debug.Log("here");
+        manager.sendTo(NetworkManager.MessageType.OTHERS, "3," + id+";");
         commsNetwork.comms.TrackPlayerPosition(this);
     }
 
@@ -228,12 +239,12 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
         byte[] data = obj.getSyncMessage();
         if (obj == myObject)
         {
-            manager.sendTo(0, "1," + Convert.ToBase64String(data));
+            manager.sendTo(NetworkManager.MessageType.OTHERS, "1," + Convert.ToBase64String(data));
         }
         else
         {
             
-            manager.sendTo(0, "5," + obj.networkId + "," + Convert.ToBase64String(data));
+            manager.sendTo(NetworkManager.MessageType.OTHERS, "5," + obj.networkId + "," + Convert.ToBase64String(data));
         }
     }
 
@@ -255,7 +266,7 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
             instance.owner = this;
             manager.objects.Add(instance.networkId, instance);
 
-            manager.sendTo(0, "7," + networkId + "," + prefabName);
+            manager.sendTo(NetworkManager.MessageType.OTHERS, "7," + networkId + "," + prefabName); //only sent to others, as I already instantiated this.  Nice that it happens immediately. 
             return instance;
         }
         return null;
@@ -264,7 +275,7 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
     public void networkDestroy(string networkId)
     {
         if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return; //must be the local owner of the object to destroy it
-        manager.sendTo(3, "8," + networkId); //send to all, which will make me delete as well
+        manager.sendTo(NetworkManager.MessageType.ALL_ORDERED, "8," + networkId); //send to all, which will make me delete as well
     }
 
     public void takeOwnership(string networkId)
@@ -272,7 +283,7 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
         if (!manager.objects.ContainsKey(networkId) || !isLocal) return; //must exist and be the the local player
 
         manager.objects[networkId].owner = this; //immediately successful
-        manager.sendTo(2, "6," + networkId); //must be ordered, so that ownership transfers are not confused
+        manager.sendTo(NetworkManager.MessageType.ALL_ORDERED, "6," + networkId); //must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
 
     }
 

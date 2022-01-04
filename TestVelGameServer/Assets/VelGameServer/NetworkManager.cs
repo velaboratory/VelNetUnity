@@ -8,6 +8,7 @@ using UnityEngine;
 using Dissonance;
 public class NetworkManager : MonoBehaviour
 {
+	public enum MessageType { OTHERS=0,ALL=1,OTHERS_ORDERED=2,ALL_ORDERED=3};
 	public string host;
 	public int port;
 	#region private members 	
@@ -363,10 +364,19 @@ public class NetworkManager : MonoBehaviour
     }
 	public void leave()
     {
-		SendNetworkMessage("2:-1\n");
+		SendNetworkMessage("2:-1");
     }
-	public void sendTo(int type, string message)
+	public void sendTo(MessageType type, string message)
     {
-		SendNetworkMessage("3:" + type + ":" + message);
+		SendNetworkMessage("3:" + (int)type + ":" + message);
+    }
+	public void sendToGroup(string group, string message)
+    {
+		SendNetworkMessage("4:" + group + ":" + message);
+    }
+	//changes the designated group that sendto(4) will go to
+	public void setupMessageGroup(string groupname, int[] userids)
+    {
+		SendNetworkMessage("5:" + groupname + ":" + String.Join(":", userids));
     }
 }

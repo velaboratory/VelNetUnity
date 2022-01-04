@@ -16,7 +16,7 @@ public class NetworkGUI : MonoBehaviour
     {
         if(sendInput.text != "")
         {
-            networkManager.sendTo(0,sendInput.text);
+            networkManager.sendTo(NetworkManager.MessageType.OTHERS,sendInput.text);
         }
     }
     public void handleLogin()

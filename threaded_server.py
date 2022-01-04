@@ -40,6 +40,13 @@ def send_room_message(roomName, message, exclude_client=None): #not guaranteed t
         if (exclude_client != None) and (c.id == exclude_client.id): continue
         send_client_message(c,message)
 
+def send_group_message(group, message):
+    for client_id in group:
+        if client_id in client_dict:
+            client = client_dict[client_id] #not sure if we need to lock this...I've heard that basic dictionary access is thread safe
+            send_client_message(client, message)
+
+
 def send_client_message(client, message):
     client.message_lock.acquire()
     client.message_queue.append(message)
@@ -153,7 +160,18 @@ def decode_message(client,message):
                 send_synced_room_message(client.room,f"3:{client.id}:{decodedMessage[2]}\n",client)
             elif subMessageType == '3': #everyone including the client, ensuring order
                 send_synced_room_message(client.room,f"3:{client.id}:{decodedMessage[2]}\n")
-
+        if messageType == '4' and len(decodedMessage) > 2:
+            if decodedMessage[1] in client.groups:
+                send_group_message(client.groups[decodedMessage[1]],f"3:{client.id}:{decodedMessage[2]}\n")
+        if messageType == '5' and len(decodedMessage) > 2:
+            #specify a new group of clients
+            group_clients = []
+            for c in decodedMessage[2:]:
+                try: group_clients.append(int(c))
+                except: pass
+            client.groups[decodedMessage[1]] = group_clients
+            print("got new group: " + str(client.groups))
+        
 def client_read_thread(conn, addr, client):
     global rooms
     global rooms_lock
@@ -221,6 +239,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                                         logged_in=False,
                                         username='',
                                         room='',
+                                        groups={}, # a dictionary of groups that you may send to.  groups are lists of user ids
                                         write_thread_dead=False
                                         )
         client_lock.acquire()

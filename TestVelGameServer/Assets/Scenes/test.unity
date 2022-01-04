@@ -2257,7 +2257,6 @@ GameObject:
   - component: {fileID: 1434745019}
   - component: {fileID: 1434745022}
   - component: {fileID: 1434745023}
-  - component: {fileID: 1434745024}
   m_Layer: 0
   m_Name: Dissonance
   m_TagString: Untagged
@@ -2278,7 +2277,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   dissonanceId: 
-  comms: {fileID: 0}
+  comms: {fileID: 1434745021}
   manager: {fileID: 1099803616}
 --- !u!4 &1434745020
 Transform:
@@ -2368,25 +2367,6 @@ MonoBehaviour:
     _tokens: []
   _roomName: Global
   _useTrigger: 0
---- !u!114 &1434745024
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1434745018}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 03a4d4e1a7fd74c7ab2eccca4ce168db, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  host: 
-  port: 0
-  userid: -1
-  room: 
-  playerPrefab: {fileID: 0}
-  prefabs: []
-  connected: 0
 --- !u!1 &1484033255
 GameObject:
   m_ObjectHideFlags: 0
