@@ -69,7 +69,7 @@ namespace Dissonance
 
         public void voiceReceived(string sender,byte[] data,uint sequenceNumber)
         {
-            Debug.Log(sequenceNumber);
+            
             VoicePacket vp = new VoicePacket(sender, ChannelPriority.Default, 1, true, new ArraySegment<byte>(data,0,data.Length), sequenceNumber);
             VoicePacketReceived(vp);
         }

@@ -25,7 +25,9 @@ Send message - You can say "all", "others", or list specific users that should r
 3:1:Message\n - all in room
 3:2:Message\n - others in the room, at once, meaning order is maintained
 3:3:Message\n - all in room, order maintained
-(todo) 3:4:u1:u2...:uN:Message\n - others
+
+4:group:Message\n - message a specific group
+5:group:c1:c2:c3\n - specify a named group of clients (used with 4)
 
 OUTGOING MESSAGES (send by server)
 
@@ -58,13 +60,13 @@ Ownership of objects changes regularly.  Any local networkplayer can send a mess
 
 An interesting problem is what to do when new clients join.  This is partially left up to the developer.  Any objects that are instantiated (or scene objects that are deleted) will be automatically handled. (todo-include an instantiation packet).  
 
+Clients can manage network traffic using messaging groups.  This is especially useful for audio, where you can maintain a list of people close enough to you to hear audio 
+
 Todo: 
 
-Demonstrate how to deal with partial updates
-Scene objects that are destroyed need to be buffered to new clients.  
-No physics yet
-Need to address what happens when you join a new room
-Need to add something like an RPC message that gets delivered through the network object, rather than the player.  Could be used for syncing
-Documentation 
+Scene objects that are destroyed need to be buffered to new clients.
+Instantiation byte[] (full sync, basically).   
+Need to determine what happens when you specifically leave a room (session).   
+
 
 
