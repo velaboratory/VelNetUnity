@@ -122,7 +122,7 @@ def decode_message(client,message):
                     masterId = rooms[roomName].master.id
                 else:
                     #create the room and join it as master
-                    rooms[roomName] = types.SimpleNamespace(name=roomName,clients=[client],master=client,room_lock=threading.Lock())
+                    rooms[roomName] = types.SimpleNamespace(name=roomName,clients=[client],master=client, room_lock=threading.Lock())
                     masterId = client.id
 
                 current_clients = rooms[roomName].clients
@@ -145,14 +145,13 @@ def decode_message(client,message):
         if messageType == '3' and len(decodedMessage) > 2:
             subMessageType = decodedMessage[1]
             if subMessageType == '0':
-                #send a message to everyone in the room (not synced)
+                #send a message to everyone else in the room (not synced)
                 send_room_message(client.room,f"3:{client.id}:{decodedMessage[2]}\n",client)
-            elif subMessageType == '1':
+            elif subMessageType == '1': #everyone including the client who sent it 
                 send_room_message(client.room,f"3:{client.id}:{decodedMessage[2]}\n")
-            elif subMessageType == '2':
-                #send a message to everyone in the room (not synced)
+            elif subMessageType == '2': #everyone but the client, ensures order within the room
                 send_synced_room_message(client.room,f"3:{client.id}:{decodedMessage[2]}\n",client)
-            elif subMessageType == '3':
+            elif subMessageType == '3': #everyone including the client, ensuring order
                 send_synced_room_message(client.room,f"3:{client.id}:{decodedMessage[2]}\n")
 
 def client_read_thread(conn, addr, client):

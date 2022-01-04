@@ -32,9 +32,13 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
     public bool IsTracking => true;
     bool isMaster = false;
 
-    void Awake()
+    
+
+    void Start()
     {
         myObject.owner = this;
+        this.manager = GameObject.FindObjectOfType<NetworkManager>();
+        manager.onPlayerJoined += handlePlayerJoined;
     }
 
     // Update is called once per frame
@@ -57,6 +61,23 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
         }
 
     }
+
+    public void handlePlayerJoined(NetworkPlayer player)
+    {
+        //if this is the local player, go through the objects that I own, and send instantiation messages for the ones that have prefab names
+        if (this.isLocal)
+        {
+            foreach(KeyValuePair<string,NetworkObject> kvp in manager.objects)
+            {
+                if(kvp.Value.owner == this && kvp.Value.prefabName != "")
+                {
+                    manager.sendTo(0, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
+                    
+                }
+            }
+        }
+    }
+    
 
     public void handleMessage(NetworkManager.Message m)
     {
@@ -133,27 +154,29 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
                     }
                 case "6": //I'm trying to take ownership of an object 
                     {
-                        int objectId = int.Parse(sections[1]);
-                        int creatorId = int.Parse(sections[2]);
-                        string objectKey = creatorId + "-" + objectId;
-                        if (manager.objects.ContainsKey(objectKey))
+                        string networkId = sections[1];
+                        
+                        if (manager.objects.ContainsKey(networkId))
                         {
-                            manager.objects[objectKey].owner = this;
-                            
+                            manager.objects[networkId].owner = this;
                         }
                         
                         break;
                     }
-                case "7": //I'm trying to instantiate an object (sent to everyone)
+                case "7": //I'm trying to instantiate an object 
                     {
-                        int objectId = int.Parse(sections[1]);
+                        string networkId = sections[1];
                         string prefabName = sections[2];
+                        if (manager.objects.ContainsKey(networkId))
+                        {
+                            break; //we already have this one, ignore
+                        }
                         NetworkObject temp = manager.prefabs.Find((prefab) => prefab.name == prefabName);
                         if (temp != null)
                         {
                             NetworkObject instance = GameObject.Instantiate<NetworkObject>(temp);
-                            instance.networkId = this.userid + "-" + objectId;
-                            
+                            instance.networkId = networkId;
+                            instance.prefabName = prefabName;
                             instance.owner = this;
                             manager.objects.Add(instance.networkId, instance);
                         }
@@ -162,16 +185,12 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
                     }
                 case "8": //I'm trying to destroy a gameobject I own (I guess this is sent to everyone)
                     {
-                        int objectId = int.Parse(sections[1]);
-                        int creatorId = int.Parse(sections[2]);
-                        string objectKey = creatorId + "-" + objectId;
-                        if (manager.objects.ContainsKey(objectKey))
-                        {
-                            if (manager.objects[objectKey].owner == this)
-                            {
-                                GameObject.Destroy(manager.objects[objectKey].gameObject);
-                            }
-                            manager.objects.Remove(objectKey);
+                        string networkId = sections[1];
+
+                        if (manager.objects.ContainsKey(networkId) && manager.objects[networkId].owner == this)
+                        { 
+                            GameObject.Destroy(manager.objects[networkId].gameObject);
+                            manager.objects.Remove(networkId);
                         }
                         break;
                     }
@@ -218,8 +237,42 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
         }
     }
 
-    public void instantiateObject(string prefab)
+    public NetworkObject networkInstantiate(string prefabName)
     {
+        if (!isLocal)
+        {
+            return null; //must be the local player to call instantiate
+        }
+        string networkId = this.userid + "-" + lastObjectId++;
+        
+
+        NetworkObject temp = manager.prefabs.Find((prefab) => prefab.name == prefabName);
+        if (temp != null)
+        {
+            NetworkObject instance = GameObject.Instantiate<NetworkObject>(temp);
+            instance.networkId = networkId;
+            instance.prefabName = prefabName;
+            instance.owner = this;
+            manager.objects.Add(instance.networkId, instance);
+
+            manager.sendTo(0, "7," + networkId + "," + prefabName);
+            return instance;
+        }
+        return null;
+    }
+
+    public void networkDestroy(string networkId)
+    {
+        if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return; //must be the local owner of the object to destroy it
+        manager.sendTo(3, "8," + networkId); //send to all, which will make me delete as well
+    }
+
+    public void takeOwnership(string networkId)
+    {
+        if (!manager.objects.ContainsKey(networkId) || !isLocal) return; //must exist and be the the local player
+
+        manager.objects[networkId].owner = this; //immediately successful
+        manager.sendTo(2, "6," + networkId); //must be ordered, so that ownership transfers are not confused
 
     }
 
