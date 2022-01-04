@@ -75,6 +75,21 @@ public class PlayerController : NetworkObject
             {
                 owner.networkInstantiate("TestNetworkedGameObject");
             }
+
+            if (Input.GetKeyDown(KeyCode.BackQuote))
+            {
+                foreach(KeyValuePair<string,NetworkObject> kvp in owner.manager.objects)
+                {
+                    owner.takeOwnership(kvp.Key);
+                }
+            }
+            if (Input.GetKeyDown(KeyCode.Backspace))
+            {
+                foreach (KeyValuePair<string, NetworkObject> kvp in owner.manager.objects)
+                {
+                    owner.networkDestroy(kvp.Key);
+                }
+            }
         }
     }
 }
