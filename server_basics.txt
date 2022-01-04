@@ -25,7 +25,7 @@ Send message - You can say "all", "others", or list specific users that should r
 3:1:Message\n - all in room
 3:2:Message\n - others in the room, at once, meaning order is maintained
 3:3:Message\n - all in room, order maintained
-3:4:u1:u2...:uN:Message\n - others
+(todo) 3:4:u1:u2...:uN:Message\n - others
 
 OUTGOING MESSAGES (send by server)
 
@@ -40,15 +40,25 @@ rooms - a list of rooms on the server, with counts
 
 3:user_id:Message\n - message from sender user_id
 
-4:user_id\n - You are the master client
+4:user_id\n - New master client
+
+
 
 Unity-side. 
 
 Instantiate message creates a network id, assigning that player as owner
---A network id is a simple number + the creator server id, which uniquely identifies it
+--A network id is a creator_id + incrementing number, which uniquely identifies it.  -1 is used for scene objects.
 
 Take ownership reassigns a player as owner. Must use the order_maintained parts above.
 
 Update network id sends a packet to specifically serialize parts of an object that have changed.  A change flag indicates what parts have changed.  
+
+
+Todo: 
+
+Scene objects that are destroyed need to be buffered to new clients.  
+No physics yet
+Need to address what happens when you join a new room
+Documentation 
 
 
