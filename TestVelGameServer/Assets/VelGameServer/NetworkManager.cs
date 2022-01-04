@@ -93,7 +93,25 @@ public class NetworkManager : MonoBehaviour
 
 						if (me.room != m.text)
 						{
+
 							//we got a left message, kill it
+							//change ownership of all objects to
+
+							foreach (KeyValuePair<string, NetworkObject> kvp in objects)
+							{
+								if (kvp.Value.owner == players[m.sender]) //the owner is the player that left
+								{
+									if (me.isLocal && me == masterPlayer) //I'm the local master player, so can take ownership immediately
+									{
+										me.takeOwnership(kvp.Key);
+									}
+									else if (players[m.sender] == masterPlayer) //the master player left, so everyone should set the owner null (we should get a new master shortly)
+									{
+										kvp.Value.owner = null;
+									}
+								}
+							}
+
 							Destroy(players[m.sender].gameObject);
 							players.Remove(m.sender);
 						}
@@ -143,7 +161,10 @@ public class NetworkManager : MonoBehaviour
 
 					foreach(KeyValuePair<string,NetworkObject> kvp in objects)
                     {
-						kvp.Value.owner = masterPlayer;
+						if (kvp.Value.owner == null)
+						{
+							kvp.Value.owner = masterPlayer;
+						}
                     }
 
 				}
