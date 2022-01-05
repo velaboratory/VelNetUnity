@@ -354,8 +354,11 @@ public class NetworkManager : MonoBehaviour
 		//I don't yet have a UDP connection
         try
         {
-			RemoteEndPoint = new IPEndPoint(
-			IPAddress.Parse(host), port);
+			var addresses = Dns.GetHostAddresses(host);
+			Debug.Assert(addresses.Length > 0);
+			RemoteEndPoint = new IPEndPoint(addresses[0], port);
+
+
 			udpSocket = new Socket(AddressFamily.InterNetwork,
 									   SocketType.Dgram, ProtocolType.Udp);
 

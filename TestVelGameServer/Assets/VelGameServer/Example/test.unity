@@ -1820,8 +1820,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 03a4d4e1a7fd74c7ab2eccca4ce168db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  host: 127.0.0.1
+  host: neko.ugavel.com
   port: 3290
+  udpConnected: 0
   userid: -1
   room: 
   playerPrefab: {fileID: 6139051692386484099, guid: d4158ab9c4a204cdbba28d3273fc1fb3, type: 3}
