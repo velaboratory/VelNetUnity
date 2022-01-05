@@ -25,7 +25,8 @@ public class NetworkManager : MonoBehaviour
 	public Action<NetworkPlayer> onPlayerLeft = delegate { };
 
 	public List<NetworkObject> prefabs = new List<NetworkObject>();
-	NetworkObject[] sceneObjects;
+	public NetworkObject[] sceneObjects;
+	public List<string> deletedSceneObjects = new List<string>();
 	public Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
 	NetworkPlayer masterPlayer = null;
 	#endregion
@@ -96,7 +97,7 @@ public class NetworkManager : MonoBehaviour
 						{
 
 							//we got a left message, kill it
-							//change ownership of all objects to
+							//change ownership of all objects to master
 
 							foreach (KeyValuePair<string, NetworkObject> kvp in objects)
 							{
@@ -126,6 +127,7 @@ public class NetworkManager : MonoBehaviour
 							player.manager = this;
 							players.Add(m.sender, player);
 							onPlayerJoined(player);
+							
 						}
 					}
 				}
@@ -147,6 +149,7 @@ public class NetworkManager : MonoBehaviour
 						{
 							sceneObjects[i].networkId = -1 + "-" + i;
 							sceneObjects[i].owner = masterPlayer;
+							sceneObjects[i].isSceneObject = true; //needed for special handling when deleted
 							objects.Add(sceneObjects[i].networkId,sceneObjects[i]);
 						}
 						
@@ -380,4 +383,18 @@ public class NetworkManager : MonoBehaviour
     {
 		SendNetworkMessage("5:" + groupname + ":" + String.Join(":", userids));
     }
+	public void deleteNetworkObject(string networkId) 
+    {
+		if (objects.ContainsKey(networkId)) 
+		{
+			NetworkObject obj = objects[networkId];
+            if (obj.isSceneObject)
+            {
+				deletedSceneObjects.Add(networkId);
+            }
+			GameObject.Destroy(obj.gameObject);
+			objects.Remove(networkId);
+		}
+		
+	}
 }

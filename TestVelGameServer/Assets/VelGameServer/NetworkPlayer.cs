@@ -34,6 +34,8 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
 
     public List<int> closePlayers = new List<int>(); //for testing audio communications
     public bool changeClosePlayers = true;
+
+
     void Start()
     {
         myObject.owner = this;
@@ -62,8 +64,7 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
             
         }
 
-
-
+       
     }
 
     public void handlePlayerJoined(NetworkPlayer player)
@@ -78,6 +79,12 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
                     manager.sendTo(NetworkManager.MessageType.OTHERS, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
                     
                 }
+            }
+
+            if (isMaster)
+            {
+                //send a list of scene object ids when someone joins
+                sendSceneUpdate();
             }
         }
     }
@@ -189,15 +196,21 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
 
                         break;
                     }
-                case "8": //I'm trying to destroy a gameobject I own (I guess this is sent to everyone)
+                case "8": //I'm trying to destroy a gameobject I own
                     {
                         string networkId = sections[1];
 
-                        if (manager.objects.ContainsKey(networkId) && manager.objects[networkId].owner == this)
-                        { 
-                            GameObject.Destroy(manager.objects[networkId].gameObject);
-                            manager.objects.Remove(networkId);
+                        manager.deleteNetworkObject(networkId);
+                        break;
+                    }
+                case "9": //deleted scene objects
+                    {
+                        
+                        for (int k = 1; k < sections.Length; k++)
+                        {
+                            manager.deleteNetworkObject(sections[k]);
                         }
+                            
                         break;
                     }
             }
@@ -278,6 +291,7 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
     {
         if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return; //must be the local owner of the object to destroy it
         manager.sendTo(NetworkManager.MessageType.ALL_ORDERED, "8," + networkId); //send to all, which will make me delete as well
+
     }
 
     public void takeOwnership(string networkId)
@@ -287,6 +301,12 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
         manager.objects[networkId].owner = this; //immediately successful
         manager.sendTo(NetworkManager.MessageType.ALL_ORDERED, "6," + networkId); //must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
 
+    }
+
+    public void sendSceneUpdate()
+    {
+       
+        manager.sendTo(NetworkManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
     }
 
     

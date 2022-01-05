@@ -63,10 +63,7 @@ An interesting problem is what to do when new clients join.  This is partially l
 Clients can manage network traffic using messaging groups.  This is especially useful for audio, where you can maintain a list of people close enough to you to hear audio 
 
 Todo: 
-
-Scene objects that are destroyed need to be buffered to new clients.
-Instantiation byte[] (full sync, basically).   
-Need to determine what happens when you specifically leave a room (session).   
+ 
 
 
 
