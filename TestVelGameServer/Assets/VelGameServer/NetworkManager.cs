@@ -362,7 +362,7 @@ public class NetworkManager : MonoBehaviour
 			udpSocket = new Socket(AddressFamily.InterNetwork,
 									   SocketType.Dgram, ProtocolType.Udp);
 
-			udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+			
 			udpConnected = false;
 			byte[] buffer = new byte[1024];
 			while (true)
