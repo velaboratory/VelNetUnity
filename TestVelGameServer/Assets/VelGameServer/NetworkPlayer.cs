@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Text;
 using System;
-using Dissonance;
+
 
 [RequireComponent(typeof(NetworkObject))]
-public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
+public class NetworkPlayer : MonoBehaviour
 {
     
     public NetworkObject myObject; 
@@ -20,21 +20,8 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
 
     public int lastObjectId=0; //for instantiation
 
-    public Dissonance.VelCommsNetwork commsNetwork;
-    bool isSpeaking = false;
-    uint lastAudioId = 0;
-    public string dissonanceID;
-    //required by dissonance for spatial audio
-    public string PlayerId => dissonanceID;
-    public Vector3 Position => myObject.transform.position;
-    public Quaternion Rotation => myObject.transform.rotation;
-    public NetworkPlayerType Type => isLocal?NetworkPlayerType.Local:NetworkPlayerType.Remote;
-    public bool IsTracking => true;
+    
     bool isMaster = false;
-
-    public List<int> closePlayers = new List<int>(); //for testing audio communications
-    public bool changeClosePlayers = true;
-
 
     void Start()
     {
@@ -46,23 +33,7 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
     // Update is called once per frame
     void Update()
     {
-        //handle dissonance comms
-        if(isLocal)
-        {
-            
-            //if we're not speaking, and the comms say we are, send a speaking event, which will be received on other network players and sent to their comms accordingly
-            if (commsNetwork.comms.FindPlayer(dissonanceID).IsSpeaking != isSpeaking) //unfortunately, there does not seem to be an event for this
-            {
-                isSpeaking = !isSpeaking;
-                manager.sendTo(NetworkManager.MessageType.OTHERS, "4," + (isSpeaking?1:0) + ";");
-                if (!isSpeaking)
-                {
-                    lastAudioId = 0;
-                }
-                
-            }
-            
-        }
+        
 
        
     }
@@ -109,43 +80,6 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
                         string identifier = sections[1];
                         byte[] message = Convert.FromBase64String(sections[2]);
                         myObject.handleMessage(identifier, message);
-                        break;
-                    }
-                case "2": //audio data
-                    {
-
-                        if (isSpeaking)
-                        {
-                            byte[] data = Convert.FromBase64String(sections[1]);
-                            uint sequenceNumber = uint.Parse(sections[2]);
-                            commsNetwork.voiceReceived(dissonanceID, data, sequenceNumber);
-                        }
-                        
-                        break;
-                    }
-                case "3": //dissonance id (player joined)
-                    {
-                        if (dissonanceID == "")
-                        {
-                            dissonanceID = sections[1];
-                            //tell the comms network that this player joined the channel
-                            commsNetwork.playerJoined(dissonanceID); //tell dissonance
-                            commsNetwork.comms.TrackPlayerPosition(this); //tell dissonance to track the remote player
-                        }
-                        break;
-                    }
-                case "4": //speaking state
-                    {
-                        if(sections[1] == "0")
-                        {
-                            commsNetwork.playerStoppedSpeaking(dissonanceID);
-                            isSpeaking = false;
-                        }
-                        else
-                        {
-                            commsNetwork.playerStartedSpeaking(dissonanceID);
-                            isSpeaking = true;
-                        }
                         break;
                     }
                 case "5": //sync update for an object I may own
@@ -216,30 +150,6 @@ public class NetworkPlayer : MonoBehaviour, Dissonance.IDissonancePlayer
             }
         }
 
-    }
-
-    public void OnDestroy()
-    {
-        commsNetwork.playerLeft(dissonanceID);
-    }
-
-    public void sendAudioData(ArraySegment<byte> data)
-    {
-        if (changeClosePlayers)
-        {
-            manager.setupMessageGroup("close", closePlayers.ToArray());
-            changeClosePlayers = false;
-        }
-        string b64_data = Convert.ToBase64String(data.Array,data.Offset,data.Count);
-        //manager.sendTo(NetworkManager.MessageType.OTHERS, "2," + b64_data + "," + (lastAudioId++) + ";");
-        manager.sendToGroup("close", "2,"+b64_data + ","+ (lastAudioId++) +";");
-    }
-
-    public void setDissonanceID(string id) //this sort of all initializes dissonance
-    {
-        dissonanceID = id;
-        manager.sendTo(NetworkManager.MessageType.OTHERS, "3," + id+";");
-        commsNetwork.comms.TrackPlayerPosition(this);
     }
 
     public void setAsMasterPlayer()

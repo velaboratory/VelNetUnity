@@ -1826,6 +1826,8 @@ MonoBehaviour:
   playerPrefab: {fileID: 6139051692386484099, guid: d4158ab9c4a204cdbba28d3273fc1fb3, type: 3}
   prefabs:
   - {fileID: 8565720275311462452, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
+  sceneObjects: []
+  deletedSceneObjects: []
   connected: 0
 --- !u!1 &1154194181
 GameObject:
