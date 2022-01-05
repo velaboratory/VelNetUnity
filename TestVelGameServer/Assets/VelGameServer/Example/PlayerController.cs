@@ -127,7 +127,7 @@ public class PlayerController : NetworkObject, Dissonance.IDissonancePlayer
             byte[] lastAudioIdBytes = BitConverter.GetBytes(lastAudioId++);
             Buffer.BlockCopy(lastAudioIdBytes, 0, toSend, 0, 4);
             Buffer.BlockCopy(data.Array, data.Offset, toSend, 4, data.Count);
-            owner.sendGroupMessage(this,"close", "a", toSend, false); //send voice data unreliably
+            owner.sendGroupMessage(this,"close", "a", toSend, true); //send voice data unreliably
         }
     }
 
