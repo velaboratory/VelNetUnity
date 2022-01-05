@@ -415,7 +415,7 @@ public class NetworkManager : MonoBehaviour
 			return;
         }
 		byte[] data = Encoding.UTF8.GetBytes(message);
-		Debug.Log("Attempting to send: " + message);
+		//Debug.Log("Attempting to send: " + message);
 		udpSocket.SendTo(data, data.Length, SocketFlags.None, RemoteEndPoint);
     }
 
