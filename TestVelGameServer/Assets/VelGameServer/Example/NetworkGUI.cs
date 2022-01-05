@@ -10,8 +10,8 @@ public class NetworkGUI : MonoBehaviour
     public InputField roomInput;
     public Text messages;
     public List<string> messageBuffer;
-
-
+    public Dropdown microphones;
+    Dissonance.DissonanceComms comms;
     public void handleSend()
     {
         if(sendInput.text != "")
@@ -39,6 +39,8 @@ public class NetworkGUI : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        comms = GameObject.FindObjectOfType<Dissonance.DissonanceComms>();
+        microphones.AddOptions(new List<string>(Microphone.devices));
         networkManager.messageReceived += (m) => {
             string s = m.type + ":" + m.sender +":" + m.text;
             messageBuffer.Add(s);
@@ -56,6 +58,11 @@ public class NetworkGUI : MonoBehaviour
                 messages.text = messages.text + messageBuffer[i] + "\n";
             }
         };
+    }
+
+    public void handleMicrophoneSelection()
+    {
+        comms.MicrophoneName = microphones.options[microphones.value].text;
     }
 
     // Update is called once per frame

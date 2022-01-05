@@ -275,8 +275,8 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 244561621}
         m_TargetAssemblyTypeName: NetworkGUI, Assembly-CSharp
-        m_MethodName: onMicrophoneChanged
-        m_Mode: 5
+        m_MethodName: handleMicrophoneSelection
+        m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -630,6 +630,7 @@ MonoBehaviour:
   roomInput: {fileID: 711524768}
   messages: {fileID: 1894247854}
   messageBuffer: []
+  microphones: {fileID: 117638564}
 --- !u!1 &440509381
 GameObject:
   m_ObjectHideFlags: 0
