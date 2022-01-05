@@ -109,6 +109,7 @@ public class PlayerController : NetworkObject, Dissonance.IDissonancePlayer
                     byte[] b = Encoding.UTF8.GetBytes(dissonanceID);
                     owner.sendMessage(this, "d", b);
                 };
+                owner.manager.setupMessageGroup("close", closePlayers.ToArray());
             }
         }
         if (owner.isLocal)
@@ -126,7 +127,7 @@ public class PlayerController : NetworkObject, Dissonance.IDissonancePlayer
             byte[] lastAudioIdBytes = BitConverter.GetBytes(lastAudioId++);
             Buffer.BlockCopy(lastAudioIdBytes, 0, toSend, 0, 4);
             Buffer.BlockCopy(data.Array, data.Offset, toSend, 4, data.Count);
-            owner.sendGroupMessage(this,"close", "a", toSend);
+            owner.sendGroupMessage(this,"close", "a", toSend, false); //send voice data unreliably
         }
     }
 

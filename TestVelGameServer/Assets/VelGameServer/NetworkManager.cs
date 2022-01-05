@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading;
 using UnityEngine;
 using Dissonance;
+using System.Net;
+
 public class NetworkManager : MonoBehaviour
 {
 	public enum MessageType { OTHERS=0,ALL=1,OTHERS_ORDERED=2,ALL_ORDERED=3};
@@ -13,10 +15,15 @@ public class NetworkManager : MonoBehaviour
 	public int port;
 	#region private members 	
 	private TcpClient socketConnection;
+	private Socket udpSocket;
+	public bool udpConnected = false;
+	IPEndPoint RemoteEndPoint;
 	private Thread clientReceiveThread;
+	private Thread clientReceiveThreadUDP;
 	public int userid = -1;
 	public string room;
 	int messagesReceived = 0;
+
 	public GameObject playerPrefab;
 	public Dictionary<int, NetworkPlayer> players = new Dictionary<int, NetworkPlayer>();
 
@@ -64,7 +71,12 @@ public class NetworkManager : MonoBehaviour
                 {
 					this.userid = m.sender;
 					Debug.Log("joined server");
-                }
+
+					//start the udp thread 
+					clientReceiveThreadUDP = new Thread(new ThreadStart(ListenForDataUDP));
+					clientReceiveThreadUDP.IsBackground = true;
+					clientReceiveThreadUDP.Start();
+				}
 				 
 				if (m.type == 2)
 				{
@@ -87,6 +99,8 @@ public class NetworkManager : MonoBehaviour
 							player.room = m.text;
 							player.manager = this;
 							onJoinedRoom(player);
+
+							
 						}
 					}
 					else //not for me, a player is joining or leaving
@@ -199,6 +213,9 @@ public class NetworkManager : MonoBehaviour
 			clientReceiveThread = new Thread(new ThreadStart(ListenForData));
 			clientReceiveThread.IsBackground = true;
 			clientReceiveThread.Start();
+
+			
+
 		}
 		catch (Exception e)
 		{
@@ -322,6 +339,8 @@ public class NetworkManager : MonoBehaviour
 				}
 			}
 		}
+
+		
 		catch (Exception socketException)
 		{
 			Debug.Log("Socket exception: " + socketException);
@@ -329,6 +348,74 @@ public class NetworkManager : MonoBehaviour
 		}
 		connected = false;
 	}
+
+	private void ListenForDataUDP()
+	{
+		//I don't yet have a UDP connection
+        try
+        {
+			RemoteEndPoint = new IPEndPoint(
+			IPAddress.Parse(host), port);
+			udpSocket = new Socket(AddressFamily.InterNetwork,
+									   SocketType.Dgram, ProtocolType.Udp);
+
+			udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+			udpConnected = false;
+			byte[] buffer = new byte[1024];
+			while (true)
+			{
+				
+				string welcome = userid + ":0:Hello";
+				byte[] data = Encoding.ASCII.GetBytes(welcome);
+				udpSocket.SendTo(data, data.Length, SocketFlags.None, RemoteEndPoint);
+				
+				if(udpSocket.Available == 0)
+                {
+					Thread.Sleep(100);
+					Debug.Log("Waiting for UDP response");
+                }
+                else
+                {
+					break;
+                }
+
+				
+			}
+			udpConnected = true;
+            while (true) { 
+				int numReceived = udpSocket.Receive(buffer);
+
+				string message = Encoding.UTF8.GetString(buffer, 0, numReceived);
+
+				string[] sections = message.Split(':');
+				if(sections[0] == "0")
+                {
+					Debug.Log("UDP connected");
+                }
+				if(sections[0] == "3")
+                {
+					handleMessage(message);
+                }
+            }
+
+		} catch(Exception socketException)
+        {
+			Debug.Log("Socket exception: " + socketException);
+		}
+	}
+
+	private void SendUdpMessage(string message) 
+    {
+
+		if (udpSocket == null || !udpConnected)
+        {
+			return;
+        }
+		byte[] data = Encoding.UTF8.GetBytes(message);
+		Debug.Log("Attempting to send: " + message);
+		udpSocket.SendTo(data, data.Length, SocketFlags.None, RemoteEndPoint);
+    }
+
 	/// <summary> 	
 	/// Send message to server using socket connection. 	
 	/// </summary> 	
@@ -370,14 +457,29 @@ public class NetworkManager : MonoBehaviour
     {
 		SendNetworkMessage("2:-1");
     }
-	public void sendTo(MessageType type, string message)
+	public void sendTo(MessageType type, string message, bool reliable=true)
     {
-		SendNetworkMessage("3:" + (int)type + ":" + message);
+		if (reliable)
+		{
+			SendNetworkMessage("3:" + (int)type + ":" + message);
+        }
+        else
+        {
+			SendUdpMessage(userid + ":3:" + (int)type + ":" + message);
+        }
     }
-	public void sendToGroup(string group, string message)
+	public void sendToGroup(string group, string message, bool reliable=true)
     {
-		SendNetworkMessage("4:" + group + ":" + message);
+		if (reliable)
+		{
+			SendNetworkMessage("4:" + group + ":" + message);
+        }
+        else
+        {
+			SendUdpMessage(userid + ":4:" + group + ":" + message);
+        }
     }
+
 	//changes the designated group that sendto(4) will go to
 	public void setupMessageGroup(string groupname, int[] userids)
     {

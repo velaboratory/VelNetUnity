@@ -159,27 +159,27 @@ public class NetworkPlayer : MonoBehaviour
         //FindObjectsOfType<NetworkObject>();
     }
     
-    public void sendGroupMessage(NetworkObject obj, string group, string identifier, byte[] data)
+    public void sendGroupMessage(NetworkObject obj, string group, string identifier, byte[] data, bool reliable=true)
     {
         if (obj == myObject)
         {
-            manager.sendToGroup(group, "1," + identifier + "," + Convert.ToBase64String(data));
+            manager.sendToGroup(group, "1," + identifier + "," + Convert.ToBase64String(data), reliable);
         }
         else
         {
-            manager.sendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data));
+            manager.sendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
         }
     }
-    public void sendMessage(NetworkObject obj, string identifier, byte[] data)
+    public void sendMessage(NetworkObject obj, string identifier, byte[] data, bool reliable=true)
     {
         if (obj == myObject)
         {
-            manager.sendTo(NetworkManager.MessageType.OTHERS, "1," + identifier +"," + Convert.ToBase64String(data));
+            manager.sendTo(NetworkManager.MessageType.OTHERS, "1," + identifier +"," + Convert.ToBase64String(data), reliable);
         }
         else
         {
 
-            manager.sendTo(NetworkManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data));
+            manager.sendTo(NetworkManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
         }
     }
 
