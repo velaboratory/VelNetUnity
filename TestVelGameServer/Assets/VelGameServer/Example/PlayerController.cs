@@ -80,7 +80,7 @@ public class PlayerController : NetworkObject, Dissonance.IDissonancePlayer
                     }
                     else
                     {
-                        Debug.Log("here");
+                     
                         comms.playerStartedSpeaking(dissonanceID);
                         isSpeaking = true;
                     }
