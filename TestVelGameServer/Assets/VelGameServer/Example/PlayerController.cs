@@ -20,6 +20,8 @@ public class PlayerController : NetworkObject, Dissonance.IDissonancePlayer
     public Vector3 targetPosition;
     public Quaternion targetRotation;
 
+    public List<int> closePlayers = new List<int>();
+
 
     public byte[] getSyncMessage()
     {
@@ -124,7 +126,7 @@ public class PlayerController : NetworkObject, Dissonance.IDissonancePlayer
             byte[] lastAudioIdBytes = BitConverter.GetBytes(lastAudioId++);
             Buffer.BlockCopy(lastAudioIdBytes, 0, toSend, 0, 4);
             Buffer.BlockCopy(data.Array, data.Offset, toSend, 4, data.Count);
-            owner.sendMessage(this, "a", toSend);
+            owner.sendGroupMessage(this,"close", "a", toSend);
         }
     }
 
@@ -158,8 +160,30 @@ public class PlayerController : NetworkObject, Dissonance.IDissonancePlayer
     // Update is called once per frame
     void Update()
     {
+        if (owner != null && owner.isLocal) {
 
-
+            PlayerController[] players = GameObject.FindObjectsOfType<PlayerController>();
+            bool shouldUpdate = false;
+            for (int i = 0; i < players.Length; i++)
+            {
+                if (players[i] == this) { continue; }
+                float dist = Vector3.Distance(players[i].transform.position, this.transform.position);
+                if (dist < 2 && !closePlayers.Contains(players[i].owner.userid))
+                {
+                    closePlayers.Add(players[i].owner.userid);
+                    shouldUpdate = true;
+                }
+                else if(dist >=2 && closePlayers.Contains(players[i].owner.userid))
+                {
+                    closePlayers.Remove(players[i].owner.userid);
+                    shouldUpdate = true;
+                }
+            }
+            if (shouldUpdate)
+            {
+                owner.manager.setupMessageGroup("close", closePlayers.ToArray());
+            }
+        }
 
 
         if (owner != null && !owner.isLocal)

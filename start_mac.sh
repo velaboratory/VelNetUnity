@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-./TestVelGameServer/Build/macbuild.app/Contents/MacOS/TestVelGameServer &
+./TestVelGameServer/Build/velnetunityexample.app/Contents/MacOS/VelNetUnity &

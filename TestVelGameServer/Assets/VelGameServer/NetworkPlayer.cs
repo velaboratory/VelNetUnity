@@ -159,7 +159,17 @@ public class NetworkPlayer : MonoBehaviour
         //FindObjectsOfType<NetworkObject>();
     }
     
-
+    public void sendGroupMessage(NetworkObject obj, string group, string identifier, byte[] data)
+    {
+        if (obj == myObject)
+        {
+            manager.sendToGroup(group, "1," + identifier + "," + Convert.ToBase64String(data));
+        }
+        else
+        {
+            manager.sendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data));
+        }
+    }
     public void sendMessage(NetworkObject obj, string identifier, byte[] data)
     {
         if (obj == myObject)
