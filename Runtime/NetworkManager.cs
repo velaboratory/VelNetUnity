@@ -25,13 +25,13 @@ namespace VelNetUnity
 
 		private TcpClient socketConnection;
 		private Socket udpSocket;
-		public bool udpConnected = false;
-		IPEndPoint RemoteEndPoint;
+		public bool udpConnected;
+		private IPEndPoint RemoteEndPoint;
 		private Thread clientReceiveThread;
 		private Thread clientReceiveThreadUDP;
 		public int userid = -1;
 		public string room;
-		int messagesReceived = 0;
+		private int messagesReceived = 0;
 
 		public GameObject playerPrefab;
 		public Dictionary<int, NetworkPlayer> players = new Dictionary<int, NetworkPlayer>();
@@ -44,7 +44,7 @@ namespace VelNetUnity
 		public NetworkObject[] sceneObjects;
 		public List<string> deletedSceneObjects = new List<string>();
 		public Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
-		NetworkPlayer masterPlayer = null;
+		private NetworkPlayer masterPlayer;
 
 		#endregion
 
@@ -56,16 +56,16 @@ namespace VelNetUnity
 			public int sender;
 		}
 
-		public List<Message> receivedMessages = new List<Message>();
+		public readonly List<Message> receivedMessages = new List<Message>();
 
-		void Start()
+		private void Start()
 		{
 			ConnectToTcpServer();
 			sceneObjects = FindObjectsOfType<NetworkObject>(); //add all local network objects
 		}
 
 
-		private void addMessage(Message m)
+		private void AddMessage(Message m)
 		{
 			lock (receivedMessages)
 			{
@@ -87,7 +87,7 @@ namespace VelNetUnity
 						Debug.Log("joined server");
 
 						//start the udp thread 
-						clientReceiveThreadUDP = new Thread(new ThreadStart(ListenForDataUDP));
+						clientReceiveThreadUDP = new Thread(ListenForDataUDP);
 						clientReceiveThreadUDP.IsBackground = true;
 						clientReceiveThreadUDP.Start();
 					}
@@ -106,7 +106,7 @@ namespace VelNetUnity
 
 							if (m.text != "")
 							{
-								NetworkPlayer player = Instantiate<GameObject>(playerPrefab).GetComponent<NetworkPlayer>();
+								NetworkPlayer player = Instantiate(playerPrefab).GetComponent<NetworkPlayer>();
 
 								player.isLocal = true;
 								player.userid = m.sender;
@@ -131,7 +131,7 @@ namespace VelNetUnity
 									{
 										if (me.isLocal && me == masterPlayer) //I'm the local master player, so can take ownership immediately
 										{
-											me.takeOwnership(kvp.Key);
+											me.TakeOwnership(kvp.Key);
 										}
 										else if (players[m.sender] == masterPlayer) //the master player left, so everyone should set the owner null (we should get a new master shortly)
 										{
@@ -146,7 +146,7 @@ namespace VelNetUnity
 							else
 							{
 								//we got a join mesage, create it
-								NetworkPlayer player = Instantiate<GameObject>(playerPrefab).GetComponent<NetworkPlayer>();
+								NetworkPlayer player = Instantiate(playerPrefab).GetComponent<NetworkPlayer>();
 								player.isLocal = false;
 								player.room = m.text;
 								player.userid = m.sender;
@@ -159,7 +159,7 @@ namespace VelNetUnity
 
 					if (m.type == 3) //generic message
 					{
-						players[m.sender]?.handleMessage(m);
+						players[m.sender]?.HandleMessage(m);
 					}
 
 					if (m.type == 4) //change master player (this should only happen when the first player joins or if the master player leaves)
@@ -183,7 +183,7 @@ namespace VelNetUnity
 							masterPlayer = players[m.sender];
 						}
 
-						masterPlayer.setAsMasterPlayer();
+						masterPlayer.SetAsMasterPlayer();
 
 						//master player should take over any objects that do not have an owner
 
@@ -196,7 +196,7 @@ namespace VelNetUnity
 						}
 					}
 
-					messageReceived(m);
+					MessageReceived(m);
 				}
 
 				receivedMessages.Clear();
@@ -208,12 +208,12 @@ namespace VelNetUnity
 			socketConnection.Close();
 		}
 
-		public Action<string, int> joinedRoom = delegate { };
-		public Action<Message> messageReceived = delegate { };
-		public Action<string, int> loggedIn = delegate { };
-		public Action<string[], int> roomsReceived = delegate { };
+		public Action<string, int> JoinedRoom = delegate { };
+		public Action<Message> MessageReceived = delegate { };
+		public Action<string, int> LoggedIn = delegate { };
+		public Action<string[], int> RoomsReceived = delegate { };
 
-		public bool connected = false;
+		public bool connected;
 
 		/// <summary> 	
 		/// Setup socket connection. 	
@@ -222,7 +222,7 @@ namespace VelNetUnity
 		{
 			try
 			{
-				clientReceiveThread = new Thread(new ThreadStart(ListenForData));
+				clientReceiveThread = new Thread(ListenForData);
 				clientReceiveThread.IsBackground = true;
 				clientReceiveThread.Start();
 			}
@@ -232,7 +232,7 @@ namespace VelNetUnity
 			}
 		}
 
-		void handleMessage(string s) //this parses messages from the server, and adds them to a queue to be processed on the main thread
+		private void HandleMessage(string s) //this parses messages from the server, and adds them to a queue to be processed on the main thread
 		{
 			Message m = new Message();
 			string[] sections = s.Split(':');
@@ -249,7 +249,7 @@ namespace VelNetUnity
 							m.type = type;
 							m.sender = int.Parse(sections[1]);
 							m.text = "";
-							addMessage(m);
+							AddMessage(m);
 						}
 
 						break;
@@ -268,7 +268,7 @@ namespace VelNetUnity
 							string new_room = sections[2];
 							m.text = new_room;
 
-							addMessage(m);
+							AddMessage(m);
 						}
 
 						break;
@@ -280,7 +280,7 @@ namespace VelNetUnity
 							m.type = 3;
 							m.sender = int.Parse(sections[1]);
 							m.text = sections[2];
-							addMessage(m);
+							AddMessage(m);
 						}
 
 						break;
@@ -291,7 +291,7 @@ namespace VelNetUnity
 						{
 							m.type = 4;
 							m.sender = int.Parse(sections[1]);
-							addMessage(m);
+							AddMessage(m);
 						}
 
 						break;
@@ -310,7 +310,7 @@ namespace VelNetUnity
 			{
 				socketConnection = new TcpClient(host, port);
 				socketConnection.NoDelay = true;
-				Byte[] bytes = new Byte[1024];
+				byte[] bytes = new byte[1024];
 				string partialMessage = "";
 				while (true)
 				{
@@ -321,7 +321,7 @@ namespace VelNetUnity
 						// Read incomming stream into byte arrary. 					
 						while ((length = stream.Read(bytes, 0, bytes.Length)) != 0)
 						{
-							var incommingData = new byte[length];
+							byte[] incommingData = new byte[length];
 							Array.Copy(bytes, 0, incommingData, 0, length);
 							// Convert byte array to string message. 						
 							string serverMessage = Encoding.ASCII.GetString(incommingData);
@@ -334,12 +334,12 @@ namespace VelNetUnity
 									{
 										if (i == 0)
 										{
-											handleMessage(partialMessage + sections[0]);
+											HandleMessage(partialMessage + sections[0]);
 											partialMessage = "";
 										}
 										else
 										{
-											handleMessage(sections[i]);
+											HandleMessage(sections[i]);
 										}
 									}
 								}
@@ -365,7 +365,7 @@ namespace VelNetUnity
 			//I don't yet have a UDP connection
 			try
 			{
-				var addresses = Dns.GetHostAddresses(host);
+				IPAddress[] addresses = Dns.GetHostAddresses(host);
 				Debug.Assert(addresses.Length > 0);
 				RemoteEndPoint = new IPEndPoint(addresses[0], port);
 
@@ -408,7 +408,7 @@ namespace VelNetUnity
 
 					if (sections[0] == "3")
 					{
-						handleMessage(message);
+						HandleMessage(message);
 					}
 				}
 			}
@@ -459,22 +459,22 @@ namespace VelNetUnity
 			}
 		}
 
-		public void login(string username, string password)
+		public void Login(string username, string password)
 		{
 			SendNetworkMessage("0:" + username + ":" + password);
 		}
 
-		public void join(string roomname)
+		public void Join(string roomname)
 		{
 			SendNetworkMessage("2:" + roomname);
 		}
 
-		public void leave()
+		public void Leave()
 		{
 			SendNetworkMessage("2:-1");
 		}
 
-		public void sendTo(MessageType type, string message, bool reliable = true)
+		public void SendTo(MessageType type, string message, bool reliable = true)
 		{
 			if (reliable)
 			{
@@ -486,7 +486,7 @@ namespace VelNetUnity
 			}
 		}
 
-		public void sendToGroup(string group, string message, bool reliable = true)
+		public void SendToGroup(string group, string message, bool reliable = true)
 		{
 			if (reliable)
 			{
@@ -499,12 +499,12 @@ namespace VelNetUnity
 		}
 
 		//changes the designated group that sendto(4) will go to
-		public void setupMessageGroup(string groupname, int[] userids)
+		public void SetupMessageGroup(string groupname, int[] userids)
 		{
 			SendNetworkMessage("5:" + groupname + ":" + String.Join(":", userids));
 		}
 
-		public void deleteNetworkObject(string networkId)
+		public void DeleteNetworkObject(string networkId)
 		{
 			if (objects.ContainsKey(networkId))
 			{
