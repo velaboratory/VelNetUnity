@@ -1,5 +1,5 @@
-using System;
 using System.Collections;
+using System.IO;
 using UnityEngine;
 
 
@@ -8,6 +8,7 @@ namespace VelNetUnity
 	/// <summary>
 	/// A simple class that will sync the position and rotation of a network object
 	/// </summary>
+	[AddComponentMenu("VelNetUnity/VelNet Sync Transform")]
 	public class SyncTransform : NetworkObject
 	{
 		public Vector3 targetPosition;
@@ -16,18 +17,13 @@ namespace VelNetUnity
 
 		public byte[] GetSyncMessage()
 		{
-			float[] data = new float[7];
-			for (int i = 0; i < 3; i++)
-			{
-				data[i] = transform.position[i];
-				data[i + 3] = transform.rotation[i];
-			}
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
 
-			data[6] = transform.rotation[3];
+			writer.Write(transform.position);
+			writer.Write(transform.rotation);
 
-			byte[] toReturn = new byte[sizeof(float) * data.Length];
-			Buffer.BlockCopy(data, 0, toReturn, 0, toReturn.Length);
-			return toReturn;
+			return mem.ToArray();
 		}
 
 		public override void HandleMessage(string identifier, byte[] message)
@@ -35,16 +31,15 @@ namespace VelNetUnity
 			switch (identifier)
 			{
 				case "s":
-					float[] data = new float[7];
-					Buffer.BlockCopy(message, 0, data, 0, message.Length);
-					for (int i = 0; i < 3; i++)
-					{
-						targetPosition[i] = data[i];
-						targetRotation[i] = data[i + 3];
-					}
+				{
+					using MemoryStream mem = new MemoryStream(message);
+					using BinaryReader reader = new BinaryReader(mem);
 
-					targetRotation[3] = data[6];
+					targetPosition = reader.ReadVector3();
+					targetRotation = reader.ReadQuaternion();
+
 					break;
+				}
 			}
 		}
 

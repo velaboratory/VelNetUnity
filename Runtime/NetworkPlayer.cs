@@ -5,28 +5,37 @@ using System;
 
 namespace VelNetUnity
 {
+	/// <summary>
+	/// One of these will be instantiated for each player that joins the "room".
+	/// </summary>
 	[RequireComponent(typeof(NetworkObject))]
+	[AddComponentMenu("VelNetUnity/VelNet Network Player")]
 	public class NetworkPlayer : MonoBehaviour
 	{
-		public NetworkObject myObject;
+		private NetworkObject myObject;
 		public int userid;
 		public string username;
 
 		public string room;
-		public NetworkManager manager;
 
 		public bool isLocal;
 
-		public int lastObjectId; //for instantiation
+		private NetworkManager manager;
+
+		/// <summary>
+		/// For instantiation
+		/// </summary>
+		public int lastObjectId;
 
 
 		private bool isMaster;
 
 		private void Start()
 		{
+			myObject = GetComponent<NetworkObject>();
 			myObject.owner = this;
-			manager = FindObjectOfType<NetworkManager>();
-			manager.onPlayerJoined += HandlePlayerJoined;
+			manager = NetworkManager.instance;
+			manager.OnPlayerJoined += HandlePlayerJoined;
 		}
 
 		public void HandlePlayerJoined(NetworkPlayer player)
@@ -111,7 +120,7 @@ namespace VelNetUnity
 						NetworkObject temp = manager.prefabs.Find((prefab) => prefab.name == prefabName);
 						if (temp != null)
 						{
-							NetworkObject instance = Instantiate<NetworkObject>(temp);
+							NetworkObject instance = Instantiate(temp);
 							instance.networkId = networkId;
 							instance.prefabName = prefabName;
 							instance.owner = this;
@@ -184,7 +193,7 @@ namespace VelNetUnity
 			NetworkObject temp = manager.prefabs.Find((prefab) => prefab.name == prefabName);
 			if (temp != null)
 			{
-				NetworkObject instance = Instantiate<NetworkObject>(temp);
+				NetworkObject instance = Instantiate(temp);
 				instance.networkId = networkId;
 				instance.prefabName = prefabName;
 				instance.owner = this;
