@@ -2121,7 +2121,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 244561621}
         m_TargetAssemblyTypeName: NetworkGUI, Assembly-CSharp
-        m_MethodName: handleJoin
+        m_MethodName: HandleJoin
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -2725,7 +2725,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 244561621}
         m_TargetAssemblyTypeName: NetworkGUI, Assembly-CSharp
-        m_MethodName: handleLogin
+        m_MethodName: HandleLogin
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -2858,7 +2858,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 244561621}
         m_TargetAssemblyTypeName: NetworkGUI, Assembly-CSharp
-        m_MethodName: handleSend
+        m_MethodName: HandleSend
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}

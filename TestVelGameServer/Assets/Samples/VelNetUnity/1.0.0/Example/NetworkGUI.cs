@@ -15,36 +15,36 @@ namespace VelNetUnity
 		public Dropdown microphones;
 		Dissonance.DissonanceComms comms;
 
-		public void handleSend()
+		public void HandleSend()
 		{
 			if (sendInput.text != "")
 			{
-				networkManager.sendTo(NetworkManager.MessageType.OTHERS, sendInput.text);
+				networkManager.SendTo(NetworkManager.MessageType.OTHERS, sendInput.text);
 			}
 		}
 
-		public void handleLogin()
+		public void HandleLogin()
 		{
 			if (userInput.text != "")
 			{
-				networkManager.login(userInput.text, "nopass");
+				networkManager.Login(userInput.text, "nopass");
 			}
 		}
 
-		public void handleJoin()
+		public void HandleJoin()
 		{
 			if (roomInput.text != "")
 			{
-				networkManager.join(roomInput.text);
+				networkManager.Join(roomInput.text);
 			}
 		}
 
 		// Start is called before the first frame update
-		void Start()
+		private void Start()
 		{
 			comms = FindObjectOfType<Dissonance.DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
-			networkManager.messageReceived += (m) =>
+			networkManager.MessageReceived += (m) =>
 			{
 				string s = m.type + ":" + m.sender + ":" + m.text;
 				messageBuffer.Add(s);
@@ -56,9 +56,9 @@ namespace VelNetUnity
 					messageBuffer.RemoveAt(0);
 				}
 
-				for (int i = 0; i < messageBuffer.Count; i++)
+				foreach (string msg in messageBuffer)
 				{
-					messages.text = messages.text + messageBuffer[i] + "\n";
+					messages.text = messages.text + msg + "\n";
 				}
 			};
 		}
@@ -66,11 +66,6 @@ namespace VelNetUnity
 		public void handleMicrophoneSelection()
 		{
 			comms.MicrophoneName = microphones.options[microphones.value].text;
-		}
-
-		// Update is called once per frame
-		void Update()
-		{
 		}
 	}
 }

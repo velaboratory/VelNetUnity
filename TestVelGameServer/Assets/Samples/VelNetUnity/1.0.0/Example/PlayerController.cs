@@ -44,7 +44,7 @@ namespace VelNetUnity
 			return toReturn;
 		}
 
-		public override void handleMessage(string identifier, byte[] message)
+		public override void HandleMessage(string identifier, byte[] message)
 		{
 			switch (identifier)
 			{
@@ -63,7 +63,7 @@ namespace VelNetUnity
 				{
 					if (isSpeaking)
 					{
-						comms.voiceReceived(dissonanceID, message);
+						comms.VoiceReceived(dissonanceID, message);
 					}
 
 					break;
@@ -115,9 +115,9 @@ namespace VelNetUnity
 					owner.manager.onPlayerJoined += (player) =>
 					{
 						byte[] b = Encoding.UTF8.GetBytes(dissonanceID);
-						owner.sendMessage(this, "d", b);
+						owner.SendMessage(this, "d", b);
 					};
-					owner.manager.setupMessageGroup("close", closePlayers.ToArray());
+					owner.manager.SetupMessageGroup("close", closePlayers.ToArray());
 				}
 			}
 
@@ -136,7 +136,7 @@ namespace VelNetUnity
 				byte[] lastAudioIdBytes = BitConverter.GetBytes(lastAudioId++);
 				Buffer.BlockCopy(lastAudioIdBytes, 0, toSend, 0, 4);
 				Buffer.BlockCopy(data.Array, data.Offset, toSend, 4, data.Count);
-				owner.sendGroupMessage(this, "close", "a", toSend, false); //send voice data unreliably
+				owner.SendGroupMessage(this, "close", "a", toSend, false); //send voice data unreliably
 			}
 		}
 
@@ -144,7 +144,7 @@ namespace VelNetUnity
 		{
 			dissonanceID = id;
 			byte[] b = Encoding.UTF8.GetBytes(dissonanceID);
-			owner.sendMessage(this, "d", b);
+			owner.SendMessage(this, "d", b);
 			comms.comms.TrackPlayerPosition(this);
 		}
 
@@ -163,7 +163,7 @@ namespace VelNetUnity
 		{
 			while (true)
 			{
-				owner.sendMessage(this, "s", getSyncMessage());
+				owner.SendMessage(this, "s", getSyncMessage());
 				yield return new WaitForSeconds(.1f);
 			}
 		}
@@ -197,7 +197,7 @@ namespace VelNetUnity
 
 				if (shouldUpdate)
 				{
-					owner.manager.setupMessageGroup("close", closePlayers.ToArray());
+					owner.manager.SetupMessageGroup("close", closePlayers.ToArray());
 				}
 			}
 
@@ -217,7 +217,7 @@ namespace VelNetUnity
 					isSpeaking = !isSpeaking;
 					byte[] toSend = new byte[1];
 					toSend[0] = isSpeaking ? (byte)1 : (byte)0;
-					owner.sendMessage(this, "x", toSend);
+					owner.SendMessage(this, "x", toSend);
 
 					if (!isSpeaking)
 					{
@@ -234,14 +234,14 @@ namespace VelNetUnity
 
 				if (Input.GetKeyDown(KeyCode.Space))
 				{
-					owner.networkInstantiate("TestNetworkedGameObject");
+					owner.NetworkInstantiate("TestNetworkedGameObject");
 				}
 
 				if (Input.GetKeyDown(KeyCode.BackQuote))
 				{
 					foreach (KeyValuePair<string, NetworkObject> kvp in owner.manager.objects)
 					{
-						owner.takeOwnership(kvp.Key);
+						owner.TakeOwnership(kvp.Key);
 					}
 				}
 
@@ -249,7 +249,7 @@ namespace VelNetUnity
 				{
 					foreach (KeyValuePair<string, NetworkObject> kvp in owner.manager.objects)
 					{
-						owner.networkDestroy(kvp.Key);
+						owner.NetworkDestroy(kvp.Key);
 					}
 				}
 			}

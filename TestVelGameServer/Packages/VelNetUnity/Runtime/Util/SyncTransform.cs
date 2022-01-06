@@ -14,7 +14,7 @@ namespace VelNetUnity
 		public Quaternion targetRotation;
 
 
-		public byte[] getSyncMessage()
+		public byte[] GetSyncMessage()
 		{
 			float[] data = new float[7];
 			for (int i = 0; i < 3; i++)
@@ -30,7 +30,7 @@ namespace VelNetUnity
 			return toReturn;
 		}
 
-		public override void handleMessage(string identifier, byte[] message)
+		public override void HandleMessage(string identifier, byte[] message)
 		{
 			switch (identifier)
 			{
@@ -49,18 +49,18 @@ namespace VelNetUnity
 		}
 
 		// Start is called before the first frame update
-		void Start()
+		private void Start()
 		{
-			StartCoroutine(syncBehavior());
+			StartCoroutine(SyncBehavior());
 		}
 
-		IEnumerator syncBehavior()
+		private IEnumerator SyncBehavior()
 		{
 			while (true)
 			{
 				if (owner != null && owner.isLocal)
 				{
-					owner.sendMessage(this, "s", getSyncMessage());
+					owner.SendMessage(this, "s", GetSyncMessage());
 				}
 
 				yield return new WaitForSeconds(.1f);

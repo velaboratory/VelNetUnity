@@ -21,7 +21,7 @@ namespace VelNetUnity
 		public event Action<RoomEvent> PlayerEnteredRoom;
 		public event Action<RoomEvent> PlayerExitedRoom;
 
-		ConnectionStatus _status = ConnectionStatus.Disconnected;
+		private ConnectionStatus _status = ConnectionStatus.Disconnected;
 		CodecSettings initSettings;
 		public string dissonanceId;
 		public DissonanceComms comms;
@@ -36,11 +36,11 @@ namespace VelNetUnity
 			comms.ResetMicrophoneCapture();
 		}
 
-		public void voiceReceived(string sender, byte[] data)
+		public void VoiceReceived(string sender, byte[] data)
 		{
 			uint sequenceNumber = BitConverter.ToUInt32(data, 0);
 			VoicePacket vp = new VoicePacket(sender, ChannelPriority.Default, 1, true, new ArraySegment<byte>(data, 4, data.Length - 4), sequenceNumber);
-			VoicePacketReceived(vp);
+			VoicePacketReceived?.Invoke(vp);
 		}
 
 		public void SendText(string data, ChannelType recipientType, string recipientId)
@@ -54,7 +54,7 @@ namespace VelNetUnity
 		}
 
 		// Start is called before the first frame update
-		void Start()
+		private void Start()
 		{
 			_status = ConnectionStatus.Connected;
 			comms = GetComponent<DissonanceComms>();
@@ -63,12 +63,12 @@ namespace VelNetUnity
 		public void playerJoined(string id)
 		{
 			Debug.Log("dissonance player joined");
-			PlayerJoined(id, initSettings);
+			PlayerJoined?.Invoke(id, initSettings);
 			RoomEvent re = new RoomEvent();
 			re.Joined = true;
 			re.Room = "Global";
 			re.PlayerName = id;
-			PlayerEnteredRoom(re);
+			PlayerEnteredRoom?.Invoke(re);
 		}
 
 		public void playerLeft(string id)
@@ -77,18 +77,18 @@ namespace VelNetUnity
 			re.Joined = false;
 			re.Room = "Global";
 			re.PlayerName = id;
-			PlayerExitedRoom(re);
-			PlayerLeft(id);
+			PlayerExitedRoom?.Invoke(re);
+			PlayerLeft?.Invoke(id);
 		}
 
 		public void playerStartedSpeaking(string id)
 		{
-			PlayerStartedSpeaking(id);
+			PlayerStartedSpeaking?.Invoke(id);
 		}
 
 		public void playerStoppedSpeaking(string id)
 		{
-			PlayerStoppedSpeaking(id);
+			PlayerStoppedSpeaking?.Invoke(id);
 		}
 	}
 }

@@ -15,21 +15,21 @@ namespace VelNetUnity
 		public string room;
 		public NetworkManager manager;
 
-		public bool isLocal = false;
+		public bool isLocal;
 
-		public int lastObjectId = 0; //for instantiation
+		public int lastObjectId; //for instantiation
 
 
-		private bool isMaster = false;
+		private bool isMaster;
 
 		private void Start()
 		{
 			myObject.owner = this;
 			manager = FindObjectOfType<NetworkManager>();
-			manager.onPlayerJoined += handlePlayerJoined;
+			manager.onPlayerJoined += HandlePlayerJoined;
 		}
 
-		public void handlePlayerJoined(NetworkPlayer player)
+		public void HandlePlayerJoined(NetworkPlayer player)
 		{
 			//if this is the local player, go through the objects that I own, and send instantiation messages for the ones that have prefab names
 			if (isLocal)
@@ -38,20 +38,20 @@ namespace VelNetUnity
 				{
 					if (kvp.Value.owner == this && kvp.Value.prefabName != "")
 					{
-						manager.sendTo(NetworkManager.MessageType.OTHERS, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
+						manager.SendTo(NetworkManager.MessageType.OTHERS, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
 					}
 				}
 
 				if (isMaster)
 				{
 					//send a list of scene object ids when someone joins
-					sendSceneUpdate();
+					SendSceneUpdate();
 				}
 			}
 		}
 
 
-		public void handleMessage(NetworkManager.Message m)
+		public void HandleMessage(NetworkManager.Message m)
 		{
 			//these are generally things that come from the "owner" and should be enacted locally, where appropriate
 			//we need to parse the message
@@ -69,7 +69,7 @@ namespace VelNetUnity
 					{
 						string identifier = sections[1];
 						byte[] message = Convert.FromBase64String(sections[2]);
-						myObject.handleMessage(identifier, message);
+						myObject.HandleMessage(identifier, message);
 						break;
 					}
 					case "5": //sync update for an object I may own
@@ -82,7 +82,7 @@ namespace VelNetUnity
 						{
 							if (manager.objects[objectKey].owner == this)
 							{
-								manager.objects[objectKey].handleMessage(identifier, messageBytes);
+								manager.objects[objectKey].HandleMessage(identifier, messageBytes);
 							}
 						}
 
@@ -124,14 +124,14 @@ namespace VelNetUnity
 					{
 						string networkId = sections[1];
 
-						manager.deleteNetworkObject(networkId);
+						manager.DeleteNetworkObject(networkId);
 						break;
 					}
 					case "9": //deleted scene objects
 					{
 						for (int k = 1; k < sections.Length; k++)
 						{
-							manager.deleteNetworkObject(sections[k]);
+							manager.DeleteNetworkObject(sections[k]);
 						}
 
 						break;
@@ -140,38 +140,38 @@ namespace VelNetUnity
 			}
 		}
 
-		public void setAsMasterPlayer()
+		public void SetAsMasterPlayer()
 		{
 			isMaster = true;
 			//if I'm master, I'm now responsible for updating all scene objects
 			//FindObjectsOfType<NetworkObject>();
 		}
 
-		public void sendGroupMessage(NetworkObject obj, string group, string identifier, byte[] data, bool reliable = true)
+		public void SendGroupMessage(NetworkObject obj, string group, string identifier, byte[] data, bool reliable = true)
 		{
 			if (obj == myObject)
 			{
-				manager.sendToGroup(group, "1," + identifier + "," + Convert.ToBase64String(data), reliable);
+				manager.SendToGroup(group, "1," + identifier + "," + Convert.ToBase64String(data), reliable);
 			}
 			else
 			{
-				manager.sendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
+				manager.SendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
 			}
 		}
 
-		public void sendMessage(NetworkObject obj, string identifier, byte[] data, bool reliable = true)
+		public void SendMessage(NetworkObject obj, string identifier, byte[] data, bool reliable = true)
 		{
 			if (obj == myObject)
 			{
-				manager.sendTo(NetworkManager.MessageType.OTHERS, "1," + identifier + "," + Convert.ToBase64String(data), reliable);
+				manager.SendTo(NetworkManager.MessageType.OTHERS, "1," + identifier + "," + Convert.ToBase64String(data), reliable);
 			}
 			else
 			{
-				manager.sendTo(NetworkManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
+				manager.SendTo(NetworkManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
 			}
 		}
 
-		public NetworkObject networkInstantiate(string prefabName)
+		public NetworkObject NetworkInstantiate(string prefabName)
 		{
 			if (!isLocal)
 			{
@@ -190,30 +190,30 @@ namespace VelNetUnity
 				instance.owner = this;
 				manager.objects.Add(instance.networkId, instance);
 
-				manager.sendTo(NetworkManager.MessageType.OTHERS, "7," + networkId + "," + prefabName); //only sent to others, as I already instantiated this.  Nice that it happens immediately. 
+				manager.SendTo(NetworkManager.MessageType.OTHERS, "7," + networkId + "," + prefabName); //only sent to others, as I already instantiated this.  Nice that it happens immediately. 
 				return instance;
 			}
 
 			return null;
 		}
 
-		public void networkDestroy(string networkId)
+		public void NetworkDestroy(string networkId)
 		{
 			if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return; //must be the local owner of the object to destroy it
-			manager.sendTo(NetworkManager.MessageType.ALL_ORDERED, "8," + networkId); //send to all, which will make me delete as well
+			manager.SendTo(NetworkManager.MessageType.ALL_ORDERED, "8," + networkId); //send to all, which will make me delete as well
 		}
 
-		public void takeOwnership(string networkId)
+		public void TakeOwnership(string networkId)
 		{
 			if (!manager.objects.ContainsKey(networkId) || !isLocal) return; //must exist and be the the local player
 
 			manager.objects[networkId].owner = this; //immediately successful
-			manager.sendTo(NetworkManager.MessageType.ALL_ORDERED, "6," + networkId); //must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
+			manager.SendTo(NetworkManager.MessageType.ALL_ORDERED, "6," + networkId); //must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
 		}
 
-		public void sendSceneUpdate()
+		public void SendSceneUpdate()
 		{
-			manager.sendTo(NetworkManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
+			manager.SendTo(NetworkManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
 		}
 	}
 }
