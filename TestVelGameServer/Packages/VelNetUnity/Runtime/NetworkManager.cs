@@ -8,6 +8,7 @@ using System.Net;
 
 namespace VelNetUnity
 {
+	[AddComponentMenu("VelNetUnity/VelNet Network Manager")]
 	public class NetworkManager : MonoBehaviour
 	{
 		public enum MessageType
@@ -20,6 +21,8 @@ namespace VelNetUnity
 
 		public string host;
 		public int port;
+
+		public static NetworkManager instance;
 
 		#region private members
 
@@ -36,14 +39,14 @@ namespace VelNetUnity
 		public GameObject playerPrefab;
 		public Dictionary<int, NetworkPlayer> players = new Dictionary<int, NetworkPlayer>();
 
-		public Action<NetworkPlayer> onJoinedRoom = delegate { };
-		public Action<NetworkPlayer> onPlayerJoined = delegate { };
-		public Action<NetworkPlayer> onPlayerLeft = delegate { };
+		public Action<NetworkPlayer> OnJoinedRoom;
+		public Action<NetworkPlayer> OnPlayerJoined;
+		public Action<NetworkPlayer> OnPlayerLeft;
 
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
 		public NetworkObject[] sceneObjects;
 		public List<string> deletedSceneObjects = new List<string>();
-		public Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
+		public readonly Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
 		private NetworkPlayer masterPlayer;
 
 		#endregion
@@ -57,6 +60,15 @@ namespace VelNetUnity
 		}
 
 		public readonly List<Message> receivedMessages = new List<Message>();
+
+		private void Awake()
+		{
+			if (instance != null)
+			{
+				Debug.LogError("Multiple NetworkManagers detected! Bad!", this);
+			}
+			instance = this;
+		}
 
 		private void Start()
 		{
@@ -112,8 +124,7 @@ namespace VelNetUnity
 								player.userid = m.sender;
 								players.Add(userid, player);
 								player.room = m.text;
-								player.manager = this;
-								onJoinedRoom(player);
+								OnJoinedRoom?.Invoke(player);
 							}
 						}
 						else //not for me, a player is joining or leaving
@@ -150,9 +161,8 @@ namespace VelNetUnity
 								player.isLocal = false;
 								player.room = m.text;
 								player.userid = m.sender;
-								player.manager = this;
 								players.Add(m.sender, player);
-								onPlayerJoined(player);
+								OnPlayerJoined?.Invoke(player);
 							}
 						}
 					}
@@ -498,10 +508,12 @@ namespace VelNetUnity
 			}
 		}
 
-		//changes the designated group that sendto(4) will go to
-		public void SetupMessageGroup(string groupname, int[] userids)
+		/// <summary>
+		/// changes the designated group that sendto(4) will go to
+		/// </summary>
+		public void SetupMessageGroup(string groupName, IEnumerable<int> userIds)
 		{
-			SendNetworkMessage("5:" + groupname + ":" + String.Join(":", userids));
+			SendNetworkMessage($"5:{groupName}:{string.Join(":", userIds)}");
 		}
 
 		public void DeleteNetworkObject(string networkId)

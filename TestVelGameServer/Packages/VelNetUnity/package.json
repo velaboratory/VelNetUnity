@@ -9,7 +9,7 @@
       "self-hosted"
     ],
     "author": {
-      "name": "Kyle Johnsen",
+      "name": "Virtual Experiences Laboratory",
       "email": "kjohnsen@uga.edu",
       "url": "https://vel.engr.uga.edu"
     },
@@ -17,7 +17,7 @@
       {
         "displayName": "Dissonance Integration",
         "description": "Includes support for Dissonance Voice, available separately from the Unity Asset Store.",
-        "path": "Samples~/DissonanceIntegration"
+        "path": "Samples~/Dissonance Integration"
       },
       {
         "displayName": "Example",
