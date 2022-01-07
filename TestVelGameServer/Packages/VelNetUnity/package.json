@@ -1,7 +1,7 @@
 {
     "name": "edu.uga.engr.vel.velnetunity",
     "displayName": "VelNetUnity",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "unity": "2019.1",
     "description": "A custom networking library for Unity.",
     "keywords": [
@@ -17,7 +17,7 @@
       {
         "displayName": "Dissonance Integration",
         "description": "Includes support for Dissonance Voice, available separately from the Unity Asset Store.",
-        "path": "Samples~/Dissonance Integration"
+        "path": "Samples~/DissonanceIntegration"
       },
       {
         "displayName": "Example",

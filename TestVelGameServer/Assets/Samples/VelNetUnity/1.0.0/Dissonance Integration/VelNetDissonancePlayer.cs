@@ -8,7 +8,9 @@ using UnityEngine;
 
 namespace VelNetUnity
 {
-	[RequireComponent(typeof(VelCommsNetwork))]
+	/// <summary>
+	/// This should be added to your player object
+	/// </summary>
 	[AddComponentMenu("VelNetUnity/Dissonance/VelNet Dissonance Player")]
 	public class VelNetDissonancePlayer : NetworkObject, IDissonancePlayer
 	{
@@ -16,6 +18,7 @@ namespace VelNetUnity
 		private bool isSpeaking;
 		private uint lastAudioId;
 
+		[Header("VelNet Dissonance Player Properties")]
 		public string dissonanceID = "";
 
 		//required by dissonance for spatial audio
@@ -28,7 +31,7 @@ namespace VelNetUnity
 		public Vector3 targetPosition;
 		public Quaternion targetRotation;
 
-		public List<VelNetDissonancePlayer> allPlayers = new List<VelNetDissonancePlayer>();
+		private static readonly List<VelNetDissonancePlayer> allPlayers = new List<VelNetDissonancePlayer>();
 		public List<int> closePlayers = new List<int>();
 
 		[Tooltip("Maximum distance to transmit voice data. 0 to always send voice to all players.")]
@@ -38,7 +41,13 @@ namespace VelNetUnity
 		private void Start()
 		{
 			comms = FindObjectOfType<VelCommsNetwork>();
+			if (comms == null)
+			{
+				Debug.LogError("No VelCommsNetwork found. Make sure there is one in your scene.", this);
+				return;
+			}
 
+			// add ourselves to the global list of all players in the scene
 			if (!allPlayers.Contains(this))
 			{
 				allPlayers.Add(this);
@@ -80,7 +89,7 @@ namespace VelNetUnity
 						dissonanceID = Encoding.UTF8.GetString(message);
 						// tell the comms network that this player joined the channel
 						comms.SetPlayerJoined(dissonanceID); // tell dissonance
-						comms.comms.TrackPlayerPosition(this); // tell dissonance to track the remote player
+						comms.dissonanceComms.TrackPlayerPosition(this); // tell dissonance to track the remote player
 					}
 
 					break;
@@ -125,7 +134,7 @@ namespace VelNetUnity
 			dissonanceID = id;
 			byte[] b = Encoding.UTF8.GetBytes(dissonanceID);
 			owner.SendMessage(this, "d", b);
-			comms.comms.TrackPlayerPosition(this);
+			comms.dissonanceComms.TrackPlayerPosition(this);
 		}
 
 		private void VoiceInitialized(string id)
@@ -179,7 +188,7 @@ namespace VelNetUnity
 			//handle dissonance comms
 
 			//if we're not speaking, and the comms say we are, send a speaking event, which will be received on other network players and sent to their comms accordingly
-			if (comms.comms.FindPlayer(dissonanceID)?.IsSpeaking != isSpeaking) //unfortunately, there does not seem to be an event for this
+			if (comms.dissonanceComms.FindPlayer(dissonanceID)?.IsSpeaking != isSpeaking) //unfortunately, there does not seem to be an event for this
 			{
 				isSpeaking = !isSpeaking;
 				byte[] toSend = { isSpeaking ? (byte)1 : (byte)0 };
