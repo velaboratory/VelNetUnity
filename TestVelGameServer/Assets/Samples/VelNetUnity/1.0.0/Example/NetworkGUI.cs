@@ -1,12 +1,13 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 namespace VelNetUnity
 {
 	public class NetworkGUI : MonoBehaviour
 	{
-		public NetworkManager networkManager;
+		[FormerlySerializedAs("networkManager")] public VelNetManager velNetManager;
 		public InputField userInput;
 		public InputField sendInput;
 		public InputField roomInput;
@@ -19,7 +20,7 @@ namespace VelNetUnity
 		{
 			if (sendInput.text != "")
 			{
-				networkManager.SendTo(NetworkManager.MessageType.OTHERS, sendInput.text);
+				velNetManager.SendTo(VelNetManager.MessageType.OTHERS, sendInput.text);
 			}
 		}
 
@@ -27,7 +28,7 @@ namespace VelNetUnity
 		{
 			if (userInput.text != "")
 			{
-				networkManager.Login(userInput.text, "nopass");
+				velNetManager.Login(userInput.text, "nopass");
 			}
 		}
 
@@ -35,7 +36,7 @@ namespace VelNetUnity
 		{
 			if (roomInput.text != "")
 			{
-				networkManager.Join(roomInput.text);
+				velNetManager.Join(roomInput.text);
 			}
 		}
 
@@ -44,7 +45,7 @@ namespace VelNetUnity
 		{
 			comms = FindObjectOfType<Dissonance.DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
-			networkManager.MessageReceived += (m) =>
+			velNetManager.MessageReceived += (m) =>
 			{
 				string s = m.type + ":" + m.sender + ":" + m.text;
 				messageBuffer.Add(s);

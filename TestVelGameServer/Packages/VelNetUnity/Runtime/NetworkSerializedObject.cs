@@ -1,38 +1,39 @@
-﻿using System;
-using System.Timers;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.Serialization;
 
 namespace VelNetUnity
 {
-	public abstract class NetworkSerializedObject : NetworkObject
+	public abstract class NetworkSerializedObject : NetworkComponent
 	{
-		[FormerlySerializedAs("updateRateHz")] [Tooltip("Send rate of this object")] public float serializationRateHz = 30;
+		[FormerlySerializedAs("updateRateHz")] [Tooltip("Send rate of this object")]
+		public float serializationRateHz = 30;
 
 		private void Start()
 		{
-			Timer timer = new Timer();
-			timer.Interval = serializationRateHz;
-			timer.Elapsed += SendMessageUpdate;
+			StartCoroutine(SendMessageUpdate());
 		}
 
-		private void SendMessageUpdate(object sender, ElapsedEventArgs e)
+		private IEnumerator SendMessageUpdate()
 		{
-			if (owner != null && owner.isLocal)
+			while (true)
 			{
-				owner.SendMessage(this, "s", SendState());
+				if (IsMine)
+				{
+					SendBytes(SendState());
+				}
+
+				yield return new WaitForSeconds(1 / serializationRateHz);
 			}
+			// ReSharper disable once IteratorNeverReturns
+		}
+		
+		public override void ReceiveBytes(byte[] message)
+		{
+			ReceiveState(message);
 		}
 
 		protected abstract byte[] SendState();
-
-		public override void HandleMessage(string identifier, byte[] message)
-		{
-			if (identifier == "s")
-			{
-				ReceiveState(message);
-			}
-		}
 
 		protected abstract void ReceiveState(byte[] message);
 	}

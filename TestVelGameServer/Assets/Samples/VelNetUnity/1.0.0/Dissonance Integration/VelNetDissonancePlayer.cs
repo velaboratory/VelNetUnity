@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using Dissonance;
 using UnityEngine;
 
@@ -12,7 +11,7 @@ namespace VelNetUnity
 	/// This should be added to your player object
 	/// </summary>
 	[AddComponentMenu("VelNetUnity/Dissonance/VelNet Dissonance Player")]
-	public class VelNetDissonancePlayer : NetworkObject, IDissonancePlayer
+	public class VelNetDissonancePlayer : NetworkComponent, IDissonancePlayer
 	{
 		private VelCommsNetwork comms;
 		private bool isSpeaking;
@@ -25,11 +24,8 @@ namespace VelNetUnity
 		public string PlayerId => dissonanceID;
 		public Vector3 Position => transform.position;
 		public Quaternion Rotation => transform.rotation;
-		public NetworkPlayerType Type => owner.isLocal ? NetworkPlayerType.Local : NetworkPlayerType.Remote;
+		public NetworkPlayerType Type => IsMine ? NetworkPlayerType.Local : NetworkPlayerType.Remote;
 		public bool IsTracking => true;
-
-		public Vector3 targetPosition;
-		public Quaternion targetRotation;
 
 		private static readonly List<VelNetDissonancePlayer> allPlayers = new List<VelNetDissonancePlayer>();
 		public List<int> closePlayers = new List<int>();
@@ -37,8 +33,15 @@ namespace VelNetUnity
 		[Tooltip("Maximum distance to transmit voice data. 0 to always send voice to all players.")]
 		public float maxDistance;
 
-		// Start is called before the first frame update
-		private void Start()
+		private enum MessageType : byte
+		{
+			AudioData,
+			DissonanceId,
+			SpeakingState
+		}
+
+		// This object should not be in the scene at the start.
+		private void Awake()
 		{
 			comms = FindObjectOfType<VelCommsNetwork>();
 			if (comms == null)
@@ -53,76 +56,37 @@ namespace VelNetUnity
 				allPlayers.Add(this);
 			}
 
-			if (owner.isLocal)
+			if (IsMine)
 			{
 				SetDissonanceID(comms.dissonanceId);
 				comms.VoiceQueued += SendVoiceData;
 
 				//we also need to know when other players join, so we can send the dissonance ID again
 
-				NetworkManager.instance.OnPlayerJoined += (player) =>
+				VelNetManager.instance.OnPlayerJoined += (player) =>
 				{
-					byte[] b = Encoding.UTF8.GetBytes(dissonanceID);
-					owner.SendMessage(this, "d", b);
+					using MemoryStream mem = new MemoryStream();
+					using BinaryWriter writer = new BinaryWriter(mem);
+					writer.Write((byte)MessageType.DissonanceId);
+					writer.Write(dissonanceID);
+					SendBytes(mem.ToArray());
 				};
-				NetworkManager.instance.SetupMessageGroup("close", closePlayers.ToArray());
-			}
-		}
-
-		public override void HandleMessage(string identifier, byte[] message)
-		{
-			switch (identifier)
-			{
-				case "a": //audio data
-				{
-					if (isSpeaking)
-					{
-						comms.VoiceReceived(dissonanceID, message);
-					}
-
-					break;
-				}
-				case "d": //dissonance id (player joined)
-				{
-					if (dissonanceID == "") // I don't have this yet
-					{
-						dissonanceID = Encoding.UTF8.GetString(message);
-						// tell the comms network that this player joined the channel
-						comms.SetPlayerJoined(dissonanceID); // tell dissonance
-						comms.dissonanceComms.TrackPlayerPosition(this); // tell dissonance to track the remote player
-					}
-
-					break;
-				}
-				case "x": // speaking state
-				{
-					if (message[0] == 0)
-					{
-						comms.SetPlayerStoppedSpeaking(dissonanceID);
-						isSpeaking = false;
-					}
-					else
-					{
-						comms.SetPlayerStartedSpeaking(dissonanceID);
-						isSpeaking = true;
-					}
-
-					break;
-				}
+				VelNetManager.instance.SetupMessageGroup("close", closePlayers.ToArray());
 			}
 		}
 
 		private void SendVoiceData(ArraySegment<byte> data)
 		{
 			// need to send it
-			if (owner == null || !owner.isLocal) return;
+			if (!IsMine) return;
 
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.AudioData);
 			writer.Write(BitConverter.GetBytes(lastAudioId++));
 			writer.Write(data.ToArray());
 			// send voice data unreliably
-			owner.SendGroupMessage(this, "close", "a", mem.ToArray(), false);
+			SendBytesToGroup("close", mem.ToArray(), false);
 		}
 
 		/// <summary>
@@ -132,8 +96,12 @@ namespace VelNetUnity
 		public void SetDissonanceID(string id)
 		{
 			dissonanceID = id;
-			byte[] b = Encoding.UTF8.GetBytes(dissonanceID);
-			owner.SendMessage(this, "d", b);
+
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.DissonanceId);
+			writer.Write(dissonanceID);
+			SendBytes(mem.ToArray());
 			comms.dissonanceComms.TrackPlayerPosition(this);
 		}
 
@@ -151,8 +119,7 @@ namespace VelNetUnity
 		// Update is called once per frame
 		private void Update()
 		{
-			if (owner == null) return;
-			if (!owner.isLocal) return;
+			if (!IsMine) return;
 
 			// handle nearness cutoff
 			if (maxDistance > 0)
@@ -166,21 +133,21 @@ namespace VelNetUnity
 					}
 
 					float dist = Vector3.Distance(p.transform.position, transform.position);
-					if (dist < maxDistance && !closePlayers.Contains(p.owner.userid))
+					if (dist < maxDistance && !closePlayers.Contains(p.Owner.userid))
 					{
-						closePlayers.Add(p.owner.userid);
+						closePlayers.Add(p.Owner.userid);
 						closePlayerListChanged = true;
 					}
-					else if (dist >= maxDistance && closePlayers.Contains(p.owner.userid))
+					else if (dist >= maxDistance && closePlayers.Contains(p.Owner.userid))
 					{
-						closePlayers.Remove(p.owner.userid);
+						closePlayers.Remove(p.Owner.userid);
 						closePlayerListChanged = true;
 					}
 				}
 
 				if (closePlayerListChanged)
 				{
-					NetworkManager.instance.SetupMessageGroup("close", closePlayers);
+					VelNetManager.instance.SetupMessageGroup("close", closePlayers);
 				}
 			}
 
@@ -191,12 +158,63 @@ namespace VelNetUnity
 			if (comms.dissonanceComms.FindPlayer(dissonanceID)?.IsSpeaking != isSpeaking) //unfortunately, there does not seem to be an event for this
 			{
 				isSpeaking = !isSpeaking;
-				byte[] toSend = { isSpeaking ? (byte)1 : (byte)0 };
-				owner.SendMessage(this, "x", toSend);
+
+				using MemoryStream mem = new MemoryStream();
+				using BinaryWriter writer = new BinaryWriter(mem);
+				writer.Write((byte)MessageType.SpeakingState);
+				writer.Write(isSpeaking ? (byte)1 : (byte)0);
+				SendBytes(mem.ToArray());
 
 				if (!isSpeaking)
 				{
 					lastAudioId = 0;
+				}
+			}
+		}
+
+		public override void ReceiveBytes(byte[] message)
+		{
+			using MemoryStream mem = new MemoryStream(message);
+			using BinaryReader reader = new BinaryReader(mem);
+
+			byte identifier = reader.ReadByte();
+			switch (identifier)
+			{
+				case 0: //audio data
+				{
+					if (isSpeaking)
+					{
+						comms.VoiceReceived(dissonanceID, message.Skip(1).ToArray());
+					}
+
+					break;
+				}
+				case 1: //dissonance id (player joined)
+				{
+					if (dissonanceID == "") // I don't have this yet
+					{
+						dissonanceID = reader.ReadString();
+						// tell the comms network that this player joined the channel
+						comms.SetPlayerJoined(dissonanceID); // tell dissonance
+						comms.dissonanceComms.TrackPlayerPosition(this); // tell dissonance to track the remote player
+					}
+
+					break;
+				}
+				case 2: // speaking state
+				{
+					if (message[0] == 0)
+					{
+						comms.SetPlayerStoppedSpeaking(dissonanceID);
+						isSpeaking = false;
+					}
+					else
+					{
+						comms.SetPlayerStartedSpeaking(dissonanceID);
+						isSpeaking = true;
+					}
+
+					break;
 				}
 			}
 		}

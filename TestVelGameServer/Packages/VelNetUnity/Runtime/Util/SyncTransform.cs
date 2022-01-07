@@ -1,4 +1,3 @@
-using System.Collections;
 using System.IO;
 using UnityEngine;
 
@@ -13,6 +12,7 @@ namespace VelNetUnity
 	{
 		public Vector3 targetPosition;
 		public Quaternion targetRotation;
+		public float smoothness = .1f;
 
 		protected override byte[] SendState()
 		{
@@ -36,9 +36,9 @@ namespace VelNetUnity
 
 		private void Update()
 		{
-			if (owner == null || owner.isLocal) return;
-			transform.position = Vector3.Lerp(transform.position, targetPosition, .1f);
-			transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, .1f);
+			if (IsMine) return;
+			transform.position = Vector3.Lerp(transform.position, targetPosition, 1 / smoothness / serializationRateHz);
+			transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 1 / smoothness / serializationRateHz);
 		}
 	}
 }

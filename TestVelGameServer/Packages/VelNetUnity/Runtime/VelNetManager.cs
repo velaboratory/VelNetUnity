@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -8,8 +9,8 @@ using System.Net;
 
 namespace VelNetUnity
 {
-	[AddComponentMenu("VelNetUnity/VelNet Network Manager")]
-	public class NetworkManager : MonoBehaviour
+	[AddComponentMenu("VelNetUnity/VelNet Manager")]
+	public class VelNetManager : MonoBehaviour
 	{
 		public enum MessageType
 		{
@@ -22,9 +23,7 @@ namespace VelNetUnity
 		public string host;
 		public int port;
 
-		public static NetworkManager instance;
-
-		#region private members
+		public static VelNetManager instance;
 
 		private TcpClient socketConnection;
 		private Socket udpSocket;
@@ -36,8 +35,7 @@ namespace VelNetUnity
 		public string room;
 		private int messagesReceived = 0;
 
-		public GameObject playerPrefab;
-		public Dictionary<int, NetworkPlayer> players = new Dictionary<int, NetworkPlayer>();
+		public readonly Dictionary<int, NetworkPlayer> players = new Dictionary<int, NetworkPlayer>();
 
 		public Action<NetworkPlayer> OnJoinedRoom;
 		public Action<NetworkPlayer> OnPlayerJoined;
@@ -48,8 +46,9 @@ namespace VelNetUnity
 		public List<string> deletedSceneObjects = new List<string>();
 		public readonly Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
 		private NetworkPlayer masterPlayer;
+		public static NetworkPlayer LocalPlayer => instance.players.Where(p => p.Value.isLocal).Select(p=>p.Value).FirstOrDefault();
+		
 
-		#endregion
 
 		// Use this for initialization
 		public class Message
@@ -67,6 +66,7 @@ namespace VelNetUnity
 			{
 				Debug.LogError("Multiple NetworkManagers detected! Bad!", this);
 			}
+
 			instance = this;
 		}
 
@@ -106,85 +106,92 @@ namespace VelNetUnity
 
 					if (m.type == 2)
 					{
-						//if this message is for me, that means I joined a new room...
+						// if this message is for me, that means I joined a new room...
 						if (userid == m.sender)
 						{
-							foreach (KeyValuePair<int, NetworkPlayer> kvp in players)
-							{
-								Destroy(kvp.Value.gameObject);
-							}
+							// TODO delete all old objects when joining a new room
 
 							players.Clear(); //we clear the list, but will recreate as we get messages from people in our room
 
 							if (m.text != "")
 							{
-								NetworkPlayer player = Instantiate(playerPrefab).GetComponent<NetworkPlayer>();
+								NetworkPlayer player = new NetworkPlayer
+								{
+									isLocal = true,
+									userid = m.sender,
+									room = m.text
+								};
 
-								player.isLocal = true;
-								player.userid = m.sender;
 								players.Add(userid, player);
-								player.room = m.text;
 								OnJoinedRoom?.Invoke(player);
 							}
 						}
-						else //not for me, a player is joining or leaving
+						else // not for me, a player is joining or leaving
 						{
 							NetworkPlayer me = players[userid];
 
 							if (me.room != m.text)
 							{
-								//we got a left message, kill it
-								//change ownership of all objects to master
-
+								// we got a left message, kill it
+								// change ownership of all objects to master
 								foreach (KeyValuePair<string, NetworkObject> kvp in objects)
 								{
-									if (kvp.Value.owner == players[m.sender]) //the owner is the player that left
+									if (kvp.Value.owner == players[m.sender]) // the owner is the player that left
 									{
-										if (me.isLocal && me == masterPlayer) //I'm the local master player, so can take ownership immediately
+										// if this object has locked ownership, delete it
+										if (kvp.Value.ownershipLocked)
+										{
+											// TODO this may check for ownership in the future. We don't need ownership here
+											DeleteNetworkObject(kvp.Value.networkId);
+										}
+										// I'm the local master player, so can take ownership immediately
+										else if (me.isLocal && me == masterPlayer)
 										{
 											me.TakeOwnership(kvp.Key);
 										}
-										else if (players[m.sender] == masterPlayer) //the master player left, so everyone should set the owner null (we should get a new master shortly)
+										// the master player left, so everyone should set the owner null (we should get a new master shortly)
+										else if (players[m.sender] == masterPlayer)
 										{
 											kvp.Value.owner = null;
 										}
 									}
 								}
 
-								Destroy(players[m.sender].gameObject);
 								players.Remove(m.sender);
 							}
 							else
 							{
-								//we got a join mesage, create it
-								NetworkPlayer player = Instantiate(playerPrefab).GetComponent<NetworkPlayer>();
-								player.isLocal = false;
-								player.room = m.text;
-								player.userid = m.sender;
+								// we got a join message, create it
+								NetworkPlayer player = new NetworkPlayer
+								{
+									isLocal = false,
+									room = m.text,
+									userid = m.sender
+								};
 								players.Add(m.sender, player);
 								OnPlayerJoined?.Invoke(player);
 							}
 						}
 					}
 
-					if (m.type == 3) //generic message
+					if (m.type == 3) // generic message
 					{
 						players[m.sender]?.HandleMessage(m);
 					}
 
-					if (m.type == 4) //change master player (this should only happen when the first player joins or if the master player leaves)
+					if (m.type == 4) // change master player (this should only happen when the first player joins or if the master player leaves)
 					{
 						if (masterPlayer == null)
 						{
 							masterPlayer = players[m.sender];
 
-							//no master player yet, add the scene objects
+							// no master player yet, add the scene objects
 
 							for (int i = 0; i < sceneObjects.Length; i++)
 							{
 								sceneObjects[i].networkId = -1 + "-" + i;
 								sceneObjects[i].owner = masterPlayer;
-								sceneObjects[i].isSceneObject = true; //needed for special handling when deleted
+								sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
 								objects.Add(sceneObjects[i].networkId, sceneObjects[i]);
 							}
 						}
@@ -195,7 +202,7 @@ namespace VelNetUnity
 
 						masterPlayer.SetAsMasterPlayer();
 
-						//master player should take over any objects that do not have an owner
+						// master player should take over any objects that do not have an owner
 
 						foreach (KeyValuePair<string, NetworkObject> kvp in objects)
 						{
@@ -514,6 +521,34 @@ namespace VelNetUnity
 		public void SetupMessageGroup(string groupName, IEnumerable<int> userIds)
 		{
 			SendNetworkMessage($"5:{groupName}:{string.Join(":", userIds)}");
+		}
+		
+		
+		public static void InstantiateNetworkObject(string prefabName)
+		{
+			NetworkPlayer localPlayer = LocalPlayer;
+			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
+			if (prefab == null)
+			{
+				Debug.LogError("Couldn't find a prefab with that name: " + prefabName);
+				return;
+			}
+			NetworkObject newObject = Instantiate(prefab);
+			newObject.networkId = localPlayer.userid + "-" + localPlayer.lastObjectId++;;
+			newObject.prefabName = prefabName;
+			newObject.owner = localPlayer;
+			instance.objects.Add(newObject.networkId, newObject);
+		}
+
+		public static void InstantiateNetworkObject(string networkId, string prefabName, NetworkPlayer owner)
+		{
+			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
+			if (prefab == null) return;
+			NetworkObject newObject = Instantiate(prefab);
+			newObject.networkId = networkId;
+			newObject.prefabName = prefabName;
+			newObject.owner = owner;
+			instance.objects.Add(newObject.networkId, newObject);
 		}
 
 		public void DeleteNetworkObject(string networkId)
