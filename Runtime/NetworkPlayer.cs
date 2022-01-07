@@ -1,18 +1,13 @@
 using System.Collections.Generic;
-using UnityEngine;
 using System;
-
 
 namespace VelNetUnity
 {
 	/// <summary>
-	/// One of these will be instantiated for each player that joins the "room".
+	/// Represents a network player
 	/// </summary>
-	[RequireComponent(typeof(NetworkObject))]
-	[AddComponentMenu("VelNetUnity/VelNet Network Player")]
-	public class NetworkPlayer : MonoBehaviour
+	public class NetworkPlayer
 	{
-		private NetworkObject myObject;
 		public int userid;
 		public string username;
 
@@ -20,7 +15,7 @@ namespace VelNetUnity
 
 		public bool isLocal;
 
-		private NetworkManager manager;
+		private VelNetManager manager;
 
 		/// <summary>
 		/// For instantiation
@@ -30,11 +25,10 @@ namespace VelNetUnity
 
 		private bool isMaster;
 
-		private void Start()
+
+		public NetworkPlayer()
 		{
-			myObject = GetComponent<NetworkObject>();
-			myObject.owner = this;
-			manager = NetworkManager.instance;
+			manager = VelNetManager.instance;
 			manager.OnPlayerJoined += HandlePlayerJoined;
 		}
 
@@ -47,7 +41,7 @@ namespace VelNetUnity
 				{
 					if (kvp.Value.owner == this && kvp.Value.prefabName != "")
 					{
-						manager.SendTo(NetworkManager.MessageType.OTHERS, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
+						manager.SendTo(VelNetManager.MessageType.OTHERS, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
 					}
 				}
 
@@ -60,27 +54,20 @@ namespace VelNetUnity
 		}
 
 
-		public void HandleMessage(NetworkManager.Message m)
+		public void HandleMessage(VelNetManager.Message m)
 		{
 			//these are generally things that come from the "owner" and should be enacted locally, where appropriate
 			//we need to parse the message
 
 			//types of messages
 			string[] messages = m.text.Split(';'); //messages are split by ;
-			for (int i = 0; i < messages.Length; i++)
+			foreach (string s in messages)
 			{
 				//individual message parameters separated by comma
-				string[] sections = messages[i].Split(',');
+				string[] sections = s.Split(',');
 
 				switch (sections[0])
 				{
-					case "1": //update my object's data
-					{
-						string identifier = sections[1];
-						byte[] message = Convert.FromBase64String(sections[2]);
-						myObject.HandleMessage(identifier, message);
-						break;
-					}
 					case "5": //sync update for an object I may own
 					{
 						string objectKey = sections[1];
@@ -91,7 +78,7 @@ namespace VelNetUnity
 						{
 							if (manager.objects[objectKey].owner == this)
 							{
-								manager.objects[objectKey].HandleMessage(identifier, messageBytes);
+								manager.objects[objectKey].ReceiveBytes(identifier, messageBytes);
 							}
 						}
 
@@ -108,7 +95,7 @@ namespace VelNetUnity
 
 						break;
 					}
-					case "7": //I'm trying to instantiate an object 
+					case "7": // I'm trying to instantiate an object 
 					{
 						string networkId = sections[1];
 						string prefabName = sections[2];
@@ -117,19 +104,11 @@ namespace VelNetUnity
 							break; //we already have this one, ignore
 						}
 
-						NetworkObject temp = manager.prefabs.Find((prefab) => prefab.name == prefabName);
-						if (temp != null)
-						{
-							NetworkObject instance = Instantiate(temp);
-							instance.networkId = networkId;
-							instance.prefabName = prefabName;
-							instance.owner = this;
-							manager.objects.Add(instance.networkId, instance);
-						}
+						VelNetManager.InstantiateNetworkObject(networkId, prefabName, this);
 
 						break;
 					}
-					case "8": //I'm trying to destroy a gameobject I own
+					case "8": // I'm trying to destroy a gameobject I own
 					{
 						string networkId = sections[1];
 
@@ -158,71 +137,50 @@ namespace VelNetUnity
 
 		public void SendGroupMessage(NetworkObject obj, string group, string identifier, byte[] data, bool reliable = true)
 		{
-			if (obj == myObject)
-			{
-				manager.SendToGroup(group, "1," + identifier + "," + Convert.ToBase64String(data), reliable);
-			}
-			else
-			{
-				manager.SendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
-			}
+			manager.SendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
 		}
 
 		public void SendMessage(NetworkObject obj, string identifier, byte[] data, bool reliable = true)
 		{
-			if (obj == myObject)
-			{
-				manager.SendTo(NetworkManager.MessageType.OTHERS, "1," + identifier + "," + Convert.ToBase64String(data), reliable);
-			}
-			else
-			{
-				manager.SendTo(NetworkManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
-			}
+			manager.SendTo(VelNetManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
 		}
 
-		public NetworkObject NetworkInstantiate(string prefabName)
-		{
-			if (!isLocal)
-			{
-				return null; //must be the local player to call instantiate
-			}
-
-			string networkId = userid + "-" + lastObjectId++;
-
-
-			NetworkObject temp = manager.prefabs.Find((prefab) => prefab.name == prefabName);
-			if (temp != null)
-			{
-				NetworkObject instance = Instantiate(temp);
-				instance.networkId = networkId;
-				instance.prefabName = prefabName;
-				instance.owner = this;
-				manager.objects.Add(instance.networkId, instance);
-
-				manager.SendTo(NetworkManager.MessageType.OTHERS, "7," + networkId + "," + prefabName); //only sent to others, as I already instantiated this.  Nice that it happens immediately. 
-				return instance;
-			}
-
-			return null;
-		}
-
+		/// <summary>
+		/// TODO could move this to a static method in VelNetManager
+		/// </summary>
 		public void NetworkDestroy(string networkId)
 		{
-			if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return; //must be the local owner of the object to destroy it
-			manager.SendTo(NetworkManager.MessageType.ALL_ORDERED, "8," + networkId); //send to all, which will make me delete as well
+			// must be the local owner of the object to destroy it
+			if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return;
+
+			// send to all, which will make me delete as well
+			manager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "8," + networkId);
 		}
 
-		public void TakeOwnership(string networkId)
+		/// <summary>
+		/// TODO could move this to a static method in VelNetManager
+		/// </summary>
+		/// <returns>True if successful, False if failed to transfer ownership</returns>
+		public bool TakeOwnership(string networkId)
 		{
-			if (!manager.objects.ContainsKey(networkId) || !isLocal) return; //must exist and be the the local player
+			// must exist and be the the local player
+			if (!manager.objects.ContainsKey(networkId) || !isLocal) return false;
 
-			manager.objects[networkId].owner = this; //immediately successful
-			manager.SendTo(NetworkManager.MessageType.ALL_ORDERED, "6," + networkId); //must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
+			// if the ownership is locked, fail
+			if (manager.objects[networkId].ownershipLocked) return false;
+			
+			// immediately successful
+			manager.objects[networkId].owner = this;
+
+			// must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
+			manager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "6," + networkId);
+			
+			return true;
 		}
 
 		public void SendSceneUpdate()
 		{
-			manager.SendTo(NetworkManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
+			manager.SendTo(VelNetManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
 		}
 	}
 }

@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8527011532923434593}
   - component: {fileID: 6854617867369839}
   - component: {fileID: 5845716565458182149}
-  - component: {fileID: 5713671764962751473}
+  - component: {fileID: 9102273340480352682}
   - component: {fileID: -4404668399269848200}
   - component: {fileID: 1181612843795795320}
   m_Layer: 0
@@ -98,7 +98,7 @@ BoxCollider:
   serializedVersion: 2
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &5713671764962751473
+--- !u!114 &9102273340480352682
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -107,14 +107,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 6139051692386484099}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d8d3b6de660834e3e898725928251405, type: 3}
+  m_Script: {fileID: 11500000, guid: 5515094c5c544b6b8ed7fd51a86548d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  userid: 0
-  username: 
-  room: 
-  isLocal: 0
-  lastObjectId: 0
+  ownershipLocked: 1
+  networkId: 
+  prefabName: 
+  isSceneObject: 0
+  syncedComponents:
+  - {fileID: -4404668399269848200}
+  - {fileID: 1181612843795795320}
 --- !u!114 &-4404668399269848200
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -127,10 +129,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 89e3af759df774692a566a166b4bf69b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  owner: {fileID: 5713671764962751473}
-  networkId: 
-  prefabName: 
-  isSceneObject: 0
+  networkObject: {fileID: 9102273340480352682}
+  serializationRateHz: 30
   targetPosition: {x: 0, y: 0, z: 0}
   targetRotation: {x: 0, y: 0, z: 0, w: 0}
 --- !u!114 &1181612843795795320
@@ -145,13 +145,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c773e094326d413bb1bca7f91cbf7f8c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  owner: {fileID: 5713671764962751473}
-  networkId: 
-  prefabName: 
-  isSceneObject: 0
+  networkObject: {fileID: 9102273340480352682}
   dissonanceID: 
   targetPosition: {x: 0, y: 0, z: 0}
   targetRotation: {x: 0, y: 0, z: 0, w: 0}
-  allPlayers: []
   closePlayers: 
   maxDistance: 0

@@ -7,6 +7,10 @@ using UnityEngine.Serialization;
 
 namespace VelNetUnity
 {
+	/// <summary>
+	/// Added to the same object as DissonanceComms component. Only one in the scene.
+	/// </summary>
+	[RequireComponent(typeof(DissonanceComms))]
 	[AddComponentMenu("VelNetUnity/Dissonance/VelNet Comms Network")]
 	public class VelCommsNetwork : MonoBehaviour, ICommsNetwork
 	{
@@ -26,8 +30,8 @@ namespace VelNetUnity
 		private ConnectionStatus _status = ConnectionStatus.Disconnected;
 		private CodecSettings initSettings;
 		public string dissonanceId;
-		[FormerlySerializedAs("comms")] public DissonanceComms dissonanceComms;
-		private NetworkManager manager;
+		[HideInInspector] public DissonanceComms dissonanceComms;
+		private VelNetManager manager;
 
 		/// <summary>
 		/// listen to this if you want to send voice
@@ -40,7 +44,7 @@ namespace VelNetUnity
 		{
 			_status = ConnectionStatus.Connected;
 			dissonanceComms = GetComponent<DissonanceComms>();
-			manager = NetworkManager.instance;
+			manager = VelNetManager.instance;
 		}
 
 		public void Initialize(string playerName, Rooms rooms, PlayerChannels playerChannels, RoomChannels roomChannels, CodecSettings codecSettings)
