@@ -7,7 +7,9 @@ namespace VelNetUnity
 	/// </summary>
 	public abstract class NetworkObject : MonoBehaviour
 	{
+		[Header("NetworkObject properties")]
 		public NetworkPlayer owner;
+		public bool IsMine => owner !=null && owner.isLocal;
 		/// <summary>
 		/// This is forged from the combination of the creator's id (-1 in the case of a scene object) and an object id, so it's always unique for a room
 		/// </summary>

@@ -14,7 +14,6 @@ GameObject:
   - component: {fileID: 5845716565458182149}
   - component: {fileID: 5713671764962751473}
   - component: {fileID: -4404668399269848200}
-  - component: {fileID: 7065383111165629622}
   - component: {fileID: 1181612843795795320}
   m_Layer: 0
   m_Name: PlayerPrefab
@@ -134,20 +133,6 @@ MonoBehaviour:
   isSceneObject: 0
   targetPosition: {x: 0, y: 0, z: 0}
   targetRotation: {x: 0, y: 0, z: 0, w: 0}
---- !u!114 &7065383111165629622
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6139051692386484099}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5d2009d8e264649749c0315d48765749, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  dissonanceId: 
-  comms: {fileID: 0}
 --- !u!114 &1181612843795795320
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -2,6 +2,7 @@ using System;
 using Dissonance;
 using Dissonance.Networking;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 
 namespace VelNetUnity
@@ -25,7 +26,7 @@ namespace VelNetUnity
 		private ConnectionStatus _status = ConnectionStatus.Disconnected;
 		private CodecSettings initSettings;
 		public string dissonanceId;
-		public DissonanceComms comms;
+		[FormerlySerializedAs("comms")] public DissonanceComms dissonanceComms;
 		private NetworkManager manager;
 
 		/// <summary>
@@ -33,12 +34,12 @@ namespace VelNetUnity
 		/// </summary>
 		public Action<ArraySegment<byte>> VoiceQueued;
 
-		
+
 		// Start is called before the first frame update
 		private void Start()
 		{
 			_status = ConnectionStatus.Connected;
-			comms = GetComponent<DissonanceComms>();
+			dissonanceComms = GetComponent<DissonanceComms>();
 			manager = NetworkManager.instance;
 		}
 
@@ -46,7 +47,7 @@ namespace VelNetUnity
 		{
 			dissonanceId = playerName;
 			initSettings = codecSettings;
-			comms.ResetMicrophoneCapture();
+			dissonanceComms.ResetMicrophoneCapture();
 		}
 
 		public void VoiceReceived(string sender, byte[] data)
@@ -88,7 +89,8 @@ namespace VelNetUnity
 				PlayerName = id
 			};
 			PlayerExitedRoom?.Invoke(re);
-			PlayerLeft?.Invoke(id);
+			// only send this event for non-local players
+			if (id != dissonanceId) PlayerLeft?.Invoke(id);
 		}
 
 		public void SetPlayerStartedSpeaking(string id)
