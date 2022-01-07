@@ -5,13 +5,13 @@ using UnityEngine;
 using UnityEngine.Serialization;
 
 
-namespace VelNetUnity
+namespace VelNet
 {
 	/// <summary>
 	/// Added to the same object as DissonanceComms component. Only one in the scene.
 	/// </summary>
 	[RequireComponent(typeof(DissonanceComms))]
-	[AddComponentMenu("VelNetUnity/Dissonance/VelNet Comms Network")]
+	[AddComponentMenu("VelNet/Dissonance/VelNet Comms Network")]
 	public class VelCommsNetwork : MonoBehaviour, ICommsNetwork
 	{
 		public ConnectionStatus Status => manager.connected ? ConnectionStatus.Connected : ConnectionStatus.Disconnected;

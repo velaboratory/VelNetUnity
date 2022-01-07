@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace VelNetUnity
+namespace VelNet
 {
 	/// <summary>
 	/// This is a base class for all objects that a player can instantiated/owned
@@ -43,7 +43,7 @@ namespace VelNetUnity
 
 		public void SendBytesToGroup(NetworkComponent component, string group, byte[] message, bool reliable = true)
 		{
-			if (owner == null || !owner.isLocal)
+			if (!IsMine)
 			{
 				Debug.LogError("Can't send message if owner is null or not local", this);
 				return;

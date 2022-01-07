@@ -7,9 +7,9 @@ using System.Threading;
 using UnityEngine;
 using System.Net;
 
-namespace VelNetUnity
+namespace VelNet
 {
-	[AddComponentMenu("VelNetUnity/VelNet Manager")]
+	[AddComponentMenu("VelNet/VelNet Manager")]
 	public class VelNetManager : MonoBehaviour
 	{
 		public enum MessageType
@@ -332,38 +332,36 @@ namespace VelNetUnity
 				while (true)
 				{
 					// Get a stream object for reading 				
-					using (NetworkStream stream = socketConnection.GetStream())
+					using NetworkStream stream = socketConnection.GetStream();
+					int length;
+					// Read incomming stream into byte arrary. 					
+					while ((length = stream.Read(bytes, 0, bytes.Length)) != 0)
 					{
-						int length;
-						// Read incomming stream into byte arrary. 					
-						while ((length = stream.Read(bytes, 0, bytes.Length)) != 0)
+						byte[] incommingData = new byte[length];
+						Array.Copy(bytes, 0, incommingData, 0, length);
+						// Convert byte array to string message. 						
+						string serverMessage = Encoding.ASCII.GetString(incommingData);
+						string[] sections = serverMessage.Split('\n');
+						if (sections.Length > 1)
 						{
-							byte[] incommingData = new byte[length];
-							Array.Copy(bytes, 0, incommingData, 0, length);
-							// Convert byte array to string message. 						
-							string serverMessage = Encoding.ASCII.GetString(incommingData);
-							string[] sections = serverMessage.Split('\n');
-							if (sections.Length > 1)
+							lock (receivedMessages)
 							{
-								lock (receivedMessages)
+								for (int i = 0; i < sections.Length - 1; i++)
 								{
-									for (int i = 0; i < sections.Length - 1; i++)
+									if (i == 0)
 									{
-										if (i == 0)
-										{
-											HandleMessage(partialMessage + sections[0]);
-											partialMessage = "";
-										}
-										else
-										{
-											HandleMessage(sections[i]);
-										}
+										HandleMessage(partialMessage + sections[0]);
+										partialMessage = "";
+									}
+									else
+									{
+										HandleMessage(sections[i]);
 									}
 								}
 							}
-
-							partialMessage = partialMessage + sections[sections.Length - 1];
 						}
+
+						partialMessage = partialMessage + sections[sections.Length - 1];
 					}
 				}
 			}
@@ -464,7 +462,7 @@ namespace VelNetUnity
 				if (stream.CanWrite)
 				{
 					// Convert string message to byte array.
-					clientMessage = clientMessage + "\n"; //append a new line to delineate the message
+					clientMessage += "\n"; // append a new line to delineate the message
 					byte[] clientMessageAsByteArray = Encoding.ASCII.GetBytes(clientMessage);
 					// Write byte array to socketConnection stream.                 
 					stream.Write(clientMessageAsByteArray, 0, clientMessageAsByteArray.Length);
@@ -538,9 +536,12 @@ namespace VelNetUnity
 			newObject.prefabName = prefabName;
 			newObject.owner = localPlayer;
 			instance.objects.Add(newObject.networkId, newObject);
+			
+			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
+			instance.SendTo(MessageType.OTHERS, "7," + newObject.networkId + "," + prefabName); 
 		}
 
-		public static void InstantiateNetworkObject(string networkId, string prefabName, NetworkPlayer owner)
+		public static void SomebodyInstantiatedNetworkObject(string networkId, string prefabName, NetworkPlayer owner)
 		{
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null) return;

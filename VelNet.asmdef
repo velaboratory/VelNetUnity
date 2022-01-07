@@ -1,6 +1,6 @@
 {
-    "name": "VelNetUnity",
-    "rootNamespace": "VelNetUnity",
+    "name": "VelNet",
+    "rootNamespace": "VelNet",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],

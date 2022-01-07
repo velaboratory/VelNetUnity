@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using UnityEngine;
 
-namespace VelNetUnity
+namespace VelNet
 {
 	public static class BinaryWriterExtensions
 	{

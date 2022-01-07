@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System;
 
-namespace VelNetUnity
+namespace VelNet
 {
 	/// <summary>
 	/// Represents a network player
@@ -53,10 +53,11 @@ namespace VelNetUnity
 			}
 		}
 
-
+		/// <summary>
+		/// These are generally things that come from the "owner" and should be enacted locally, where appropriate
+		/// </summary>
 		public void HandleMessage(VelNetManager.Message m)
 		{
-			//these are generally things that come from the "owner" and should be enacted locally, where appropriate
 			//we need to parse the message
 
 			//types of messages
@@ -104,7 +105,7 @@ namespace VelNetUnity
 							break; //we already have this one, ignore
 						}
 
-						VelNetManager.InstantiateNetworkObject(networkId, prefabName, this);
+						VelNetManager.SomebodyInstantiatedNetworkObject(networkId, prefabName, this);
 
 						break;
 					}

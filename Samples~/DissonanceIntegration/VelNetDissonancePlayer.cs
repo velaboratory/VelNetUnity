@@ -5,12 +5,12 @@ using System.Linq;
 using Dissonance;
 using UnityEngine;
 
-namespace VelNetUnity
+namespace VelNet
 {
 	/// <summary>
 	/// This should be added to your player object
 	/// </summary>
-	[AddComponentMenu("VelNetUnity/Dissonance/VelNet Dissonance Player")]
+	[AddComponentMenu("VelNet/Dissonance/VelNet Dissonance Player")]
 	public class VelNetDissonancePlayer : NetworkComponent, IDissonancePlayer
 	{
 		private VelCommsNetwork comms;

@@ -2,12 +2,12 @@ using System.IO;
 using UnityEngine;
 
 
-namespace VelNetUnity
+namespace VelNet
 {
 	/// <summary>
 	/// A simple class that will sync the position and rotation of a network object
 	/// </summary>
-	[AddComponentMenu("VelNetUnity/VelNet Sync Transform")]
+	[AddComponentMenu("VelNet/VelNet Sync Transform")]
 	public class SyncTransform : NetworkSerializedObject
 	{
 		public Vector3 targetPosition;
