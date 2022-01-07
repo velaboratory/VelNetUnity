@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEngine.Serialization;
 
-namespace VelNetUnity
+namespace VelNet
 {
 	public abstract class NetworkSerializedObject : NetworkComponent
 	{

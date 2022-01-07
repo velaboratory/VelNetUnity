@@ -99,7 +99,7 @@
         "com.unity.modules.imgui": "1.0.0"
       }
     },
-    "edu.uga.engr.vel.velnetunity": {
+    "edu.uga.engr.vel.velnet": {
       "version": "file:VelNetUnity",
       "depth": 0,
       "source": "embedded",

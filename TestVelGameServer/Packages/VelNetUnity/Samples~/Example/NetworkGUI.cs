@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
-namespace VelNetUnity
+namespace VelNet
 {
 	public class NetworkGUI : MonoBehaviour
 	{

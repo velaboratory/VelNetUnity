@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace VelNetUnity
+namespace VelNet
 {
 	public abstract class NetworkComponent : MonoBehaviour
 	{
@@ -24,7 +24,6 @@ namespace VelNetUnity
 			networkObject.SendBytesToGroup(this, group, message, reliable);
 		}
 
-		// 
 		/// <summary>
 		/// This is called by <see cref="NetworkObject"/> when messages are received for this component
 		/// </summary>
