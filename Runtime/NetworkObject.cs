@@ -11,6 +11,7 @@ namespace VelNet
 	{
 		[Header("NetworkObject properties")] 
 		public VelNetPlayer owner;
+		[Tooltip("Whether this object's ownership is transferrable. Should be true for player objects.")]
 		public bool ownershipLocked;
 		public bool IsMine => owner != null && owner.isLocal;
 

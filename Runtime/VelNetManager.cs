@@ -46,8 +46,7 @@ namespace VelNet
 		public List<string> deletedSceneObjects = new List<string>();
 		public readonly Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
 		private VelNetPlayer masterPlayer;
-		public static VelNetPlayer LocalPlayer => instance.players.Where(p => p.Value.isLocal).Select(p=>p.Value).FirstOrDefault();
-		
+		public static VelNetPlayer LocalPlayer => instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault();
 
 
 		// Use this for initialization
@@ -156,7 +155,7 @@ namespace VelNet
 										}
 									}
 								}
-								
+
 								// TODO this may check for ownership in the future. We don't need ownership here
 								deleteObjects.ForEach(DeleteNetworkObject);
 
@@ -436,24 +435,24 @@ namespace VelNet
 			}
 		}
 
-		private void SendUdpMessage(string message)
+		private static void SendUdpMessage(string message)
 		{
-			if (udpSocket == null || !udpConnected)
+			if (instance.udpSocket == null || !instance.udpConnected)
 			{
 				return;
 			}
 
 			byte[] data = Encoding.UTF8.GetBytes(message);
 			//Debug.Log("Attempting to send: " + message);
-			udpSocket.SendTo(data, data.Length, SocketFlags.None, RemoteEndPoint);
+			instance.udpSocket.SendTo(data, data.Length, SocketFlags.None, instance.RemoteEndPoint);
 		}
 
 		/// <summary> 	
 		/// Send message to server using socket connection. 	
 		/// </summary> 	
-		private void SendNetworkMessage(string clientMessage)
+		private static void SendNetworkMessage(string clientMessage)
 		{
-			if (socketConnection == null)
+			if (instance.socketConnection == null)
 			{
 				return;
 			}
@@ -461,7 +460,7 @@ namespace VelNet
 			try
 			{
 				// Get a stream object for writing. 			
-				NetworkStream stream = socketConnection.GetStream();
+				NetworkStream stream = instance.socketConnection.GetStream();
 				if (stream.CanWrite)
 				{
 					// Convert string message to byte array.
@@ -477,22 +476,22 @@ namespace VelNet
 			}
 		}
 
-		public void Login(string username, string password)
+		public static void Login(string username, string password)
 		{
 			SendNetworkMessage("0:" + username + ":" + password);
 		}
 
-		public void Join(string roomname)
+		public static void Join(string roomname)
 		{
 			SendNetworkMessage("2:" + roomname);
 		}
 
-		public void Leave()
+		public static void Leave()
 		{
 			SendNetworkMessage("2:-1");
 		}
 
-		public void SendTo(MessageType type, string message, bool reliable = true)
+		public static void SendTo(MessageType type, string message, bool reliable = true)
 		{
 			if (reliable)
 			{
@@ -500,11 +499,11 @@ namespace VelNet
 			}
 			else
 			{
-				SendUdpMessage(userid + ":3:" + (int)type + ":" + message);
+				SendUdpMessage(instance.userid + ":3:" + (int)type + ":" + message);
 			}
 		}
 
-		public void SendToGroup(string group, string message, bool reliable = true)
+		public static void SendToGroup(string group, string message, bool reliable = true)
 		{
 			if (reliable)
 			{
@@ -512,19 +511,19 @@ namespace VelNet
 			}
 			else
 			{
-				SendUdpMessage(userid + ":4:" + group + ":" + message);
+				SendUdpMessage(instance.userid + ":4:" + group + ":" + message);
 			}
 		}
 
 		/// <summary>
 		/// changes the designated group that sendto(4) will go to
 		/// </summary>
-		public void SetupMessageGroup(string groupName, IEnumerable<int> userIds)
+		public static void SetupMessageGroup(string groupName, IEnumerable<int> userIds)
 		{
 			SendNetworkMessage($"5:{groupName}:{string.Join(":", userIds)}");
 		}
-		
-		
+
+
 		public static void InstantiateNetworkObject(string prefabName)
 		{
 			VelNetPlayer localPlayer = LocalPlayer;
@@ -534,14 +533,15 @@ namespace VelNet
 				Debug.LogError("Couldn't find a prefab with that name: " + prefabName);
 				return;
 			}
+
 			NetworkObject newObject = Instantiate(prefab);
-			newObject.networkId = localPlayer.userid + "-" + localPlayer.lastObjectId++;;
+			newObject.networkId = localPlayer.userid + "-" + localPlayer.lastObjectId++;
 			newObject.prefabName = prefabName;
 			newObject.owner = localPlayer;
 			instance.objects.Add(newObject.networkId, newObject);
-			
+
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
-			instance.SendTo(MessageType.OTHERS, "7," + newObject.networkId + "," + prefabName); 
+			SendTo(MessageType.OTHERS, "7," + newObject.networkId + "," + prefabName);
 		}
 
 		public static void SomebodyInstantiatedNetworkObject(string networkId, string prefabName, VelNetPlayer owner)
