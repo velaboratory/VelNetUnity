@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 9102273340480352682}
   - component: {fileID: -4404668399269848200}
   - component: {fileID: 1181612843795795320}
+  - component: {fileID: 7564913803199044469}
   m_Layer: 0
   m_Name: PlayerPrefab
   m_TagString: Untagged
@@ -117,6 +118,7 @@ MonoBehaviour:
   syncedComponents:
   - {fileID: -4404668399269848200}
   - {fileID: 1181612843795795320}
+  - {fileID: 7564913803199044469}
 --- !u!114 &-4404668399269848200
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -148,3 +150,20 @@ MonoBehaviour:
   dissonanceID: 
   closePlayers: 
   maxDistance: 0
+--- !u!114 &7564913803199044469
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6139051692386484099}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3f1f9b0bbd93a484a987c51f1107ebe5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkObject: {fileID: 9102273340480352682}
+  serializationRateHz: 30
+  targetPosition: {x: 0, y: 0, z: 0}
+  targetRotation: {x: 0, y: 0, z: 0, w: 0}
+  smoothness: 0.1

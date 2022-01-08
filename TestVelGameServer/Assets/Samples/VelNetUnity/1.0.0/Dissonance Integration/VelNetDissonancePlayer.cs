@@ -51,10 +51,7 @@ namespace VelNet
 			if (comms == null)
 			{
 				Debug.LogError("No VelCommsNetwork found. Make sure there is one in your scene.", this);
-				return;
 			}
-
-			
 		}
 
 		private void OnEnable()
@@ -93,7 +90,6 @@ namespace VelNet
 					writer.Write(dissonanceID);
 					SendBytes(mem.ToArray());
 				};
-				VelNetManager.instance.SetupMessageGroup("voice", closePlayers);
 			}
 		}
 
@@ -108,9 +104,8 @@ namespace VelNet
 			writer.Write(lastAudioId++);
 			writer.Write(data.ToArray());
 			// send voice data unreliably
-			SendBytes(mem.ToArray(), false);
-			// SendBytesToGroup("voice", mem.ToArray());
-			
+			// SendBytes(mem.ToArray(), false);
+			SendBytesToGroup("voice", mem.ToArray());
 		}
 
 		/// <summary>
@@ -176,7 +171,12 @@ namespace VelNet
 			}
 			else
 			{
-				closePlayers = allPlayers.Select(p => p.Owner.userid).ToList();
+				int lastLength = closePlayers.Count;
+				closePlayers = allPlayers.Where(p => p != this).Select(p => p.Owner.userid).ToList();
+				if (closePlayers.Count != lastLength)
+				{
+					VelNetManager.instance.SetupMessageGroup("voice", closePlayers);
+				}
 			}
 
 
@@ -232,7 +232,7 @@ namespace VelNet
 				}
 				case 2: // speaking state
 				{
-					if (message[0] == 0)
+					if (message[1] == 0)
 					{
 						comms.SetPlayerStoppedSpeaking(dissonanceID);
 						isSpeaking = false;

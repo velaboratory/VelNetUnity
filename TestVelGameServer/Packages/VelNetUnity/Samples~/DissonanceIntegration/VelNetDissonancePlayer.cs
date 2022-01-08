@@ -28,6 +28,10 @@ namespace VelNet
 		public bool IsTracking => true;
 
 		private static readonly List<VelNetDissonancePlayer> allPlayers = new List<VelNetDissonancePlayer>();
+
+		/// <summary>
+		/// Only sends voice data to players in this list
+		/// </summary>
 		public List<int> closePlayers = new List<int>();
 
 		[Tooltip("Maximum distance to transmit voice data. 0 to always send voice to all players.")]
@@ -47,15 +51,30 @@ namespace VelNet
 			if (comms == null)
 			{
 				Debug.LogError("No VelCommsNetwork found. Make sure there is one in your scene.", this);
-				return;
 			}
+		}
 
+		private void OnEnable()
+		{
 			// add ourselves to the global list of all players in the scene
 			if (!allPlayers.Contains(this))
 			{
 				allPlayers.Add(this);
 			}
+			else
+			{
+				Debug.LogError("We're already in the player list 🐭", this);
+			}
+		}
 
+		private void OnDisable()
+		{
+			// remove ourselves from the global list of all players in the scene
+			allPlayers.Remove(this);
+		}
+
+		private void Start()
+		{
 			if (IsMine)
 			{
 				SetDissonanceID(comms.dissonanceId);
@@ -71,7 +90,6 @@ namespace VelNet
 					writer.Write(dissonanceID);
 					SendBytes(mem.ToArray());
 				};
-				VelNetManager.instance.SetupMessageGroup("close", closePlayers.ToArray());
 			}
 		}
 
@@ -83,10 +101,11 @@ namespace VelNet
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);
 			writer.Write((byte)MessageType.AudioData);
-			writer.Write(BitConverter.GetBytes(lastAudioId++));
+			writer.Write(lastAudioId++);
 			writer.Write(data.ToArray());
 			// send voice data unreliably
-			SendBytesToGroup("close", mem.ToArray(), false);
+			// SendBytes(mem.ToArray(), false);
+			SendBytesToGroup("voice", mem.ToArray());
 		}
 
 		/// <summary>
@@ -147,12 +166,21 @@ namespace VelNet
 
 				if (closePlayerListChanged)
 				{
-					VelNetManager.instance.SetupMessageGroup("close", closePlayers);
+					VelNetManager.instance.SetupMessageGroup("voice", closePlayers);
+				}
+			}
+			else
+			{
+				int lastLength = closePlayers.Count;
+				closePlayers = allPlayers.Where(p => p != this).Select(p => p.Owner.userid).ToList();
+				if (closePlayers.Count != lastLength)
+				{
+					VelNetManager.instance.SetupMessageGroup("voice", closePlayers);
 				}
 			}
 
 
-			//handle dissonance comms
+			// handle dissonance comms
 
 			//if we're not speaking, and the comms say we are, send a speaking event, which will be received on other network players and sent to their comms accordingly
 			if (comms.dissonanceComms.FindPlayer(dissonanceID)?.IsSpeaking != isSpeaking) //unfortunately, there does not seem to be an event for this
@@ -194,6 +222,7 @@ namespace VelNet
 					if (dissonanceID == "") // I don't have this yet
 					{
 						dissonanceID = reader.ReadString();
+
 						// tell the comms network that this player joined the channel
 						comms.SetPlayerJoined(dissonanceID); // tell dissonance
 						comms.dissonanceComms.TrackPlayerPosition(this); // tell dissonance to track the remote player
@@ -203,7 +232,7 @@ namespace VelNet
 				}
 				case 2: // speaking state
 				{
-					if (message[0] == 0)
+					if (message[1] == 0)
 					{
 						comms.SetPlayerStoppedSpeaking(dissonanceID);
 						isSpeaking = false;

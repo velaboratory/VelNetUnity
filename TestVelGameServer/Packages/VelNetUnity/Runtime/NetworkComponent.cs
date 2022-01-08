@@ -6,7 +6,7 @@ namespace VelNet
 	{
 		public NetworkObject networkObject;
 		protected bool IsMine => networkObject != null && networkObject.owner != null && networkObject.owner.isLocal;
-		protected NetworkPlayer Owner => networkObject != null ? networkObject.owner : null;
+		protected VelNetPlayer Owner => networkObject != null ? networkObject.owner : null;
 
 		/// <summary>
 		/// call this in child classes to send a message to other people
