@@ -70,7 +70,17 @@ namespace VelNet
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
 		public NetworkObject[] sceneObjects;
 		public List<string> deletedSceneObjects = new List<string>();
-		public readonly Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
+
+		/// <summary>
+		/// Maintains a list of all known objects on the server (ones that have ids)
+		/// </summary>
+		public readonly Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>();
+
+		/// <summary>
+		/// Maintains a list of all known groups on the server
+		/// </summary>
+		public readonly Dictionary<string, List<int>> groups = new Dictionary<string, List<int>>();
+
 		private VelNetPlayer masterPlayer;
 		public static VelNetPlayer LocalPlayer => instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault();
 		public static bool InRoom => LocalPlayer != null && LocalPlayer.room != "-1" && LocalPlayer.room != "";
@@ -192,6 +202,14 @@ namespace VelNet
 									.Select(o => o.Key)
 									.ToList().ForEach(DeleteNetworkObject);
 
+								// empty all the groups
+								foreach (string group in instance.groups.Keys)
+								{
+									SetupMessageGroup(group, new List<int>());
+								}
+
+								instance.groups.Clear();
+
 								Debug.Log("Left VelNet Room: " + oldRoom);
 								try
 								{
@@ -268,7 +286,15 @@ namespace VelNet
 						}
 						// generic message
 						case 3:
-							players[m.sender]?.HandleMessage(m);
+							if (players.ContainsKey(m.sender))
+							{
+								players[m.sender]?.HandleMessage(m);
+							}
+							else
+							{
+								Debug.LogError("Received message from player that doesn't exist: " + m.text);
+							}
+
 							break;
 						// change master player (this should only happen when the first player joins or if the master player leaves)
 						case 4:
@@ -615,8 +641,13 @@ namespace VelNet
 		/// <summary>
 		/// changes the designated group that sendto(4) will go to
 		/// </summary>
-		public static void SetupMessageGroup(string groupName, IEnumerable<int> userIds)
+		public static void SetupMessageGroup(string groupName, List<int> userIds)
 		{
+			if (userIds.Count > 0)
+			{
+				instance.groups[groupName] = userIds.ToList();
+			}
+
 			SendNetworkMessage($"5:{groupName}:{string.Join(":", userIds)}");
 		}
 

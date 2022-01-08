@@ -46,7 +46,7 @@ namespace VelNet
 		{
 			comms = FindObjectOfType<DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
-			velNetManager.MessageReceived += (m) =>
+			VelNetManager.MessageReceived += (m) =>
 			{
 				string s = m.type + ":" + m.sender + ":" + m.text;
 				messageBuffer.Add(s);

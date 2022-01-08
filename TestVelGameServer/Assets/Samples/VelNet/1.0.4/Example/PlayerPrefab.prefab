@@ -117,7 +117,7 @@ MonoBehaviour:
   isSceneObject: 0
   syncedComponents:
   - {fileID: -4404668399269848200}
-  - {fileID: 0}
+  - {fileID: 1181612843795795320}
   - {fileID: 7564913803199044469}
 --- !u!114 &-4404668399269848200
 MonoBehaviour:
