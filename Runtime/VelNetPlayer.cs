@@ -6,7 +6,7 @@ namespace VelNet
 	/// <summary>
 	/// Represents a network player
 	/// </summary>
-	public class NetworkPlayer
+	public class VelNetPlayer
 	{
 		public int userid;
 		public string username;
@@ -26,13 +26,13 @@ namespace VelNet
 		private bool isMaster;
 
 
-		public NetworkPlayer()
+		public VelNetPlayer()
 		{
 			manager = VelNetManager.instance;
 			manager.OnPlayerJoined += HandlePlayerJoined;
 		}
 
-		public void HandlePlayerJoined(NetworkPlayer player)
+		public void HandlePlayerJoined(VelNetPlayer player)
 		{
 			//if this is the local player, go through the objects that I own, and send instantiation messages for the ones that have prefab names
 			if (isLocal)

@@ -10,7 +10,7 @@ namespace VelNet
 	public class NetworkObject : MonoBehaviour
 	{
 		[Header("NetworkObject properties")] 
-		public NetworkPlayer owner;
+		public VelNetPlayer owner;
 		public bool ownershipLocked;
 		public bool IsMine => owner != null && owner.isLocal;
 

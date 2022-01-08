@@ -35,18 +35,18 @@ namespace VelNet
 		public string room;
 		private int messagesReceived = 0;
 
-		public readonly Dictionary<int, NetworkPlayer> players = new Dictionary<int, NetworkPlayer>();
+		public readonly Dictionary<int, VelNetPlayer> players = new Dictionary<int, VelNetPlayer>();
 
-		public Action<NetworkPlayer> OnJoinedRoom;
-		public Action<NetworkPlayer> OnPlayerJoined;
-		public Action<NetworkPlayer> OnPlayerLeft;
+		public Action<VelNetPlayer> OnJoinedRoom;
+		public Action<VelNetPlayer> OnPlayerJoined;
+		public Action<VelNetPlayer> OnPlayerLeft;
 
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
 		public NetworkObject[] sceneObjects;
 		public List<string> deletedSceneObjects = new List<string>();
 		public readonly Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
-		private NetworkPlayer masterPlayer;
-		public static NetworkPlayer LocalPlayer => instance.players.Where(p => p.Value.isLocal).Select(p=>p.Value).FirstOrDefault();
+		private VelNetPlayer masterPlayer;
+		public static VelNetPlayer LocalPlayer => instance.players.Where(p => p.Value.isLocal).Select(p=>p.Value).FirstOrDefault();
 		
 
 
@@ -115,7 +115,7 @@ namespace VelNet
 
 							if (m.text != "")
 							{
-								NetworkPlayer player = new NetworkPlayer
+								VelNetPlayer player = new VelNetPlayer
 								{
 									isLocal = true,
 									userid = m.sender,
@@ -128,12 +128,13 @@ namespace VelNet
 						}
 						else // not for me, a player is joining or leaving
 						{
-							NetworkPlayer me = players[userid];
+							VelNetPlayer me = players[userid];
 
 							if (me.room != m.text)
 							{
 								// we got a left message, kill it
 								// change ownership of all objects to master
+								List<string> deleteObjects = new List<string>();
 								foreach (KeyValuePair<string, NetworkObject> kvp in objects)
 								{
 									if (kvp.Value.owner == players[m.sender]) // the owner is the player that left
@@ -141,8 +142,7 @@ namespace VelNet
 										// if this object has locked ownership, delete it
 										if (kvp.Value.ownershipLocked)
 										{
-											// TODO this may check for ownership in the future. We don't need ownership here
-											DeleteNetworkObject(kvp.Value.networkId);
+											deleteObjects.Add(kvp.Value.networkId);
 										}
 										// I'm the local master player, so can take ownership immediately
 										else if (me.isLocal && me == masterPlayer)
@@ -156,13 +156,16 @@ namespace VelNet
 										}
 									}
 								}
+								
+								// TODO this may check for ownership in the future. We don't need ownership here
+								deleteObjects.ForEach(DeleteNetworkObject);
 
 								players.Remove(m.sender);
 							}
 							else
 							{
 								// we got a join message, create it
-								NetworkPlayer player = new NetworkPlayer
+								VelNetPlayer player = new VelNetPlayer
 								{
 									isLocal = false,
 									room = m.text,
@@ -524,7 +527,7 @@ namespace VelNet
 		
 		public static void InstantiateNetworkObject(string prefabName)
 		{
-			NetworkPlayer localPlayer = LocalPlayer;
+			VelNetPlayer localPlayer = LocalPlayer;
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null)
 			{
@@ -541,7 +544,7 @@ namespace VelNet
 			instance.SendTo(MessageType.OTHERS, "7," + newObject.networkId + "," + prefabName); 
 		}
 
-		public static void SomebodyInstantiatedNetworkObject(string networkId, string prefabName, NetworkPlayer owner)
+		public static void SomebodyInstantiatedNetworkObject(string networkId, string prefabName, VelNetPlayer owner)
 		{
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null) return;

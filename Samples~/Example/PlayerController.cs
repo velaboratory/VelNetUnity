@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace VelNet
 {
-	public class PlayerController : NetworkSerializedObject
+	public class PlayerController : NetworkComponent
 	{
 		public Vector3 targetPosition;
 		public Quaternion targetRotation;
@@ -13,12 +13,13 @@ namespace VelNet
 		// Update is called once per frame
 		private void Update()
 		{
-			if (!IsMine)
-			{
-				transform.position = Vector3.Lerp(transform.position, targetPosition, .1f);
-				transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, .1f);
-			}
-			else
+			// if (!IsMine)
+			// {
+			// 	transform.position = Vector3.Lerp(transform.position, targetPosition, .1f);
+			// 	transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, .1f);
+			// }
+			// else
+			if (IsMine)
 			{
 				Vector3 movement = new Vector3();
 				movement.x += Input.GetAxis("Horizontal");
@@ -53,25 +54,29 @@ namespace VelNet
 			}
 		}
 
-
-		protected override byte[] SendState()
+		//
+		// protected override byte[] SendState()
+		// {
+		// 	using MemoryStream mem = new MemoryStream();
+		// 	using BinaryWriter writer = new BinaryWriter(mem);
+		//
+		// 	writer.Write(transform.position);
+		// 	writer.Write(transform.rotation);
+		//
+		// 	return mem.ToArray();
+		// }
+		//
+		// protected override void ReceiveState(byte[] message)
+		// {
+		// 	using MemoryStream mem = new MemoryStream(message);
+		// 	using BinaryReader reader = new BinaryReader(mem);
+		//
+		// 	targetPosition = reader.ReadVector3();
+		// 	targetRotation = reader.ReadQuaternion();
+		// }
+		public override void ReceiveBytes(byte[] message)
 		{
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-
-			writer.Write(transform.position);
-			writer.Write(transform.rotation);
-
-			return mem.ToArray();
-		}
-
-		protected override void ReceiveState(byte[] message)
-		{
-			using MemoryStream mem = new MemoryStream(message);
-			using BinaryReader reader = new BinaryReader(mem);
-
-			targetPosition = reader.ReadVector3();
-			targetRotation = reader.ReadQuaternion();
+			throw new System.NotImplementedException();
 		}
 	}
 }
