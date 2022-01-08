@@ -29,7 +29,7 @@ namespace VelNet
 		public VelNetPlayer()
 		{
 			manager = VelNetManager.instance;
-			manager.OnPlayerJoined += HandlePlayerJoined;
+			VelNetManager.OnPlayerJoined += HandlePlayerJoined;
 		}
 
 		public void HandlePlayerJoined(VelNetPlayer player)

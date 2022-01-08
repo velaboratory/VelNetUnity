@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -37,9 +38,34 @@ namespace VelNet
 
 		public readonly Dictionary<int, VelNetPlayer> players = new Dictionary<int, VelNetPlayer>();
 
-		public Action<VelNetPlayer> OnJoinedRoom;
-		public Action<VelNetPlayer> OnPlayerJoined;
-		public Action<VelNetPlayer> OnPlayerLeft;
+		/// <summary>
+		/// We just joined a room
+		/// string - the room name
+		/// </summary>
+		public static Action<string> OnJoinedRoom;
+
+		/// <summary>
+		/// We just left a room
+		/// string - the room name we left
+		/// </summary>
+		public static Action<string> OnLeftRoom;
+
+		/// <summary>
+		/// Somebody else just joined our room
+		/// </summary>
+		public static Action<VelNetPlayer> OnPlayerJoined;
+
+		/// <summary>
+		/// Somebody else just left our room
+		/// </summary>
+		public static Action<VelNetPlayer> OnPlayerLeft;
+
+		public static Action OnConnectedToServer;
+		public static Action<Message> MessageReceived;
+		public static Action LoggedIn;
+		public static Action<string[], int> RoomsReceived;
+
+		public bool connected;
 
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
 		public NetworkObject[] sceneObjects;
@@ -47,6 +73,7 @@ namespace VelNet
 		public readonly Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>(); //maintains a list of all known objects on the server (ones that have ids)
 		private VelNetPlayer masterPlayer;
 		public static VelNetPlayer LocalPlayer => instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault();
+		public static bool InRoom => LocalPlayer != null && LocalPlayer.room != "-1" && LocalPlayer.room != "";
 
 
 		// Use this for initialization
@@ -69,10 +96,21 @@ namespace VelNet
 			instance = this;
 		}
 
-		private void Start()
+		private IEnumerator Start()
 		{
 			ConnectToTcpServer();
 			sceneObjects = FindObjectsOfType<NetworkObject>(); //add all local network objects
+			yield return null;
+
+			try
+			{
+				OnConnectedToServer?.Invoke();
+			}
+			// prevent errors in subscribers from breaking our code
+			catch (Exception e)
+			{
+				Debug.LogError(e);
+			}
 		}
 
 
@@ -92,25 +130,35 @@ namespace VelNet
 				//the main thread, which can do Unity stuff
 				foreach (Message m in receivedMessages)
 				{
-					if (m.type == 0) //when you join the server
+					switch (m.type)
 					{
-						userid = m.sender;
-						Debug.Log("joined server");
+						// when you join the server
+						case 0:
+							userid = m.sender;
+							Debug.Log("joined server");
 
-						//start the udp thread 
-						clientReceiveThreadUDP = new Thread(ListenForDataUDP);
-						clientReceiveThreadUDP.IsBackground = true;
-						clientReceiveThreadUDP.Start();
-					}
+							try
+							{
+								LoggedIn?.Invoke();
+							}
+							// prevent errors in subscribers from breaking our code
+							catch (Exception e)
+							{
+								Debug.LogError(e);
+							}
 
-					if (m.type == 2)
-					{
+							//start the udp thread 
+							clientReceiveThreadUDP = new Thread(ListenForDataUDP);
+							clientReceiveThreadUDP.IsBackground = true;
+							clientReceiveThreadUDP.Start();
+							break;
 						// if this message is for me, that means I joined a new room...
-						if (userid == m.sender)
+						case 2 when userid == m.sender:
 						{
-							// TODO delete all old objects when joining a new room
+							string oldRoom = LocalPlayer?.room;
 
-							players.Clear(); //we clear the list, but will recreate as we get messages from people in our room
+							// we clear the list, but will recreate as we get messages from people in our room
+							players.Clear();
 
 							if (m.text != "")
 							{
@@ -122,10 +170,44 @@ namespace VelNet
 								};
 
 								players.Add(userid, player);
-								OnJoinedRoom?.Invoke(player);
+								if (m.text != "")
+								{
+									try
+									{
+										OnJoinedRoom?.Invoke(m.text);
+									}
+									// prevent errors in subscribers from breaking our code
+									catch (Exception e)
+									{
+										Debug.LogError(e);
+									}
+								}
 							}
+							// we just left a room
+							else
+							{
+								// delete all networkobjects that aren't sceneobjects or are null now
+								objects
+									.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
+									.Select(o => o.Key)
+									.ToList().ForEach(DeleteNetworkObject);
+
+								Debug.Log("Left VelNet Room: " + oldRoom);
+								try
+								{
+									OnLeftRoom?.Invoke(oldRoom);
+								}
+								// prevent errors in subscribers from breaking our code
+								catch (Exception e)
+								{
+									Debug.LogError(e);
+								}
+							}
+
+							break;
 						}
-						else // not for me, a player is joining or leaving
+						// not for me, a player is joining or leaving
+						case 2:
 						{
 							VelNetPlayer me = players[userid];
 
@@ -171,51 +253,62 @@ namespace VelNet
 									userid = m.sender
 								};
 								players.Add(m.sender, player);
-								OnPlayerJoined?.Invoke(player);
+								try
+								{
+									OnPlayerJoined?.Invoke(player);
+								}
+								// prevent errors in subscribers from breaking our code
+								catch (Exception e)
+								{
+									Debug.LogError(e);
+								}
 							}
+
+							break;
 						}
-					}
-
-					if (m.type == 3) // generic message
-					{
-						players[m.sender]?.HandleMessage(m);
-					}
-
-					if (m.type == 4) // change master player (this should only happen when the first player joins or if the master player leaves)
-					{
-						if (masterPlayer == null)
+						// generic message
+						case 3:
+							players[m.sender]?.HandleMessage(m);
+							break;
+						// change master player (this should only happen when the first player joins or if the master player leaves)
+						case 4:
 						{
-							masterPlayer = players[m.sender];
-
-							// no master player yet, add the scene objects
-
-							for (int i = 0; i < sceneObjects.Length; i++)
+							if (masterPlayer == null)
 							{
-								sceneObjects[i].networkId = -1 + "-" + i;
-								sceneObjects[i].owner = masterPlayer;
-								sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
-								objects.Add(sceneObjects[i].networkId, sceneObjects[i]);
+								masterPlayer = players[m.sender];
+
+								// no master player yet, add the scene objects
+
+								for (int i = 0; i < sceneObjects.Length; i++)
+								{
+									sceneObjects[i].networkId = -1 + "-" + i;
+									sceneObjects[i].owner = masterPlayer;
+									sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
+									objects.Add(sceneObjects[i].networkId, sceneObjects[i]);
+								}
 							}
-						}
-						else
-						{
-							masterPlayer = players[m.sender];
-						}
-
-						masterPlayer.SetAsMasterPlayer();
-
-						// master player should take over any objects that do not have an owner
-
-						foreach (KeyValuePair<string, NetworkObject> kvp in objects)
-						{
-							if (kvp.Value.owner == null)
+							else
 							{
-								kvp.Value.owner = masterPlayer;
+								masterPlayer = players[m.sender];
 							}
+
+							masterPlayer.SetAsMasterPlayer();
+
+							// master player should take over any objects that do not have an owner
+
+							foreach (KeyValuePair<string, NetworkObject> kvp in objects)
+							{
+								if (kvp.Value.owner == null)
+								{
+									kvp.Value.owner = masterPlayer;
+								}
+							}
+
+							break;
 						}
 					}
 
-					MessageReceived(m);
+					MessageReceived?.Invoke(m);
 				}
 
 				receivedMessages.Clear();
@@ -226,13 +319,6 @@ namespace VelNet
 		{
 			socketConnection.Close();
 		}
-
-		public Action<string, int> JoinedRoom = delegate { };
-		public Action<Message> MessageReceived = delegate { };
-		public Action<string, int> LoggedIn = delegate { };
-		public Action<string[], int> RoomsReceived = delegate { };
-
-		public bool connected;
 
 		/// <summary> 	
 		/// Setup socket connection. 	
@@ -251,70 +337,70 @@ namespace VelNet
 			}
 		}
 
-		private void HandleMessage(string s) //this parses messages from the server, and adds them to a queue to be processed on the main thread
+		private void HandleMessage(string s) // this parses messages from the server, and adds them to a queue to be processed on the main thread
 		{
+			// Debug.Log("Received: " + s);
 			Message m = new Message();
 			string[] sections = s.Split(':');
-			if (sections.Length > 0)
+			if (sections.Length <= 0) return;
+
+			int type = int.Parse(sections[0]);
+
+			switch (type)
 			{
-				int type = int.Parse(sections[0]);
-
-				switch (type)
+				case 0: // logged in message
 				{
-					case 0: //logged in message
+					if (sections.Length > 1)
 					{
-						if (sections.Length > 1)
-						{
-							m.type = type;
-							m.sender = int.Parse(sections[1]);
-							m.text = "";
-							AddMessage(m);
-						}
-
-						break;
+						m.type = type;
+						m.sender = int.Parse(sections[1]);
+						m.text = "";
+						AddMessage(m);
 					}
-					case 1: //room info message
+
+					break;
+				}
+				case 1: // room info message
+				{
+					break;
+				}
+				case 2: // joined room message
+				{
+					if (sections.Length > 2)
 					{
-						break;
+						m.type = 2;
+						int user_id = int.Parse(sections[1]);
+						m.sender = user_id;
+						string new_room = sections[2];
+						m.text = new_room;
+
+						AddMessage(m);
 					}
-					case 2: //joined room message
+
+					break;
+				}
+				case 3: // text message
+				{
+					if (sections.Length > 2)
 					{
-						if (sections.Length > 2)
-						{
-							m.type = 2;
-							int user_id = int.Parse(sections[1]);
-							m.sender = user_id;
-							string new_room = sections[2];
-							m.text = new_room;
-
-							AddMessage(m);
-						}
-
-						break;
+						m.type = 3;
+						m.sender = int.Parse(sections[1]);
+						m.text = sections[2];
+						AddMessage(m);
 					}
-					case 3: //text message
+
+					break;
+				}
+				case 4: // change master client
+				{
+					if (sections.Length > 1)
 					{
-						if (sections.Length > 2)
-						{
-							m.type = 3;
-							m.sender = int.Parse(sections[1]);
-							m.text = sections[2];
-							AddMessage(m);
-						}
-
-						break;
+						m.type = 4;
+						m.sender = int.Parse(sections[1]);
+						AddMessage(m);
 					}
-					case 4: //change master client
-					{
-						if (sections.Length > 1)
-						{
-							m.type = 4;
-							m.sender = int.Parse(sections[1]);
-							AddMessage(m);
-						}
 
-						break;
-					}
+					break;
 				}
 			}
 		}
@@ -452,6 +538,7 @@ namespace VelNet
 		/// </summary> 	
 		private static void SendNetworkMessage(string clientMessage)
 		{
+			// Debug.Log("Sent: " + clientMessage);
 			if (instance.socketConnection == null)
 			{
 				return;
@@ -476,19 +563,29 @@ namespace VelNet
 			}
 		}
 
+		/// <summary>
+		/// Connects to the server with a username
+		/// </summary>
 		public static void Login(string username, string password)
 		{
 			SendNetworkMessage("0:" + username + ":" + password);
 		}
 
+		/// <summary>
+		/// Joins a room by name
+		/// </summary>
+		/// <param name="roomname">The name of the room to join</param>
 		public static void Join(string roomname)
 		{
 			SendNetworkMessage("2:" + roomname);
 		}
 
+		/// <summary>
+		/// Leaves a room if we're in one
+		/// </summary>
 		public static void Leave()
 		{
-			SendNetworkMessage("2:-1");
+			if (InRoom) SendNetworkMessage("2:-1");
 		}
 
 		public static void SendTo(MessageType type, string message, bool reliable = true)
@@ -557,17 +654,16 @@ namespace VelNet
 
 		public void DeleteNetworkObject(string networkId)
 		{
-			if (objects.ContainsKey(networkId))
+			if (!objects.ContainsKey(networkId)) return;
+			NetworkObject obj = objects[networkId];
+			if (obj == null) return;
+			if (obj.isSceneObject)
 			{
-				NetworkObject obj = objects[networkId];
-				if (obj.isSceneObject)
-				{
-					deletedSceneObjects.Add(networkId);
-				}
-
-				Destroy(obj.gameObject);
-				objects.Remove(networkId);
+				deletedSceneObjects.Add(networkId);
 			}
+
+			Destroy(obj.gameObject);
+			objects.Remove(networkId);
 		}
 	}
 }
