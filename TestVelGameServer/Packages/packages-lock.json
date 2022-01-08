@@ -105,6 +105,14 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "edu.uga.engr.vel.velnet.dissonance": {
+      "version": "file:S:/git_repo/VelNetDissonanceIntegration",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "edu.uga.engr.vel.velnet": "1.0.4"
+      }
+    },
     "com.unity.modules.ai": {
       "version": "1.0.0",
       "depth": 0,

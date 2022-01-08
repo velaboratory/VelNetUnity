@@ -15,11 +15,6 @@
     },
     "samples": [
       {
-        "displayName": "Dissonance Integration",
-        "description": "Includes support for Dissonance Voice, available separately from the Unity Asset Store.",
-        "path": "Samples~/DissonanceIntegration"
-      },
-      {
         "displayName": "Example",
         "description": "Example Scene",
         "path": "Samples~/Example"

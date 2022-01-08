@@ -41,7 +41,7 @@ namespace VelNet
 				{
 					if (kvp.Value.owner == this && kvp.Value.prefabName != "")
 					{
-						manager.SendTo(VelNetManager.MessageType.OTHERS, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
+						VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
 					}
 				}
 
@@ -138,12 +138,12 @@ namespace VelNet
 
 		public void SendGroupMessage(NetworkObject obj, string group, string identifier, byte[] data, bool reliable = true)
 		{
-			manager.SendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
+			VelNetManager.SendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
 		}
 
 		public void SendMessage(NetworkObject obj, string identifier, byte[] data, bool reliable = true)
 		{
-			manager.SendTo(VelNetManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
+			VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
 		}
 
 		/// <summary>
@@ -155,7 +155,7 @@ namespace VelNet
 			if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return;
 
 			// send to all, which will make me delete as well
-			manager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "8," + networkId);
+			VelNetManager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "8," + networkId);
 		}
 
 		/// <summary>
@@ -174,14 +174,14 @@ namespace VelNet
 			manager.objects[networkId].owner = this;
 
 			// must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
-			manager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "6," + networkId);
+			VelNetManager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "6," + networkId);
 			
 			return true;
 		}
 
 		public void SendSceneUpdate()
 		{
-			manager.SendTo(VelNetManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
+			VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
 		}
 	}
 }

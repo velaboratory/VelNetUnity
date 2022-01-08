@@ -117,7 +117,7 @@ MonoBehaviour:
   isSceneObject: 0
   syncedComponents:
   - {fileID: -4404668399269848200}
-  - {fileID: 1181612843795795320}
+  - {fileID: 0}
   - {fileID: 7564913803199044469}
 --- !u!114 &-4404668399269848200
 MonoBehaviour:
@@ -143,7 +143,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 6139051692386484099}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c773e094326d413bb1bca7f91cbf7f8c, type: 3}
+  m_Script: {fileID: 11500000, guid: 068080cf74f24b74caef652efb5bcfdc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   networkObject: {fileID: 9102273340480352682}

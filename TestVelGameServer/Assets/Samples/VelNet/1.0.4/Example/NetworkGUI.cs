@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Dissonance;
 using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
@@ -14,13 +15,13 @@ namespace VelNet
 		public Text messages;
 		public List<string> messageBuffer;
 		public Dropdown microphones;
-		Dissonance.DissonanceComms comms;
+		DissonanceComms comms;
 
 		public void HandleSend()
 		{
 			if (sendInput.text != "")
 			{
-				velNetManager.SendTo(VelNetManager.MessageType.OTHERS, sendInput.text);
+				VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, sendInput.text);
 			}
 		}
 
@@ -28,7 +29,7 @@ namespace VelNet
 		{
 			if (userInput.text != "")
 			{
-				velNetManager.Login(userInput.text, "nopass");
+				VelNetManager.Login(userInput.text, "nopass");
 			}
 		}
 
@@ -36,14 +37,14 @@ namespace VelNet
 		{
 			if (roomInput.text != "")
 			{
-				velNetManager.Join(roomInput.text);
+				VelNetManager.Join(roomInput.text);
 			}
 		}
 
 		// Start is called before the first frame update
 		private void Start()
 		{
-			comms = FindObjectOfType<Dissonance.DissonanceComms>();
+			comms = FindObjectOfType<DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
 			velNetManager.MessageReceived += (m) =>
 			{
