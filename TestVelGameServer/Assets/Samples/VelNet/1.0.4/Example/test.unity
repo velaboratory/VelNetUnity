@@ -2327,7 +2327,7 @@ MonoBehaviour:
   _isDeafened: 0
   _oneMinusBaseRemoteVoiceVolume: 0
   _playbackPrefab: {fileID: 0}
-  _playbackPrefab2: {fileID: 1041743830464418, guid: 1d5da08daf134aa41a83590aea0e4caa, type: 3}
+  _playbackPrefab2: {fileID: 1041743830464418, guid: 7b8de751a39894b0c8e1cfc9ef961a5b, type: 3}
   _micName: 
   _playerPriority: 0
   _tokens:
