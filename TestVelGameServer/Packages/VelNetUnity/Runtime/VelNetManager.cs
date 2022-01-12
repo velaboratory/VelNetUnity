@@ -652,14 +652,14 @@ namespace VelNet
 		}
 
 
-		public static void InstantiateNetworkObject(string prefabName)
+		public static GameObject InstantiateNetworkObject(string prefabName)
 		{
 			VelNetPlayer localPlayer = LocalPlayer;
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null)
 			{
 				Debug.LogError("Couldn't find a prefab with that name: " + prefabName);
-				return;
+				return null;
 			}
 
 			NetworkObject newObject = Instantiate(prefab);
@@ -670,6 +670,7 @@ namespace VelNet
 
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
 			SendTo(MessageType.OTHERS, "7," + newObject.networkId + "," + prefabName);
+			return newObject.gameObject;
 		}
 
 		public static void SomebodyInstantiatedNetworkObject(string networkId, string prefabName, VelNetPlayer owner)

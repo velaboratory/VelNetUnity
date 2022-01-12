@@ -5,7 +5,16 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Samples/VelNet/1.0.4/Example/test.unity
     guid: e4e43899246c941c78acfc59ce2f664a
-  m_configObjects: {}
+  - enabled: 0
+    path: Assets/Oculus/SampleFramework/Usage/Passthrough/Scenes/PassthroughHands.unity
+    guid: c94e480e4a6da614693c0cd3372e2d2d
+  - enabled: 1
+    path: Assets/Samples/VelNet/1.0.4/Example/testquest.unity
+    guid: 73a369d9876090d4c9c0d39a0f1a9056
+  m_configObjects:
+    Unity.XR.Oculus.Settings: {fileID: 11400000, guid: 851187c2a28053f4e806e95f3ff7ed7d, type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: c614bbfd853c73e4cb7fcf7b7f69a45e, type: 2}
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: cacb9649257c4e246baa834e70151adf, type: 2}
