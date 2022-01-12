@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.44657874, g: 0.49641275, b: 0.5748172, a: 1}
+  m_IndirectSpecularColor: {r: 0.44657898, g: 0.4964133, b: 0.5748178, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -148,7 +148,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2034436}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5f7201a12d95ffc409449d95f23cf332, type: 3}
   m_Name: 
@@ -469,7 +469,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 162005663}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5f7201a12d95ffc409449d95f23cf332, type: 3}
   m_Name: 
@@ -851,7 +851,7 @@ MonoBehaviour:
   m_CaretColor: {r: 0.19607843, g: 0.19607843, b: 0.19607843, a: 1}
   m_CustomCaretColor: 0
   m_SelectionColor: {r: 0.65882355, g: 0.80784315, b: 1, a: 0.7529412}
-  m_Text: 
+  m_Text: TEST USER
   m_CaretBlinkRate: 0.85
   m_CaretWidth: 1
   m_ReadOnly: 0
@@ -1108,7 +1108,7 @@ MonoBehaviour:
   m_CaretColor: {r: 0.19607843, g: 0.19607843, b: 0.19607843, a: 1}
   m_CustomCaretColor: 0
   m_SelectionColor: {r: 0.65882355, g: 0.80784315, b: 1, a: 0.7529412}
-  m_Text: 
+  m_Text: 0
   m_CaretBlinkRate: 0.85
   m_CaretWidth: 1
   m_ReadOnly: 0
@@ -1241,6 +1241,7 @@ GameObject:
   - component: {fileID: 903768657}
   - component: {fileID: 903768656}
   - component: {fileID: 903768655}
+  - component: {fileID: 903768654}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -1248,6 +1249,20 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!114 &903768654
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 903768653}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c9d312e1088769143a72b0c13d5aee32, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  draggableTags:
+  - TestSphere
 --- !u!81 &903768655
 AudioListener:
   m_ObjectHideFlags: 0
@@ -1834,7 +1849,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 03a4d4e1a7fd74c7ab2eccca4ce168db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  host: 129.159.107.234
+  host: velnet.ugavel.com
   port: 3290
   udpConnected: 0
   userid: -1
@@ -2323,8 +2338,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _lastPrefabError: 
-  _isMuted: 0
-  _isDeafened: 0
+  _isMuted: 1
+  _isDeafened: 1
   _oneMinusBaseRemoteVoiceVolume: 0
   _playbackPrefab: {fileID: 0}
   _playbackPrefab2: {fileID: 1041743830464418, guid: 7b8de751a39894b0c8e1cfc9ef961a5b, type: 3}
@@ -2454,7 +2469,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 1
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: 
+  m_Text: 0
 --- !u!222 &1484033258
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2616,7 +2631,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 1
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: 
+  m_Text: TEST USER
 --- !u!1 &1679565283
 GameObject:
   m_ObjectHideFlags: 0
@@ -3392,6 +3407,10 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 3951900052977689805, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
+      propertyPath: isSceneObject
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8565720275311462453, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
       propertyPath: m_Name
       value: TestNetworkedGameObject

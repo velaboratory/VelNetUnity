@@ -36,7 +36,7 @@ namespace VelNet
 				{
 					foreach (KeyValuePair<string, NetworkObject> kvp in VelNetManager.instance.objects)
 					{
-						Owner.TakeOwnership(kvp.Key);
+						VelNetManager.TakeOwnership(kvp.Key);
 					}
 				}
 
@@ -47,7 +47,7 @@ namespace VelNet
 						// don't destroy player objects
 						if (!kvp.Value.ownershipLocked)
 						{
-							Owner.NetworkDestroy(kvp.Key);
+							VelNetManager.NetworkDestroy(kvp.Key);
 						}
 					}
 				}

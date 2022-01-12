@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using UnityEngine;
 using System.Net;
+using UnityEngine.SceneManagement;
 
 namespace VelNet
 {
@@ -104,12 +105,17 @@ namespace VelNet
 			}
 
 			instance = this;
+
+			SceneManager.sceneLoaded += (scene, mode) =>
+			{
+				// add all local network objects
+				sceneObjects = FindObjectsOfType<NetworkObject>().Where(o=>o.isSceneObject).ToArray(); 				
+			};
 		}
 
 		private IEnumerator Start()
 		{
 			ConnectToTcpServer();
-			sceneObjects = FindObjectsOfType<NetworkObject>(); //add all local network objects
 			yield return null;
 
 			try
@@ -169,6 +175,7 @@ namespace VelNet
 
 							// we clear the list, but will recreate as we get messages from people in our room
 							players.Clear();
+							masterPlayer = null;
 
 							if (m.text != "")
 							{
@@ -200,7 +207,7 @@ namespace VelNet
 								objects
 									.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
 									.Select(o => o.Key)
-									.ToList().ForEach(DeleteNetworkObject);
+									.ToList().ForEach(NetworkDestroy);
 
 								// empty all the groups
 								foreach (string group in instance.groups.Keys)
@@ -246,7 +253,7 @@ namespace VelNet
 										// I'm the local master player, so can take ownership immediately
 										else if (me.isLocal && me == masterPlayer)
 										{
-											me.TakeOwnership(kvp.Key);
+											TakeOwnership(kvp.Key);
 										}
 										// the master player left, so everyone should set the owner null (we should get a new master shortly)
 										else if (players[m.sender] == masterPlayer)
@@ -257,7 +264,7 @@ namespace VelNet
 								}
 
 								// TODO this may check for ownership in the future. We don't need ownership here
-								deleteObjects.ForEach(DeleteNetworkObject);
+								deleteObjects.ForEach(NetworkDestroy);
 
 								players.Remove(m.sender);
 							}
@@ -683,18 +690,43 @@ namespace VelNet
 			instance.objects.Add(newObject.networkId, newObject);
 		}
 
-		public void DeleteNetworkObject(string networkId)
+		public static void NetworkDestroy(string networkId)
 		{
-			if (!objects.ContainsKey(networkId)) return;
-			NetworkObject obj = objects[networkId];
+			if (!instance.objects.ContainsKey(networkId)) return;
+			NetworkObject obj = instance.objects[networkId];
 			if (obj == null) return;
 			if (obj.isSceneObject)
 			{
-				deletedSceneObjects.Add(networkId);
+				instance.deletedSceneObjects.Add(networkId);
 			}
 
 			Destroy(obj.gameObject);
-			objects.Remove(networkId);
+			instance.objects.Remove(networkId);
+		}
+		
+		/// <summary>
+		/// Takes local ownership of an object by id.
+		/// </summary>
+		/// <param name="networkId">Network ID of the object to transfer</param>
+		/// <returns>True if successfully transferred, False if transfer message not sent</returns>
+		public static bool TakeOwnership(string networkId)
+		{
+			// local player must exist
+			if (LocalPlayer == null) return false;
+			
+			// obj must exist
+			if (!instance.objects.ContainsKey(networkId)) return false;
+
+			// if the ownership is locked, fail
+			if (instance.objects[networkId].ownershipLocked) return false;
+			
+			// immediately successful
+			instance.objects[networkId].owner = LocalPlayer;
+
+			// must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
+			SendTo(MessageType.ALL_ORDERED, "6," + networkId);
+			
+			return true;
 		}
 	}
 }
