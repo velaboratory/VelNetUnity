@@ -1,5 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 using UnityEngine;
 
 namespace VelNet
@@ -9,10 +12,11 @@ namespace VelNet
 	/// </summary>
 	public class NetworkObject : MonoBehaviour
 	{
-		[Header("NetworkObject properties")] 
-		public VelNetPlayer owner;
+		[Header("NetworkObject properties")] public VelNetPlayer owner;
+
 		[Tooltip("Whether this object's ownership is transferrable. Should be true for player objects.")]
 		public bool ownershipLocked;
+
 		public bool IsMine => owner != null && owner.isLocal;
 
 		/// <summary>
@@ -68,4 +72,44 @@ namespace VelNet
 			syncedComponents[int.Parse(identifier)].ReceiveBytes(message);
 		}
 	}
+
+#if UNITY_EDITOR
+	/// <summary>
+	/// Sets up the interface for the CopyTransform script.
+	/// </summary>
+	[CustomEditor(typeof(NetworkObject))]
+	public class NetworkObjectEditor : Editor
+	{
+		public override void OnInspectorGUI()
+		{
+			NetworkObject t = target as NetworkObject;
+
+			EditorGUILayout.Space();
+
+			if (t == null) return;
+
+			EditorGUILayout.HelpBox("Network Object. One per prefab pls.\nAssign components to the list to be synced.", MessageType.Info);
+
+			EditorGUI.BeginDisabledGroup(true);
+			EditorGUILayout.Toggle("IsMine", t.IsMine);
+			EditorGUILayout.TextField("Owner ID", t.owner?.userid.ToString() ?? "No owner");
+			EditorGUI.EndDisabledGroup();
+			EditorGUILayout.Space();
+
+			if (GUILayout.Button("Find Network Components and add backreferences."))
+			{
+				NetworkComponent[] comps = t.GetComponents<NetworkComponent>();
+				t.syncedComponents = comps.ToList();
+				foreach (NetworkComponent c in comps)
+				{
+					c.networkObject = t;
+				}
+			}
+
+			EditorGUILayout.Space();
+
+			DrawDefaultInspector();
+		}
+	}
+#endif
 }

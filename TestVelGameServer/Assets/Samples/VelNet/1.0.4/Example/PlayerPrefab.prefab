@@ -32,7 +32,7 @@ Transform:
   m_GameObject: {fileID: 6139051692386484099}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
+  m_LocalScale: {x: 0.5, y: 0.5, z: 0.5}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
@@ -117,8 +117,8 @@ MonoBehaviour:
   isSceneObject: 0
   syncedComponents:
   - {fileID: -4404668399269848200}
-  - {fileID: 1181612843795795320}
   - {fileID: 7564913803199044469}
+  - {fileID: 1181612843795795320}
 --- !u!114 &-4404668399269848200
 MonoBehaviour:
   m_ObjectHideFlags: 0

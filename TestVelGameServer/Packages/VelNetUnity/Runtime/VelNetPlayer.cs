@@ -113,14 +113,14 @@ namespace VelNet
 					{
 						string networkId = sections[1];
 
-						manager.DeleteNetworkObject(networkId);
+						VelNetManager.NetworkDestroy(networkId);
 						break;
 					}
 					case "9": //deleted scene objects
 					{
 						for (int k = 1; k < sections.Length; k++)
 						{
-							manager.DeleteNetworkObject(sections[k]);
+							VelNetManager.NetworkDestroy(sections[k]);
 						}
 
 						break;
@@ -146,9 +146,12 @@ namespace VelNet
 			VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
 		}
 
-		/// <summary>
-		/// TODO could move this to a static method in VelNetManager
-		/// </summary>
+		public void SendSceneUpdate()
+		{
+			VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
+		}
+
+		[Obsolete("Use VelNetManager.NetworkDestroy() instead.")]
 		public void NetworkDestroy(string networkId)
 		{
 			// must be the local owner of the object to destroy it
@@ -158,10 +161,8 @@ namespace VelNet
 			VelNetManager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "8," + networkId);
 		}
 
-		/// <summary>
-		/// TODO could move this to a static method in VelNetManager
-		/// </summary>
 		/// <returns>True if successful, False if failed to transfer ownership</returns>
+		[Obsolete("Use VelNetManager.TakeOwnership() instead.")]
 		public bool TakeOwnership(string networkId)
 		{
 			// must exist and be the the local player
@@ -169,19 +170,14 @@ namespace VelNet
 
 			// if the ownership is locked, fail
 			if (manager.objects[networkId].ownershipLocked) return false;
-			
+
 			// immediately successful
 			manager.objects[networkId].owner = this;
 
 			// must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
 			VelNetManager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "6," + networkId);
-			
-			return true;
-		}
 
-		public void SendSceneUpdate()
-		{
-			VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
+			return true;
 		}
 	}
 }
