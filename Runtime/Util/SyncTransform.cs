@@ -10,21 +10,47 @@ namespace VelNet
 	[AddComponentMenu("VelNet/VelNet Sync Transform")]
 	public class SyncTransform : NetworkSerializedObject
 	{
-		public Vector3 targetPosition;
-		public Quaternion targetRotation;
-		public float smoothness = .1f;
+		public bool useLocalTransform;
 
+		private Vector3 targetPosition;
+		private Quaternion targetRotation;
+		private float distanceAtReceiveTime;
+		private float angleAtReceiveTime;
+
+		private void Start()
+		{
+			if (useLocalTransform)
+			{
+				targetPosition = transform.localPosition;
+				targetRotation = transform.localRotation;
+			}
+			else
+			{
+				targetPosition = transform.position;
+				targetRotation = transform.rotation;
+			}
+		}
+
+		/// <summary>
+		/// This gets called at serializationRateHz when the object is locally owned
+		/// </summary>
+		/// <returns>The state of this object to send across the network</returns>
 		protected override byte[] SendState()
 		{
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);
 
-			writer.Write(transform.position);
-			writer.Write(transform.rotation);
+			writer.Write(transform.localPosition);
+			writer.Write(transform.localRotation);
 
 			return mem.ToArray();
 		}
 
+		/// <summary>
+		/// This gets called whenever a message about the state of this object is received.
+		/// Usually at serializationRateHz.
+		/// </summary>
+		/// <param name="message">The network state of this object</param>
 		protected override void ReceiveState(byte[] message)
 		{
 			using MemoryStream mem = new MemoryStream(message);
@@ -32,13 +58,50 @@ namespace VelNet
 
 			targetPosition = reader.ReadVector3();
 			targetRotation = reader.ReadQuaternion();
+
+			// record the distance from the target for interpolation
+			if (useLocalTransform)
+			{
+				distanceAtReceiveTime = Vector3.Distance(targetPosition, transform.localPosition);
+				angleAtReceiveTime = Quaternion.Angle(targetRotation, transform.localRotation);
+			}
+			else
+			{
+				distanceAtReceiveTime = Vector3.Distance(targetPosition, transform.position);
+				angleAtReceiveTime = Quaternion.Angle(targetRotation, transform.rotation);
+			}
 		}
 
 		private void Update()
 		{
 			if (IsMine) return;
-			transform.position = Vector3.Lerp(transform.position, targetPosition, 1 / smoothness / serializationRateHz);
-			transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 1 / smoothness / serializationRateHz);
+
+			if (useLocalTransform)
+			{
+				transform.localPosition = Vector3.MoveTowards(
+					transform.localPosition,
+					targetPosition,
+					Time.deltaTime * distanceAtReceiveTime * serializationRateHz
+				);
+				transform.localRotation = Quaternion.RotateTowards(
+					transform.localRotation,
+					targetRotation,
+					Time.deltaTime * angleAtReceiveTime * serializationRateHz
+				);
+			}
+			else
+			{
+				transform.position = Vector3.MoveTowards(
+					transform.position,
+					targetPosition,
+					Time.deltaTime * distanceAtReceiveTime * serializationRateHz
+				);
+				transform.rotation = Quaternion.RotateTowards(
+					transform.rotation,
+					targetRotation,
+					Time.deltaTime * angleAtReceiveTime * serializationRateHz
+				);
+			}
 		}
 	}
 }

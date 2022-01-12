@@ -6,10 +6,10 @@ namespace VelNet
 {
 	public abstract class NetworkSerializedObject : NetworkComponent
 	{
-		[FormerlySerializedAs("updateRateHz")] [Tooltip("Send rate of this object")]
+		[Tooltip("Send rate of this object. This caps out at the framerate of the game.")]
 		public float serializationRateHz = 30;
 
-		private void Start()
+		private void Awake()
 		{
 			StartCoroutine(SendMessageUpdate());
 		}
@@ -23,11 +23,11 @@ namespace VelNet
 					SendBytes(SendState());
 				}
 
-				yield return new WaitForSeconds(1 / serializationRateHz);
+				yield return new WaitForSeconds(1f / serializationRateHz);
 			}
 			// ReSharper disable once IteratorNeverReturns
 		}
-		
+
 		public override void ReceiveBytes(byte[] message)
 		{
 			ReceiveState(message);
