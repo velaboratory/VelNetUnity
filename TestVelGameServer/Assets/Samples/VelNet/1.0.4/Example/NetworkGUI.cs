@@ -41,6 +41,11 @@ namespace VelNet
 			}
 		}
 
+		public void HandleLeave()
+		{
+			VelNetManager.Leave();
+		}
+
 		// Start is called before the first frame update
 		private void Start()
 		{

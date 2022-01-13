@@ -1,10 +1,11 @@
 ﻿using System.Collections;
+using System.IO;
 using UnityEngine;
 using UnityEngine.Serialization;
 
 namespace VelNet
 {
-	public abstract class NetworkSerializedObject : NetworkComponent
+	public abstract class NetworkSerializedObjectStream : NetworkComponent
 	{
 		[Tooltip("Send rate of this object. This caps out at the framerate of the game.")]
 		public float serializationRateHz = 30;
@@ -20,7 +21,10 @@ namespace VelNet
 			{
 				if (IsMine)
 				{
-					SendBytes(SendState());
+					using MemoryStream mem = new MemoryStream();
+					using BinaryWriter writer = new BinaryWriter(mem);
+					SendState(writer);
+					SendBytes(mem.ToArray());
 				}
 
 				yield return new WaitForSeconds(1f / serializationRateHz);
@@ -30,11 +34,14 @@ namespace VelNet
 
 		public override void ReceiveBytes(byte[] message)
 		{
-			ReceiveState(message);
+			using MemoryStream mem = new MemoryStream(message);
+			using BinaryReader reader = new BinaryReader(mem);
+			
+			ReceiveState(reader);
 		}
 
-		protected abstract byte[] SendState();
+		protected abstract void SendState(BinaryWriter binaryWriter);
 
-		protected abstract void ReceiveState(byte[] message);
+		protected abstract void ReceiveState(BinaryReader binaryReader);
 	}
 }
