@@ -208,6 +208,9 @@ namespace VelNet
 									.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
 									.Select(o => o.Key)
 									.ToList().ForEach(NetworkDestroy);
+								
+								// then remove references to the ones that are left
+								objects.Clear();
 
 								// empty all the groups
 								foreach (string group in instance.groups.Keys)
@@ -217,7 +220,6 @@ namespace VelNet
 
 								instance.groups.Clear();
 
-								Debug.Log("Left VelNet Room: " + oldRoom);
 								try
 								{
 									OnLeftRoom?.Invoke(oldRoom);
@@ -328,13 +330,9 @@ namespace VelNet
 							masterPlayer.SetAsMasterPlayer();
 
 							// master player should take over any objects that do not have an owner
-
 							foreach (KeyValuePair<string, NetworkObject> kvp in objects)
 							{
-								if (kvp.Value.owner == null)
-								{
-									kvp.Value.owner = masterPlayer;
-								}
+								kvp.Value.owner ??= masterPlayer;
 							}
 
 							break;
@@ -659,24 +657,32 @@ namespace VelNet
 		}
 
 
-		public static void InstantiateNetworkObject(string prefabName)
+		public static NetworkObject InstantiateNetworkObject(string prefabName)
 		{
 			VelNetPlayer localPlayer = LocalPlayer;
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null)
 			{
 				Debug.LogError("Couldn't find a prefab with that name: " + prefabName);
-				return;
+				return null;
 			}
 
+			string networkId = localPlayer.userid + "-" + localPlayer.lastObjectId++;
+			if (instance.objects.ContainsKey(networkId))
+			{
+				Debug.LogError("Can't instantiate object. Obj with that network ID was already instantiated.", instance.objects[networkId]);
+				return null;
+			}
 			NetworkObject newObject = Instantiate(prefab);
-			newObject.networkId = localPlayer.userid + "-" + localPlayer.lastObjectId++;
+			newObject.networkId = networkId;
 			newObject.prefabName = prefabName;
 			newObject.owner = localPlayer;
 			instance.objects.Add(newObject.networkId, newObject);
 
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
 			SendTo(MessageType.OTHERS, "7," + newObject.networkId + "," + prefabName);
+
+			return newObject;
 		}
 
 		public static void SomebodyInstantiatedNetworkObject(string networkId, string prefabName, VelNetPlayer owner)
@@ -690,11 +696,20 @@ namespace VelNet
 			instance.objects.Add(newObject.networkId, newObject);
 		}
 
+		public static void NetworkDestroy(NetworkObject obj)
+		{
+			NetworkDestroy(obj.networkId);
+		}
+
 		public static void NetworkDestroy(string networkId)
 		{
 			if (!instance.objects.ContainsKey(networkId)) return;
 			NetworkObject obj = instance.objects[networkId];
-			if (obj == null) return;
+			if (obj == null)
+			{
+				instance.objects.Remove(networkId);
+				return;
+			}
 			if (obj.isSceneObject)
 			{
 				instance.deletedSceneObjects.Add(networkId);
