@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 749297529733664309}
   - component: {fileID: 2292958742615076072}
-  - component: {fileID: 5818541414344350546}
   - component: {fileID: 3384017775560023782}
   m_Layer: 0
   m_Name: Left Hand
@@ -52,20 +51,6 @@ MonoBehaviour:
   toSync: {fileID: 3384017775560023782}
   targets: []
   smoothness: 0.1
---- !u!114 &5818541414344350546
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 956485485189628882}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cb7623a8f0b49cf4dbaa40aea4d4be64, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  HandType: 0
-  _pointerPoseRoot: {fileID: 0}
 --- !u!114 &3384017775560023782
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -289,7 +274,6 @@ GameObject:
   m_Component:
   - component: {fileID: 3512402255783560565}
   - component: {fileID: 8288445267447093230}
-  - component: {fileID: 5075600737676913516}
   - component: {fileID: 7998315652155547491}
   m_Layer: 0
   m_Name: Right Hand
@@ -331,20 +315,6 @@ MonoBehaviour:
   toSync: {fileID: 7998315652155547491}
   targets: []
   smoothness: 0.1
---- !u!114 &5075600737676913516
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4956616402311533684}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cb7623a8f0b49cf4dbaa40aea4d4be64, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  HandType: 1
-  _pointerPoseRoot: {fileID: 0}
 --- !u!114 &7998315652155547491
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -741,6 +711,11 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 400018, guid: 442d5b4503ed83c4897ef44659446587, type: 3}
   m_PrefabInstance: {fileID: 6270683889218452347}
   m_PrefabAsset: {fileID: 0}
+--- !u!4 &6270683889218839023 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 400020, guid: 442d5b4503ed83c4897ef44659446587, type: 3}
+  m_PrefabInstance: {fileID: 6270683889218452347}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &6270683889218838633 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 400146, guid: 442d5b4503ed83c4897ef44659446587, type: 3}
@@ -799,11 +774,6 @@ Transform:
 --- !u!4 &6270683889218839021 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 400022, guid: 442d5b4503ed83c4897ef44659446587, type: 3}
-  m_PrefabInstance: {fileID: 6270683889218452347}
-  m_PrefabAsset: {fileID: 0}
---- !u!4 &6270683889218839023 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 400020, guid: 442d5b4503ed83c4897ef44659446587, type: 3}
   m_PrefabInstance: {fileID: 6270683889218452347}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &8015258244566237006
