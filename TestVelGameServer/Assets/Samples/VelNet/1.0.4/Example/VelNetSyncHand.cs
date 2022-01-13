@@ -42,16 +42,6 @@ public class VelNetSyncHand : NetworkSerializedObject
     private void Start()
     {
         targets = new Quaternion[toSync.Length];
-        InvokeRepeating("NetworkSend", 0, 1 / serializationRateHz);
-    }
-
-    //TODO: remove when NetworkSerializedObject works
-    private void NetworkSend()
-    {
-        if (IsMine && hand != null && hand.IsDataValid)
-        {
-            SendBytes(SendState());
-        }
     }
 
     protected override void ReceiveState(byte[] message)
@@ -70,7 +60,7 @@ public class VelNetSyncHand : NetworkSerializedObject
         using BinaryWriter writer = new BinaryWriter(mem);
         for(int i = 0; i<toSync.Length; i++)
         {
-            writer.Write(toSync[0].rotation); //TODO: optimize to just one float for some bones
+            writer.Write(toSync[i].rotation); //TODO: optimize to just one float for some bones
         }
 
         return mem.ToArray();

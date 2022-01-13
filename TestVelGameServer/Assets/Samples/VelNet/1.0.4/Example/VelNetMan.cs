@@ -18,7 +18,7 @@ public class VelNetMan : MonoBehaviour
 	{
 		VelNetManager.OnJoinedRoom += room =>
 		{
-			GameObject created = VelNetManager.InstantiateNetworkObject(playerPrefab.name);
+			GameObject created = VelNetManager.InstantiateNetworkObject(playerPrefab.name).gameObject;
 			PlayerMan playerMan = created.GetComponent<PlayerMan>();
             if (playerMan) {
 				playerMan.leftHand.hand = leftHand;
