@@ -55,9 +55,16 @@ namespace VelNet
 			owner.SendGroupMessage(this, group, index.ToString(), message, reliable);
 		}
 
-		public void ReceiveBytes(string identifier, byte[] message)
+		public void ReceiveBytes(string identifier, byte[] message, string str_message = "")
 		{
 			// send the message to the right component
+			var index = int.Parse(identifier);
+			if(index < 0 || index >= syncedComponents.Count)
+            {
+				Debug.LogError("Got message for NetworkComponent that doesn't exist: " + identifier + " on " + prefabName);
+				Debug.Log(str_message);
+				return;
+            }
 			syncedComponents[int.Parse(identifier)].ReceiveBytes(message);
 		}
 	}

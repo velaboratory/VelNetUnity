@@ -79,7 +79,7 @@ namespace VelNet
 						{
 							if (manager.objects[objectKey].owner == this)
 							{
-								manager.objects[objectKey].ReceiveBytes(identifier, messageBytes);
+								manager.objects[objectKey].ReceiveBytes(identifier, messageBytes, m.text);
 							}
 						}
 

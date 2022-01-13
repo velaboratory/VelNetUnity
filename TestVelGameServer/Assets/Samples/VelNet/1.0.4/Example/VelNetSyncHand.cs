@@ -7,14 +7,41 @@ using VelNet;
 public class VelNetSyncHand : NetworkSerializedObject
 {
     public OVRSkeleton hand;
-    public OVRCustomSkeleton toSync;
+    public Transform[] toSync;
     public Quaternion[] targets;
     public float smoothness = .1f;
+    #region bonesToSync
+    /*
+    public Transform Hand;
+    public Transform Wrist;
+    public Transform Index1;
+    public Transform Index2;
+    public Transform Index3;
+
+    public Transform Middle1;
+    public Transform Middle2;
+    public Transform Middle3;
+
+    public Transform Ring1;
+    public Transform Ring2;
+    public Transform Ring3;
+
+    public Transform Pinky0;
+    public Transform Pinky1;
+    public Transform Pinky2;
+    public Transform Pinky3;
+
+    public Transform Thumb0;
+    public Transform Thumb1;
+    public Transform Thumb2;
+    public Transform Thumb3;
+    */
+    #endregion
     protected override void ReceiveState(byte[] message)
     {
         using MemoryStream mem = new MemoryStream(message);
         using BinaryReader reader = new BinaryReader(mem);
-        for (int i =0; i<toSync.Bones.Count; i++)
+        for (int i =0; i<toSync.Length; i++)
         {
             targets[i] = reader.ReadQuaternion();
         }
@@ -24,9 +51,9 @@ public class VelNetSyncHand : NetworkSerializedObject
     {
         using MemoryStream mem = new MemoryStream();
         using BinaryWriter writer = new BinaryWriter(mem);
-        for(int i = 0; i<toSync.Bones.Count; i++)
+        for(int i = 0; i<toSync.Length; i++)
         {
-            writer.Write(toSync.Bones[0].Transform.rotation); //TODO: optimize to just one float for some bones
+            writer.Write(toSync[0].rotation); //TODO: optimize to just one float for some bones
         }
 
         return mem.ToArray();
@@ -35,24 +62,24 @@ public class VelNetSyncHand : NetworkSerializedObject
     // Start is called before the first frame update
     void Start()
     {
-        targets = new Quaternion[toSync.Bones.Count];
+        targets = new Quaternion[toSync.Length];
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (IsMine && hand) //need to set values from tracked hand to this networkobject
+        if (IsMine && hand?.Bones != null && hand?.Bones.Count == toSync.Length) //need to set values from tracked hand to this networkobject
         {
-            for(int i = 0; i < hand.Bones.Count; i++)
+            for(int i = 0; i < toSync.Length; i++)
             {
-                toSync.Bones[i].Transform.rotation = hand.Bones[i].Transform.rotation;
+                toSync[i].rotation = hand.Bones[i].Transform.rotation;
             }
             
             return;
         }
         for(int i = 0;i<targets.Length;i++)
         {
-            toSync.Bones[i].Transform.rotation = Quaternion.Slerp(transform.rotation, targets[i], 1 / smoothness / serializationRateHz);
+            toSync[i].rotation = Quaternion.Slerp(transform.rotation, targets[i], 1 / smoothness / serializationRateHz);
         }
     }
 }
