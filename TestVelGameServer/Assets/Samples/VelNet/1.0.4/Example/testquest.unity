@@ -3535,6 +3535,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: TestNetworkedGameObject
       objectReference: {fileID: 0}
+    - target: {fileID: 8565720275311462453, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8565720275311462455, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
       propertyPath: m_RootOrder
       value: 5

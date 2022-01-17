@@ -338,12 +338,12 @@ MonoBehaviour:
   isSceneObject: 0
   syncedComponents:
   - {fileID: 5057794648895309284}
+  - {fileID: 6169608247249244442}
   - {fileID: 3980752934155110330}
   - {fileID: 2292958742615076072}
   - {fileID: 8171177894477629926}
   - {fileID: 8571378120727598095}
   - {fileID: 8288445267447093230}
-  - {fileID: 6169608247249244442}
 --- !u!114 &5057794648895309284
 MonoBehaviour:
   m_ObjectHideFlags: 0
