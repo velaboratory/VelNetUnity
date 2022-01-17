@@ -106,7 +106,7 @@
       "dependencies": {}
     },
     "edu.uga.engr.vel.velnet.dissonance": {
-      "version": "file:S:/git_repo/VelNetDissonanceIntegration",
+      "version": "file:c:/git_repo/VelNetDissonanceIntegration",
       "depth": 0,
       "source": "local",
       "dependencies": {
