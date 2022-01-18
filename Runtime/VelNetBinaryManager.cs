@@ -612,12 +612,12 @@ namespace VelNet
 			BinaryWriter writer = new BinaryWriter(stream);
 			
 			byte[] uB = Encoding.UTF8.GetBytes(username);
-			byte[] uP = Encoding.UTF8.GetBytes(password);
+			byte[] pB = Encoding.UTF8.GetBytes(password);
 			writer.Write((byte)0);
-			writer.Write(get_be_bytes(uB.Length));
+			writer.Write((byte)uB.Length);
 			writer.Write(uB);
-			writer.Write(get_be_bytes(uP.Length));
-			writer.Write(uP);
+			writer.Write((byte)pB.Length);
+			writer.Write(pB);
 
 			SendNetworkMessage(stream.ToArray());
 			Join("MyRoom");
@@ -634,7 +634,7 @@ namespace VelNet
 
 			byte[] R = Encoding.UTF8.GetBytes(roomname);
 			writer.Write((byte)2);
-			writer.Write(get_be_bytes(R.Length));
+			writer.Write((byte)R.Length);
 			writer.Write(R);
 			SendNetworkMessage(stream.ToArray());
 		}
