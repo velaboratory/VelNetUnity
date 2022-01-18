@@ -462,6 +462,12 @@ namespace VelNet
 					while ((length = stream.Read(bytes, 0, bytes.Length)) != 0)
 					{
 						Debug.Log("read " + length + " bytes!");
+						string t = "";
+						for(int i = 0; i < length; i++)
+						{
+							t = t + "," + bytes[i];
+						}
+						Debug.Log(t);
 						//byte[] incommingData = new byte[length];
 						//Array.Copy(bytes, 0, incommingData, 0, length);
 						//// Convert byte array to string message. 						
@@ -621,6 +627,7 @@ namespace VelNet
 
 			SendNetworkMessage(stream.ToArray());
 			Join("MyRoom");
+			
 		}
 
 		/// <summary>
@@ -637,6 +644,8 @@ namespace VelNet
 			writer.Write((byte)R.Length);
 			writer.Write(R);
 			SendNetworkMessage(stream.ToArray());
+
+			SendTo(MessageType.OTHERS, Encoding.UTF8.GetBytes("Hello"));
 		}
 
 		/// <summary>
@@ -645,6 +654,27 @@ namespace VelNet
 		public static void Leave()
 		{
 			//if (InRoom) SendNetworkMessage("2:-1");
+		}
+
+		public static void SendTo(MessageType type, byte[] message, bool reliable = true)
+		{
+			MemoryStream stream = new MemoryStream();
+			BinaryWriter writer = new BinaryWriter(stream);
+
+			writer.Write((byte)3);
+			writer.Write(get_be_bytes(message.Length));
+			writer.Write(message);
+
+			if (reliable)
+			{
+				SendNetworkMessage(stream.ToArray());
+
+				//SendNetworkMessage("3:" + (int)type + ":" + message);
+			}
+			else
+			{
+				SendUdpMessage(instance.userid + ":3:" + (int)type + ":" + message);
+			}
 		}
 
 		public static void SendTo(MessageType type, string message, bool reliable = true)
