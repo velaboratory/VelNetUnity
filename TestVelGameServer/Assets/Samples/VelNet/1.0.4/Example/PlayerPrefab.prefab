@@ -163,7 +163,5 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   networkObject: {fileID: 9102273340480352682}
-  serializationRateHz: 30
-  targetPosition: {x: 0, y: 0, z: 0}
-  targetRotation: {x: 0, y: 0, z: 0, w: 0}
-  smoothness: 0.1
+  serializationRateHz: 1
+  useLocalTransform: 0

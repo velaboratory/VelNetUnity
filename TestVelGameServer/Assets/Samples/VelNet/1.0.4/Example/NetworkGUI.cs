@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using Dissonance;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -21,7 +22,7 @@ namespace VelNet
 		{
 			if (sendInput.text != "")
 			{
-				VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, sendInput.text);
+				VelNetManager.SendToRoom(Encoding.UTF8.GetBytes(sendInput.text));
 			}
 		}
 
@@ -51,6 +52,8 @@ namespace VelNet
 		{
 			comms = FindObjectOfType<DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
+
+			/* todo
 			VelNetManager.MessageReceived += (m) =>
 			{
 				string s = m.type + ":" + m.sender + ":" + m.text;
@@ -68,6 +71,7 @@ namespace VelNet
 					messages.text = messages.text + msg + "\n";
 				}
 			};
+			*/
 		}
 
 		public void handleMicrophoneSelection()

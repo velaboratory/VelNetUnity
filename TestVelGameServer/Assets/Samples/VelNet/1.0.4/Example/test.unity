@@ -2238,18 +2238,18 @@ MonoBehaviour:
   m_GameObject: {fileID: 1099803612}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 03a4d4e1a7fd74c7ab2eccca4ce168db, type: 3}
+  m_Script: {fileID: 11500000, guid: 233344de094f11341bdb834d564708dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  host: velnet.ugavel.com
-  port: 3290
+  host: 127.0.0.1
+  port: 80
   udpConnected: 0
   userid: -1
   room: 
   connected: 0
   prefabs:
-  - {fileID: 3951900052977689805, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
   - {fileID: 9102273340480352682, guid: d4158ab9c4a204cdbba28d3273fc1fb3, type: 3}
+  - {fileID: 3951900052977689805, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
   sceneObjects: []
   deletedSceneObjects: []
 --- !u!1 &1154194181
@@ -3959,6 +3959,10 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 3951900052977689805, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
       propertyPath: isSceneObject
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8565720275311462452, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
+      propertyPath: serializationRateHz
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8565720275311462453, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
