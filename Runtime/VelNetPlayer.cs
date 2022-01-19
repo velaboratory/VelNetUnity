@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System;
+using System.Text;
 
 namespace VelNet
 {
@@ -41,7 +42,7 @@ namespace VelNet
 				{
 					if (kvp.Value.owner == this && kvp.Value.prefabName != "")
 					{
-						VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, "7," + kvp.Value.networkId + "," + kvp.Value.prefabName);
+						VelNetManager.SendToRoom(Encoding.UTF8.GetBytes("7," + kvp.Value.networkId + "," + kvp.Value.prefabName),false,true);
 					}
 				}
 
@@ -56,12 +57,14 @@ namespace VelNet
 		/// <summary>
 		/// These are generally things that come from the "owner" and should be enacted locally, where appropriate
 		/// </summary>
-		public void HandleMessage(VelNetManager.Message m)
+		public void HandleMessage(VelNetManager.DataMessage m)
 		{
-			//we need to parse the message
+			//for now, we can just convert to text...because 
+
+			string text = Encoding.UTF8.GetString(m.data);
 
 			//types of messages
-			string[] messages = m.text.Split(';'); //messages are split by ;
+			string[] messages = text.Split(';'); //messages are split by ;
 			foreach (string s in messages)
 			{
 				//individual message parameters separated by comma
@@ -138,17 +141,20 @@ namespace VelNet
 
 		public void SendGroupMessage(NetworkObject obj, string group, string identifier, byte[] data, bool reliable = true)
 		{
-			VelNetManager.SendToGroup(group, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
+			string message = "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data);
+			VelNetManager.SendToGroup(group, Encoding.UTF8.GetBytes(message), reliable);
 		}
 
 		public void SendMessage(NetworkObject obj, string identifier, byte[] data, bool reliable = true)
 		{
-			VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data), reliable);
+			string message = "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data);
+			VelNetManager.SendToRoom(Encoding.UTF8.GetBytes(message), false, reliable);
 		}
 
 		public void SendSceneUpdate()
 		{
-			VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, "9," + string.Join(",", manager.deletedSceneObjects));
+			string message = "9," + string.Join(",", manager.deletedSceneObjects);
+			VelNetManager.SendToRoom( Encoding.UTF8.GetBytes(message));
 		}
 
 		[Obsolete("Use VelNetManager.NetworkDestroy() instead.")]
@@ -158,7 +164,7 @@ namespace VelNet
 			if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return;
 
 			// send to all, which will make me delete as well
-			VelNetManager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "8," + networkId);
+			VelNetManager.SendToRoom(Encoding.UTF8.GetBytes("8," + networkId), true, true);
 		}
 
 		/// <returns>True if successful, False if failed to transfer ownership</returns>
@@ -175,7 +181,7 @@ namespace VelNet
 			manager.objects[networkId].owner = this;
 
 			// must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
-			VelNetManager.SendTo(VelNetManager.MessageType.ALL_ORDERED, "6," + networkId);
+			VelNetManager.SendToRoom(Encoding.UTF8.GetBytes("6," + networkId),true,true);
 
 			return true;
 		}
