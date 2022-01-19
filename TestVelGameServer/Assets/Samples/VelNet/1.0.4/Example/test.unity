@@ -2809,8 +2809,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _lastPrefabError: 
-  _isMuted: 1
-  _isDeafened: 1
+  _isMuted: 0
+  _isDeafened: 0
   _oneMinusBaseRemoteVoiceVolume: 0
   _playbackPrefab: {fileID: 0}
   _playbackPrefab2: {fileID: 1041743830464418, guid: 7b8de751a39894b0c8e1cfc9ef961a5b, type: 3}

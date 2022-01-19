@@ -149,7 +149,7 @@ MonoBehaviour:
   networkObject: {fileID: 9102273340480352682}
   dissonanceID: 
   closePlayers: 
-  maxDistance: 0
+  maxDistance: 2
 --- !u!114 &7564913803199044469
 MonoBehaviour:
   m_ObjectHideFlags: 0
