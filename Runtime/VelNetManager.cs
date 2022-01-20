@@ -466,19 +466,25 @@ namespace VelNet
 					}
 					else if(type == 1) //rooms
 					{
+
 						RoomsMessage m = new RoomsMessage();
 						m.rooms = new List<ListedRoom>();
 						int N = GetIntFromBytes(ReadExact(stream, 4)); //the size of the payload
 						byte[] utf8data = ReadExact(stream, N);
 						string roomMessage = Encoding.UTF8.GetString(utf8data);
+
+						
+
 						string[] sections = roomMessage.Split(',');
-						foreach(string s in sections)
+						foreach (string s in sections)
 						{
 							string[] pieces = s.Split(':');
-							ListedRoom lr = new ListedRoom();
-							lr.name = pieces[0];
-							lr.numUsers = int.Parse(pieces[1]);
-							m.rooms.Add(lr);
+							if (pieces.Length == 2) { 
+								ListedRoom lr = new ListedRoom();
+								lr.name = pieces[0];
+								lr.numUsers = int.Parse(pieces[1]);
+								m.rooms.Add(lr);
+							}
 						}
 						AddMessage(m);
 					}
@@ -638,6 +644,12 @@ namespace VelNet
 			SendTcpMessage(stream.ToArray());
 			
 
+		}
+
+		public static void GetRooms()
+		{
+
+			SendTcpMessage(new byte[1] { 1 }); //very simple message
 		}
 
 		/// <summary>
