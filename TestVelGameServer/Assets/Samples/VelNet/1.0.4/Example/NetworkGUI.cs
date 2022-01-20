@@ -34,6 +34,13 @@ namespace VelNet
 			}
 		}
 
+		public void HandleGetRooms()
+		{
+			if (VelNetManager.instance.connected)
+			{
+				VelNetManager.GetRooms();
+			}
+		}
 		public void HandleJoin()
 		{
 			if (roomInput.text != "")
