@@ -37,6 +37,23 @@ public class VelNetSyncHand : NetworkSerializedObject
     public Transform Thumb3;
     */
     #endregion
+
+    
+    private void Start()
+    {
+        targets = new Quaternion[toSync.Length];
+        InvokeRepeating("NetworkSend", 0, 1 / serializationRateHz);
+    }
+
+    //TODO: remove when NetworkSerializedObject works
+    private void NetworkSend()
+    {
+        if (IsMine && hand != null && hand.IsDataValid)
+        {
+            SendBytes(SendState());
+        }
+    }
+
     protected override void ReceiveState(byte[] message)
     {
         using MemoryStream mem = new MemoryStream(message);
@@ -59,16 +76,10 @@ public class VelNetSyncHand : NetworkSerializedObject
         return mem.ToArray();
     }
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        targets = new Quaternion[toSync.Length];
-    }
-
     // Update is called once per frame
     void Update()
     {
-        if (IsMine && hand?.Bones != null && hand?.Bones.Count == toSync.Length) //need to set values from tracked hand to this networkobject
+        if (IsMine && hand?.Bones != null && hand.IsDataValid) //need to set values from tracked hand to this networkobject
         {
             for(int i = 0; i < toSync.Length; i++)
             {
@@ -77,9 +88,13 @@ public class VelNetSyncHand : NetworkSerializedObject
             
             return;
         }
-        for(int i = 0;i<targets.Length;i++)
-        {
-            toSync[i].rotation = Quaternion.Slerp(transform.rotation, targets[i], 1 / smoothness / serializationRateHz);
+
+        if(!IsMine) {
+            for (int i = 0; i < targets.Length; i++)
+            {
+                toSync[i].rotation = Quaternion.Slerp(transform.rotation, targets[i], 1 / smoothness / serializationRateHz);
+            }
         }
+        
     }
 }
