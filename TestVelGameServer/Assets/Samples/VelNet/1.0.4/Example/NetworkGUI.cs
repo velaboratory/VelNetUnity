@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using Dissonance;
@@ -79,6 +80,17 @@ namespace VelNet
 				}
 			};
 			*/
+			StartCoroutine(testes());
+			
+			
+		}
+		IEnumerator testes()
+		{
+			yield return new WaitForSeconds(1.0f); 
+			HandleLogin(); 
+			yield return new WaitForSeconds(1.0f); 
+			HandleJoin();
+			yield return null;
 		}
 
 		public void handleMicrophoneSelection()

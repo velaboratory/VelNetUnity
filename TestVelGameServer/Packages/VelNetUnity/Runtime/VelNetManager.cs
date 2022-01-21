@@ -19,6 +19,8 @@ namespace VelNet
 	{
 		public enum MessageSendType
 		{
+			MESSAGE_OTHERS_ORDERED = 7,
+			MESSAGE_ALL_ORDERED = 8,
 			MESSAGE_LOGIN = 0,
 			MESSAGE_GETROOMS = 1,
 			MESSAGE_JOINROOM = 2,
@@ -128,6 +130,11 @@ namespace VelNet
 			public int masterId;
 		}
 
+		public class ConnectedMessage: Message
+		{
+			
+		}
+
 		public readonly List<Message> receivedMessages = new List<Message>();
 
 		private void Awake()
@@ -146,20 +153,9 @@ namespace VelNet
 			};
 		}
 
-		private IEnumerator Start()
+		private void Start()
 		{
 			ConnectToTcpServer();
-			yield return null;
-
-			try
-			{
-				OnConnectedToServer?.Invoke();
-			}
-			// prevent errors in subscribers from breaking our code
-			catch (Exception e)
-			{
-				Debug.LogError(e);
-			}
 		}
 
 
@@ -181,6 +177,19 @@ namespace VelNet
 				{
 					switch (m)
 					{
+						case ConnectedMessage connected:
+							{
+								try
+								{
+									OnConnectedToServer?.Invoke();
+								}
+								// prevent errors in subscribers from breaking our code
+								catch (Exception e)
+								{
+									Debug.LogError(e);
+								}
+								break;
+							}
 						case LoginMessage lm:
 							{
 								userid = lm.userId;
@@ -445,6 +454,8 @@ namespace VelNet
 				socketConnection = new TcpClient(host, port);
 				socketConnection.NoDelay = true;
 				NetworkStream stream = socketConnection.GetStream();
+				//now we are connected, so add a message to the queue
+				AddMessage(new ConnectedMessage());
 				//Join("MyRoom");
 				//SendTo(MessageSendType.MESSAGE_OTHERS, Encoding.UTF8.GetBytes("Hello"));
 				//FormGroup("close", new List<uint> { 1 });
@@ -632,7 +643,7 @@ namespace VelNet
 			
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
-			
+
 			byte[] uB = Encoding.UTF8.GetBytes(username);
 			byte[] pB = Encoding.UTF8.GetBytes(password);
 			writer.Write((byte)0);
@@ -685,9 +696,14 @@ namespace VelNet
 			}
 		}
 
-		public static void SendToRoom(byte[] message, bool include_self = false, bool reliable = true)
+		public static void SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
 		{
-			byte sendType = (byte)(include_self ? MessageSendType.MESSAGE_ALL : MessageSendType.MESSAGE_OTHERS);
+			byte sendType = (byte) MessageSendType.MESSAGE_OTHERS;
+			if (include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_ALL_ORDERED;
+			if (include_self && !ordered) sendType = (byte)MessageSendType.MESSAGE_ALL;
+			if (!include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_OTHERS_ORDERED;
+
+			
 			if (reliable)
 			{
 				MemoryStream stream = new MemoryStream();
