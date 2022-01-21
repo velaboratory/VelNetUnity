@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 
 namespace VelNet
@@ -36,19 +37,15 @@ namespace VelNet
 				{
 					foreach (KeyValuePair<string, NetworkObject> kvp in VelNetManager.instance.objects)
 					{
-						VelNetManager.TakeOwnership(kvp.Key);
+						kvp.Value.TakeOwnership();
 					}
 				}
 
 				if (Input.GetKeyDown(KeyCode.Backspace))
 				{
-					foreach (KeyValuePair<string, NetworkObject> kvp in VelNetManager.instance.objects)
+					foreach (KeyValuePair<string, NetworkObject> kvp in VelNetManager.instance.objects.Where(kvp => !kvp.Value.ownershipLocked))
 					{
-						// don't destroy player objects
-						if (!kvp.Value.ownershipLocked)
-						{
-							VelNetManager.NetworkDestroy(kvp.Key);
-						}
+						VelNetManager.NetworkDestroy(kvp.Key);
 					}
 				}
 			}

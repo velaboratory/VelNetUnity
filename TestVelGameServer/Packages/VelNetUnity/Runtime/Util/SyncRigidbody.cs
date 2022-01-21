@@ -4,10 +4,11 @@ using UnityEngine;
 namespace VelNet
 {
 	/// <summary>
-	/// A simple class that will sync the position and rotation of a network object
+	/// A simple class that will sync the position and rotation of a network object with a rigidbody
 	/// </summary>
-	[AddComponentMenu("VelNet/VelNet Sync Transform")]
-	public class SyncTransform : NetworkSerializedObjectStream
+	[AddComponentMenu("VelNet/VelNet Sync Rigidbody")]
+	[RequireComponent(typeof(Rigidbody))]
+	public class SyncRigidbody : NetworkSerializedObjectStream
 	{
 		public bool useLocalTransform;
 		[Tooltip("0 to disable.")]
@@ -15,13 +16,20 @@ namespace VelNet
 		[Tooltip("0 to disable.")]
 		public float teleportAngle;
 
+		public bool syncKinematic;
+		public bool syncGravity;
+		public bool syncVelocity;
+		public bool syncAngularVelocity;
+
 		private Vector3 targetPosition;
 		private Quaternion targetRotation;
 		private float distanceAtReceiveTime;
 		private float angleAtReceiveTime;
+		private Rigidbody rb;
 
 		private void Start()
 		{
+			rb = GetComponent<Rigidbody>();
 			if (useLocalTransform)
 			{
 				targetPosition = transform.localPosition;
@@ -39,8 +47,22 @@ namespace VelNet
 		/// </summary>
 		protected override void SendState(BinaryWriter writer)
 		{
-			writer.Write(transform.localPosition);
-			writer.Write(transform.localRotation);
+			if (useLocalTransform)
+			{
+				writer.Write(transform.localPosition);
+				writer.Write(transform.localRotation);
+			}
+			else
+			{
+				writer.Write(transform.position);
+				writer.Write(transform.rotation);
+			}
+
+			// writer.Write((new bool[] {rb.isKinematic, rb.useGravity}).GetBitmasks());
+			if (syncKinematic) writer.Write(rb.isKinematic);
+			if (syncGravity) writer.Write(rb.useGravity);
+			if (syncVelocity) writer.Write(rb.velocity);
+			if (syncAngularVelocity) writer.Write(rb.angularVelocity);
 		}
 
 		/// <summary>
@@ -51,6 +73,11 @@ namespace VelNet
 		{
 			targetPosition = reader.ReadVector3();
 			targetRotation = reader.ReadQuaternion();
+
+			if (syncKinematic) rb.isKinematic = reader.ReadBoolean();
+			if (syncGravity) rb.useGravity = reader.ReadBoolean();
+			if (syncVelocity) rb.velocity = reader.ReadVector3();
+			if (syncAngularVelocity) rb.angularVelocity = reader.ReadVector3();
 
 			// record the distance from the target for interpolation
 			if (useLocalTransform)
