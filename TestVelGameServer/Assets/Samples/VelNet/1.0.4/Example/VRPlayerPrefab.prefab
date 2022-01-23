@@ -45,7 +45,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   networkObject: {fileID: 1210055141702294256}
-  serializationRateHz: 10
+  serializationRateHz: 30
   hand: {fileID: 0}
   toSync:
   - {fileID: 6270683889218838997}
@@ -257,7 +257,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   networkObject: {fileID: 1210055141702294256}
-  serializationRateHz: 10
+  serializationRateHz: 30
   hand: {fileID: 0}
   toSync:
   - {fileID: 8015258244566099424}
