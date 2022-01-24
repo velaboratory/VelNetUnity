@@ -316,7 +316,11 @@ namespace VelNet
 
 								for (int i = 0; i < sceneObjects.Length; i++)
 								{
-									sceneObjects[i].networkId = -1 + "-" + i;
+									if (sceneObjects[i].sceneNetworkId == 0)
+									{
+										Debug.LogError("Scene Network ID is 0. Make sure to assign one first.", sceneObjects[i]);
+									}
+									sceneObjects[i].networkId = -1 + "-" + sceneObjects[i].sceneNetworkId;
 									sceneObjects[i].owner = masterPlayer;
 									sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
 									objects.Add(sceneObjects[i].networkId, sceneObjects[i]);
@@ -727,13 +731,25 @@ namespace VelNet
 		public static bool TakeOwnership(string networkId)
 		{
 			// local player must exist
-			if (LocalPlayer == null) return false;
+			if (LocalPlayer == null)
+			{
+				Debug.LogError("Can't take ownership. No local player.");
+				return false;
+			}
 			
 			// obj must exist
-			if (!instance.objects.ContainsKey(networkId)) return false;
+			if (!instance.objects.ContainsKey(networkId))
+			{
+				Debug.LogError("Can't take ownership. Object with that network id doesn't exist.");
+				return false;
+			}
 
 			// if the ownership is locked, fail
-			if (instance.objects[networkId].ownershipLocked) return false;
+			if (instance.objects[networkId].ownershipLocked)
+			{
+				Debug.LogError("Can't take ownership. Ownership for this object is locked.");
+				return false;
+			}
 			
 			// immediately successful
 			instance.objects[networkId].owner = LocalPlayer;

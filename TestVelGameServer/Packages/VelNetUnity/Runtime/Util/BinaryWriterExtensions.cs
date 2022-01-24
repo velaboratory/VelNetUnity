@@ -1,4 +1,7 @@
-﻿using System.IO;
+﻿using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using UnityEngine;
 
 namespace VelNet
@@ -33,6 +36,30 @@ namespace VelNet
 				reader.ReadSingle(), 
 				reader.ReadSingle()
 			);
+		}
+
+		/// <summary>
+		/// Compresses the list of bools into bytes using a bitmask
+		/// </summary>
+		public static byte[] GetBitmasks(this IEnumerable<bool> bools)
+		{
+			List<bool> values = bools.ToList(); 
+			List<byte> bytes = new List<byte>();
+			for (int b = 0; b < Mathf.Ceil(values.Count / 8f); b++)
+			{
+				byte currentByte = 0;
+				for (int bit = 0; bit < 8; bit++)
+				{
+					if (values.Count > b * 8 + bit)
+					{
+						currentByte |= (byte)((values[b * 8 + bit] ? 1 : 0) << bit);
+					}
+				}
+
+				bytes.Add(currentByte);
+			}
+
+			return bytes.ToArray();
 		}
 	}
 }

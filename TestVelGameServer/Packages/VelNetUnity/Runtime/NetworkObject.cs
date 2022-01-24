@@ -26,6 +26,12 @@ namespace VelNet
 		public string networkId;
 
 		/// <summary>
+		/// This is generated at editor time and used to generated the network id at runtime.
+		/// This is needed because finding all objects of type at runtime doesn't have a guaranteed order.
+		/// </summary>
+		public int sceneNetworkId;
+
+		/// <summary>
 		/// This may be empty if it's not a prefab (scene object)
 		/// </summary>
 		public string prefabName;
@@ -116,6 +122,25 @@ namespace VelNet
 				{
 					c.networkObject = t;
 				}
+			}
+
+			// make the sceneNetworkId a new unique value
+			if (Application.isEditor && !Application.isPlaying && t.isSceneObject && t.sceneNetworkId == 0)
+			{
+				// find the first unused value
+				int[] used = FindObjectsOfType<NetworkObject>().Select(o => o.sceneNetworkId).ToArray();
+				int available = -1;
+				for (int i = 1; i <= used.Max()+1; i++)
+				{
+					if (!used.Contains(i))
+					{
+						available = i;
+						break;
+					}
+				}
+
+				t.sceneNetworkId = available;
+				PrefabUtility.RecordPrefabInstancePropertyModifications(t);
 			}
 
 			EditorGUILayout.Space();
