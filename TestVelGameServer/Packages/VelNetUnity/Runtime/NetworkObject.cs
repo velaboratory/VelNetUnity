@@ -69,7 +69,6 @@ namespace VelNet
 		public void ReceiveBytes(string identifier, byte[] message, string str_message = "")
 		{
 			// send the message to the right component
-
 			try
 			{
 				syncedComponents[int.Parse(identifier)].ReceiveBytes(message);

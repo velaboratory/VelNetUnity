@@ -657,7 +657,6 @@ namespace VelNet
 		}
 
 
-
 		public static NetworkObject InstantiateNetworkObject(string prefabName)
 		{
 			VelNetPlayer localPlayer = LocalPlayer;
