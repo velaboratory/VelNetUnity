@@ -88,7 +88,6 @@ public class VelNetSyncHand : NetworkSerializedObject
                     targets[i],
                     Time.deltaTime * Quaternion.Angle(targets[i], toSync[i].rotation) * serializationRateHz
                 );
-                //toSync[i].rotation = Quaternion.Slerp(transform.rotation, targets[i], 1 / smoothness / serializationRateHz);
             }
         }
         
