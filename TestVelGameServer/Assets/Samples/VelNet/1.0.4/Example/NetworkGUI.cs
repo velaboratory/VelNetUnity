@@ -10,14 +10,16 @@ namespace VelNet
 {
 	public class NetworkGUI : MonoBehaviour
 	{
-		[FormerlySerializedAs("networkManager")] public VelNetManager velNetManager;
+		[FormerlySerializedAs("networkManager")]
+		public VelNetManager velNetManager;
+
 		public InputField userInput;
 		public InputField sendInput;
 		public InputField roomInput;
 		public Text messages;
 		public List<string> messageBuffer;
 		public Dropdown microphones;
-		DissonanceComms comms;
+		private DissonanceComms comms;
 
 		public void HandleSend()
 		{
@@ -42,6 +44,7 @@ namespace VelNet
 				VelNetManager.GetRooms();
 			}
 		}
+
 		public void HandleJoin()
 		{
 			if (roomInput.text != "")
@@ -61,34 +64,14 @@ namespace VelNet
 			comms = FindObjectOfType<DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
 
-			/* todo
-			VelNetManager.MessageReceived += (m) =>
-			{
-				string s = m.type + ":" + m.sender + ":" + m.text;
-				messageBuffer.Add(s);
-				messages.text = "";
-
-
-				if (messageBuffer.Count > 10)
-				{
-					messageBuffer.RemoveAt(0);
-				}
-
-				foreach (string msg in messageBuffer)
-				{
-					messages.text = messages.text + msg + "\n";
-				}
-			};
-			*/
 			StartCoroutine(testes());
-			
-			
 		}
+
 		IEnumerator testes()
 		{
-			yield return new WaitForSeconds(1.0f); 
-			HandleLogin(); 
-			yield return new WaitForSeconds(1.0f); 
+			yield return new WaitForSeconds(1.0f);
+			HandleLogin();
+			yield return new WaitForSeconds(1.0f);
 			HandleJoin();
 			yield return null;
 		}

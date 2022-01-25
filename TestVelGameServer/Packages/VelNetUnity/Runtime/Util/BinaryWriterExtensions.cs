@@ -8,6 +8,8 @@ namespace VelNet
 {
 	public static class BinaryWriterExtensions
 	{
+		#region Writers
+
 		public static void Write(this BinaryWriter writer, Vector3 v)
 		{
 			writer.Write(v.x);
@@ -23,6 +25,18 @@ namespace VelNet
 			writer.Write(q.w);
 		}
 
+		public static void Write(this BinaryWriter writer, Color c)
+		{
+			writer.Write(c.r);
+			writer.Write(c.g);
+			writer.Write(c.b);
+			writer.Write(c.a);
+		}
+
+		#endregion
+
+		#region Readers
+
 		public static Vector3 ReadVector3(this BinaryReader reader)
 		{
 			return new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
@@ -31,19 +45,32 @@ namespace VelNet
 		public static Quaternion ReadQuaternion(this BinaryReader reader)
 		{
 			return new Quaternion(
-				reader.ReadSingle(), 
-				reader.ReadSingle(), 
-				reader.ReadSingle(), 
+				reader.ReadSingle(),
+				reader.ReadSingle(),
+				reader.ReadSingle(),
 				reader.ReadSingle()
 			);
 		}
+
+		public static Color ReadColor(this BinaryReader reader)
+		{
+			return new Color(
+				reader.ReadSingle(),
+				reader.ReadSingle(),
+				reader.ReadSingle(),
+				reader.ReadSingle()
+			);
+		}
+
+		#endregion
+
 
 		/// <summary>
 		/// Compresses the list of bools into bytes using a bitmask
 		/// </summary>
 		public static byte[] GetBitmasks(this IEnumerable<bool> bools)
 		{
-			List<bool> values = bools.ToList(); 
+			List<bool> values = bools.ToList();
 			List<byte> bytes = new List<byte>();
 			for (int b = 0; b < Mathf.Ceil(values.Count / 8f); b++)
 			{
@@ -61,7 +88,7 @@ namespace VelNet
 
 			return bytes.ToArray();
 		}
-		
+
 		public static List<bool> GetBitmaskValues(this IEnumerable<byte> bytes)
 		{
 			List<bool> l = new List<bool>();
@@ -72,7 +99,7 @@ namespace VelNet
 
 			return l;
 		}
-		
+
 		public static List<bool> GetBitmaskValues(this byte b)
 		{
 			List<bool> l = new List<bool>();
@@ -83,11 +110,10 @@ namespace VelNet
 
 			return l;
 		}
-		
+
 		public static bool GetBitmaskValue(this byte b, int index)
 		{
 			return (b & (1 << index)) != 0;
 		}
-		
 	}
 }
