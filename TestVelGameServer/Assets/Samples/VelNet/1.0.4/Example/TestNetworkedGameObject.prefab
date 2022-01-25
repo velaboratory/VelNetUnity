@@ -161,6 +161,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkObject: {fileID: 3951900052977689805}
   serializationRateHz: 60
+  hybridOnChangeCompression: 1
   useLocalTransform: 0
   teleportDistance: 0
   teleportAngle: 0

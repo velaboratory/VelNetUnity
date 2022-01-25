@@ -65,6 +65,16 @@ namespace VelNet
 		#endregion
 
 
+		public static bool SameAs(this byte[] bytes, byte[] otherBytes)
+		{
+			if (bytes.Length != otherBytes.Length)
+			{
+				return false;
+			}
+
+			return !bytes.Where((t, i) => t != otherBytes[i]).Any();
+		}
+
 		/// <summary>
 		/// Compresses the list of bools into bytes using a bitmask
 		/// </summary>
