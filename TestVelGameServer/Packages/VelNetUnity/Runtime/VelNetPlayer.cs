@@ -9,8 +9,6 @@ namespace VelNet
 	public class VelNetPlayer
 	{
 		public int userid;
-		public string username;
-
 		public string room;
 
 		public bool isLocal;
@@ -69,7 +67,7 @@ namespace VelNet
 
 				switch (sections[0])
 				{
-					case "5": //sync update for an object I may own
+					case "5": // sync update for an object I may own
 					{
 						string objectKey = sections[1];
 						string identifier = sections[2];
@@ -85,7 +83,7 @@ namespace VelNet
 
 						break;
 					}
-					case "6": //I'm trying to take ownership of an object 
+					case "6": // I'm trying to take ownership of an object 
 					{
 						string networkId = sections[1];
 

@@ -61,5 +61,33 @@ namespace VelNet
 
 			return bytes.ToArray();
 		}
+		
+		public static List<bool> GetBitmaskValues(this IEnumerable<byte> bytes)
+		{
+			List<bool> l = new List<bool>();
+			foreach (byte b in bytes)
+			{
+				l.AddRange(b.GetBitmaskValues());
+			}
+
+			return l;
+		}
+		
+		public static List<bool> GetBitmaskValues(this byte b)
+		{
+			List<bool> l = new List<bool>();
+			for (int i = 0; i < 8; i++)
+			{
+				l.Add(b.GetBitmaskValue(i));
+			}
+
+			return l;
+		}
+		
+		public static bool GetBitmaskValue(this byte b, int index)
+		{
+			return (b & (1 << index)) != 0;
+		}
+		
 	}
 }
