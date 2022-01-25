@@ -34,7 +34,6 @@ namespace VelNet
 		private Thread clientReceiveThread;
 		private Thread clientReceiveThreadUDP;
 		public int userid = -1;
-		public string room;
 		private int messagesReceived = 0;
 
 		public readonly Dictionary<int, VelNetPlayer> players = new Dictionary<int, VelNetPlayer>();
@@ -63,7 +62,7 @@ namespace VelNet
 
 		public static Action OnConnectedToServer;
 		public static Action<Message> MessageReceived;
-		public static Action LoggedIn;
+		public static Action OnLoggedIn;
 		public static Action<string[], int> RoomsReceived;
 
 		public bool connected;
@@ -83,8 +82,23 @@ namespace VelNet
 		public readonly Dictionary<string, List<int>> groups = new Dictionary<string, List<int>>();
 
 		private VelNetPlayer masterPlayer;
-		public static VelNetPlayer LocalPlayer => instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault();
+		public static VelNetPlayer LocalPlayer => instance != null ? instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault() : null;
 		public static bool InRoom => LocalPlayer != null && LocalPlayer.room != "-1" && LocalPlayer.room != "";
+		public static string Room => LocalPlayer?.room;
+		
+		/// <summary>
+		/// The player count in this room.
+		/// -1 if not in a room.
+		/// </summary>
+		public static int PlayerCount => instance.players.Count;
+
+		/// <summary>
+		/// The player count in all rooms.
+		/// Will include players connected to the server but not in a room?
+		/// </summary>
+		public static int PlayerCountInAllRooms => PlayerCount; // TODO hook up to actual player count
+
+		public static bool IsConnected => instance != null && instance.connected && instance.udpConnected;
 
 
 		// Use this for initialization
@@ -151,11 +165,11 @@ namespace VelNet
 						// when you join the server
 						case 0:
 							userid = m.sender;
-							Debug.Log("joined server");
+							Debug.Log("Joined server");
 
 							try
 							{
-								LoggedIn?.Invoke();
+								OnLoggedIn?.Invoke();
 							}
 							// prevent errors in subscribers from breaking our code
 							catch (Exception e)
@@ -243,24 +257,24 @@ namespace VelNet
 								// we got a left message, kill it
 								// change ownership of all objects to master
 								List<string> deleteObjects = new List<string>();
-								foreach (KeyValuePair<string, NetworkObject> kvp in objects)
+								foreach ((string key, NetworkObject value) in objects)
 								{
-									if (kvp.Value.owner == players[m.sender]) // the owner is the player that left
+									if (value.owner == players[m.sender]) // the owner is the player that left
 									{
 										// if this object has locked ownership, delete it
-										if (kvp.Value.ownershipLocked)
+										if (value.ownershipLocked)
 										{
-											deleteObjects.Add(kvp.Value.networkId);
+											deleteObjects.Add(value.networkId);
 										}
 										// I'm the local master player, so can take ownership immediately
 										else if (me.isLocal && me == masterPlayer)
 										{
-											TakeOwnership(kvp.Key);
+											TakeOwnership(key);
 										}
 										// the master player left, so everyone should set the owner null (we should get a new master shortly)
 										else if (players[m.sender] == masterPlayer)
 										{
-											kvp.Value.owner = null;
+											value.owner = null;
 										}
 									}
 								}
@@ -268,7 +282,16 @@ namespace VelNet
 								// TODO this may check for ownership in the future. We don't need ownership here
 								deleteObjects.ForEach(NetworkDestroy);
 
+								VelNetPlayer removedPlayer = players[m.sender];
 								players.Remove(m.sender);
+								try
+								{
+									OnPlayerLeft?.Invoke(removedPlayer);
+								}
+								catch (Exception e)
+								{
+									Debug.LogError(e);
+								}
 							}
 							else
 							{
@@ -352,7 +375,7 @@ namespace VelNet
 
 		private void OnApplicationQuit()
 		{
-			socketConnection.Close();
+			socketConnection?.Close();
 		}
 
 		/// <summary> 	

@@ -16,10 +16,10 @@ namespace VelNet
 		[Tooltip("0 to disable.")]
 		public float teleportAngle;
 
-		public bool syncKinematic;
-		public bool syncGravity;
-		public bool syncVelocity;
-		public bool syncAngularVelocity;
+		public bool syncKinematic = true;
+		public bool syncGravity = true;
+		public bool syncVelocity = true;
+		public bool syncAngularVelocity = true;
 
 		private Vector3 targetPosition;
 		private Quaternion targetRotation;
