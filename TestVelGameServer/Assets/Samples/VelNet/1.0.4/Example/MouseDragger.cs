@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using VelNet;
 
@@ -22,13 +20,15 @@ public class MouseDragger : MonoBehaviour
 			{
 				foreach (string draggableTag in draggableTags)
 				{
-					if (!hit.transform.CompareTag(draggableTag) && !hit.transform.parent?.CompareTag(draggableTag) == true) continue;
-					NetworkObject netObj = hit.transform.GetComponent<NetworkObject>();
-					netObj ??= hit.transform.GetComponentInParent<NetworkObject>();
-					if (netObj == null) break;
-					VelNetManager.TakeOwnership(netObj.networkId);
-					draggingObject = netObj;
-					break;
+					if (hit.transform.CompareTag(draggableTag) || hit.transform.parent == null || hit.transform.parent.CompareTag(draggableTag))
+					{
+						NetworkObject netObj = hit.transform.GetComponent<NetworkObject>();
+						netObj ??= hit.transform.GetComponentInParent<NetworkObject>();
+						if (netObj == null) break;
+						netObj.TakeOwnership();
+						draggingObject = netObj;
+						break;
+					}
 				}
 			}
 		}

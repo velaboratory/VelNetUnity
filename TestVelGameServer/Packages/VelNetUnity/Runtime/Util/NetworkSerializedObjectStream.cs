@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.IO;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -19,12 +20,19 @@ namespace VelNet
 		{
 			while (true)
 			{
-				if (IsMine)
+				try
 				{
-					using MemoryStream mem = new MemoryStream();
-					using BinaryWriter writer = new BinaryWriter(mem);
-					SendState(writer);
-					SendBytes(mem.ToArray());
+					if (IsMine)
+					{
+						using MemoryStream mem = new MemoryStream();
+						using BinaryWriter writer = new BinaryWriter(mem);
+						SendState(writer);
+						SendBytes(mem.ToArray());
+					}
+				}
+				catch (Exception e)
+				{
+					Debug.LogError(e);
 				}
 
 				yield return new WaitForSeconds(1f / serializationRateHz);

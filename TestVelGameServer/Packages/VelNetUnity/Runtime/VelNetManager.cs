@@ -42,7 +42,6 @@ namespace VelNet
 		private Thread clientReceiveThread;
 		private Thread clientReceiveThreadUDP;
 		public int userid = -1;
-		public string room;
 		private int messagesReceived = 0;
 
 		public readonly Dictionary<int, VelNetPlayer> players = new Dictionary<int, VelNetPlayer>();
@@ -90,8 +89,23 @@ namespace VelNet
 		public readonly Dictionary<string, List<int>> groups = new Dictionary<string, List<int>>();
 
 		private VelNetPlayer masterPlayer;
-		public static VelNetPlayer LocalPlayer => instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault();
+		public static VelNetPlayer LocalPlayer => instance != null ? instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault() : null;
 		public static bool InRoom => LocalPlayer != null && LocalPlayer.room != "-1" && LocalPlayer.room != "";
+		public static string Room => LocalPlayer?.room;
+		
+		/// <summary>
+		/// The player count in this room.
+		/// -1 if not in a room.
+		/// </summary>
+		public static int PlayerCount => instance.players.Count;
+
+		/// <summary>
+		/// The player count in all rooms.
+		/// Will include players connected to the server but not in a room?
+		/// </summary>
+		public static int PlayerCountInAllRooms => PlayerCount; // TODO hook up to actual player count
+
+		public static bool IsConnected => instance != null && instance.connected && instance.udpConnected;
 
 
 		//this is for sending udp packets
@@ -396,7 +410,7 @@ namespace VelNet
 
 		private void OnApplicationQuit()
 		{
-			socketConnection.Close();
+			socketConnection?.Close();
 		}
 
 		/// <summary> 	
@@ -845,14 +859,26 @@ namespace VelNet
 		public static bool TakeOwnership(string networkId)
 		{
 			// local player must exist
-			if (LocalPlayer == null) return false;
-
+			if (LocalPlayer == null)
+			{
+				Debug.LogError("Can't take ownership. No local player.");
+				return false;
+			}
+			
 			// obj must exist
-			if (!instance.objects.ContainsKey(networkId)) return false;
+			if (!instance.objects.ContainsKey(networkId))
+			{
+				Debug.LogError("Can't take ownership. Object with that network id doesn't exist.");
+				return false;
+			}
 
 			// if the ownership is locked, fail
-			if (instance.objects[networkId].ownershipLocked) return false;
-
+			if (instance.objects[networkId].ownershipLocked)
+			{
+				Debug.LogError("Can't take ownership. Ownership for this object is locked.");
+				return false;
+			}
+			
 			// immediately successful
 			instance.objects[networkId].owner = LocalPlayer;
 

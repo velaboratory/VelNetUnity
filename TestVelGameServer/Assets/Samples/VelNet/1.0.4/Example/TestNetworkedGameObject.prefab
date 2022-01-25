@@ -47,6 +47,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ownershipLocked: 0
   networkId: 
+  sceneNetworkId: 0
   prefabName: 
   isSceneObject: 0
   syncedComponents:
@@ -64,10 +65,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   networkObject: {fileID: 3951900052977689805}
-  serializationRateHz: 30
-  targetPosition: {x: 0, y: 0, z: 0}
-  targetRotation: {x: 0, y: 0, z: 0, w: 0}
-  smoothness: 0.1
+  serializationRateHz: 60
+  useLocalTransform: 0
 --- !u!1 &8565720276181857625
 GameObject:
   m_ObjectHideFlags: 0
