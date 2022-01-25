@@ -18,12 +18,18 @@ namespace VelNet
 		[Tooltip("Whether this object's ownership is transferrable. Should be true for player objects.")]
 		public bool ownershipLocked;
 
-		public bool IsMine => owner != null && owner.isLocal;
-
+		public bool IsMine => owner?.isLocal ?? false;
+		
 		/// <summary>
 		/// This is forged from the combination of the creator's id (-1 in the case of a scene object) and an object id, so it's always unique for a room
 		/// </summary>
 		public string networkId;
+
+		/// <summary>
+		/// This is generated at editor time and used to generated the network id at runtime.
+		/// This is needed because finding all objects of type at runtime doesn't have a guaranteed order.
+		/// </summary>
+		public int sceneNetworkId;
 
 		/// <summary>
 		/// This may be empty if it's not a prefab (scene object)
@@ -50,7 +56,14 @@ namespace VelNet
 			}
 
 			int index = syncedComponents.IndexOf(component);
-			owner.SendMessage(this, index.ToString(), message, reliable);
+			if (index < 0)
+			{
+				Debug.LogError("WAAAAAAAH. NetworkObject doesn't have a reference to this component.", component);
+			}
+			else
+			{
+				owner.SendMessage(this, index.ToString(), message, reliable);
+			}
 		}
 
 		public void SendBytesToGroup(NetworkComponent component, string group, byte[] message, bool reliable = true)
@@ -116,6 +129,26 @@ namespace VelNet
 				{
 					c.networkObject = t;
 				}
+				PrefabUtility.RecordPrefabInstancePropertyModifications(t);
+			}
+
+			// make the sceneNetworkId a new unique value
+			if (Application.isEditor && !Application.isPlaying && t.isSceneObject && t.sceneNetworkId == 0)
+			{
+				// find the first unused value
+				int[] used = FindObjectsOfType<NetworkObject>().Select(o => o.sceneNetworkId).ToArray();
+				int available = -1;
+				for (int i = 1; i <= used.Max()+1; i++)
+				{
+					if (!used.Contains(i))
+					{
+						available = i;
+						break;
+					}
+				}
+
+				t.sceneNetworkId = available;
+				PrefabUtility.RecordPrefabInstancePropertyModifications(t);
 			}
 
 			EditorGUILayout.Space();
