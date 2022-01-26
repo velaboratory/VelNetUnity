@@ -40,7 +40,7 @@ namespace VelNet
 						byte[] newBytes = mem.ToArray();
 						if (hybridOnChangeCompression)
 						{
-							if (Time.timeAsDouble - lastSendTime > slowSendInterval || !lastSentBytes.SameAs(newBytes))
+							if (Time.timeAsDouble - lastSendTime > slowSendInterval || !BinaryWriterExtensions.BytesSame(lastSentBytes, newBytes))
 							{
 								SendBytes(newBytes);
 							}
