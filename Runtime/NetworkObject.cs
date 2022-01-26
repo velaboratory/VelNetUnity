@@ -79,12 +79,12 @@ namespace VelNet
 			VelNetPlayer.SendGroupMessage(this, group, (byte)index, message, reliable);
 		}
 
-		public void ReceiveBytes(string identifier, byte[] message)
+		public void ReceiveBytes(byte componentIdx, byte[] message)
 		{
 			// send the message to the right component
 			try
 			{
-				syncedComponents[int.Parse(identifier)].ReceiveBytes(message);
+				syncedComponents[componentIdx].ReceiveBytes(message);
 			}
 			catch (Exception e)
 			{

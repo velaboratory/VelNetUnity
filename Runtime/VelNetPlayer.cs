@@ -61,93 +61,81 @@ namespace VelNet
 		/// <summary>
 		/// These are generally things that come from the "owner" and should be enacted locally, where appropriate
 		/// 
-		/// Overall message encoding:
-		/// uint16: numMessages
-		/// for m in numMessages
-		///		int32:	message size (including message type)
+		/// Message encoding:
 		///		byte:	message type
 		///		byte[]:	message
+		///
+		/// The length of the byte[] for message is fixed according to the message type
 		/// </summary>
 		public void HandleMessage(VelNetManager.DataMessage m)
 		{
 			using MemoryStream mem = new MemoryStream(m.data);
 			using BinaryReader reader = new BinaryReader(mem);
-
-			ushort numMessages = reader.ReadUInt16();
 			
-			for (int i = 0; i < numMessages; i++)
+			//individual message parameters separated by comma
+			VelNetManager.MessageType messageType = (VelNetManager.MessageType)reader.ReadByte();
+
+			switch (messageType)
 			{
-				//individual message parameters separated by comma
-				int messageLength = reader.ReadInt32();
-				VelNetManager.MessageType messageType = (VelNetManager.MessageType)reader.ReadByte();
-				byte[] message = reader.ReadBytes(messageLength-1);
-				
-				// make a separate reader to prevent malformed messages from messing us up
-				using MemoryStream messageMem = new MemoryStream(message);
-				using BinaryReader messageReader = new BinaryReader(messageMem);
-
-				switch (messageType)
+				case VelNetManager.MessageType.ObjectSync: // sync update for an object I may own
 				{
-					case VelNetManager.MessageType.ObjectSync: // sync update for an object I may own
+					string objectKey = reader.ReadString();
+					byte componentIdx = reader.ReadByte();
+					int messageLength = reader.ReadInt32();
+					byte[] syncMessage = reader.ReadBytes(messageLength);
+					if (manager.objects.ContainsKey(objectKey))
 					{
-						string objectKey = messageReader.ReadString();
-						string identifier = messageReader.ReadString();
-						string syncMessage = messageReader.ReadString();
-						byte[] messageBytes = Convert.FromBase64String(syncMessage);
-						if (manager.objects.ContainsKey(objectKey))
+						if (manager.objects[objectKey].owner == this)
 						{
-							if (manager.objects[objectKey].owner == this)
-							{
-								manager.objects[objectKey].ReceiveBytes(identifier, messageBytes);
-							}
+							manager.objects[objectKey].ReceiveBytes(componentIdx, syncMessage);
 						}
-
-						break;
 					}
-					case VelNetManager.MessageType.TakeOwnership: // I'm trying to take ownership of an object 
-					{
-						string networkId = messageReader.ReadString();
 
-						if (manager.objects.ContainsKey(networkId))
-						{
-							manager.objects[networkId].owner = this;
-						}
-
-						break;
-					}
-					case VelNetManager.MessageType.Instantiate: // I'm trying to instantiate an object 
-					{
-						string networkId = messageReader.ReadString();
-						string prefabName = messageReader.ReadString();
-						if (manager.objects.ContainsKey(networkId))
-						{
-							break; //we already have this one, ignore
-						}
-
-						VelNetManager.SomebodyInstantiatedNetworkObject(networkId, prefabName, this);
-
-						break;
-					}
-					case VelNetManager.MessageType.Destroy: // I'm trying to destroy a gameobject I own
-					{
-						string networkId = messageReader.ReadString();
-
-						VelNetManager.NetworkDestroy(networkId);
-						break;
-					}
-					case VelNetManager.MessageType.DeleteSceneObjects: //deleted scene objects
-					{
-						int len = messageReader.ReadInt32();
-						for (int k = 1; k < len; k++)
-						{
-							VelNetManager.NetworkDestroy(messageReader.ReadString());
-						}
-
-						break;
-					}
-					default:
-						throw new ArgumentOutOfRangeException();
+					break;
 				}
+				case VelNetManager.MessageType.TakeOwnership: // I'm trying to take ownership of an object 
+				{
+					string networkId = reader.ReadString();
+
+					if (manager.objects.ContainsKey(networkId))
+					{
+						manager.objects[networkId].owner = this;
+					}
+
+					break;
+				}
+				case VelNetManager.MessageType.Instantiate: // I'm trying to instantiate an object 
+				{
+					string networkId = reader.ReadString();
+					string prefabName = reader.ReadString();
+					if (manager.objects.ContainsKey(networkId))
+					{
+						break; //we already have this one, ignore
+					}
+
+					VelNetManager.SomebodyInstantiatedNetworkObject(networkId, prefabName, this);
+
+					break;
+				}
+				case VelNetManager.MessageType.Destroy: // I'm trying to destroy a gameobject I own
+				{
+					string networkId = reader.ReadString();
+
+					VelNetManager.NetworkDestroy(networkId);
+					break;
+				}
+				case VelNetManager.MessageType.DeleteSceneObjects: //deleted scene objects
+				{
+					int len = reader.ReadInt32();
+					for (int k = 1; k < len; k++)
+					{
+						VelNetManager.NetworkDestroy(reader.ReadString());
+					}
+
+					break;
+				}
+				default:
+					throw new ArgumentOutOfRangeException();
 			}
 		}
 
@@ -165,6 +153,7 @@ namespace VelNet
 			writer.Write((byte)VelNetManager.MessageType.ObjectSync);
 			writer.Write(obj.networkId);
 			writer.Write(componentIdx);
+			writer.Write(data.Length);
 			writer.Write(data);
 			VelNetManager.SendToGroup(group, mem.ToArray(), reliable);
 		}
@@ -176,6 +165,7 @@ namespace VelNet
 			writer.Write((byte)VelNetManager.MessageType.ObjectSync);
 			writer.Write(obj.networkId);
 			writer.Write(componentIdx);
+			writer.Write(data.Length);
 			writer.Write(data);
 			VelNetManager.SendToRoom(mem.ToArray(), false, reliable);
 		}
@@ -190,6 +180,7 @@ namespace VelNet
 			{
 				writer.Write(o);
 			}
+
 			VelNetManager.SendToRoom(mem.ToArray());
 		}
 
@@ -200,7 +191,7 @@ namespace VelNet
 			if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return;
 
 			// send to all, which will make me delete as well
-			
+
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);
 			writer.Write((byte)VelNetManager.MessageType.Destroy);
