@@ -27,6 +27,15 @@ namespace VelNet
 			MESSAGE_SETGROUP = 6
 		};
 
+		public enum MessageType
+		{
+			ObjectSync,
+			TakeOwnership,
+			Instantiate,
+			Destroy,
+			DeleteSceneObjects
+		}
+
 		public string host;
 		public int port;
 
@@ -455,6 +464,8 @@ namespace VelNet
 		private void OnApplicationQuit()
 		{
 			socketConnection?.Close();
+			clientReceiveThreadUDP?.Abort();
+			clientReceiveThread?.Abort();
 		}
 
 		/// <summary> 	
@@ -472,11 +483,13 @@ namespace VelNet
 				Debug.Log("On client connect exception " + e);
 			}
 		}
-
-
-		/// <summary> 	
-		/// Runs in background clientReceiveThread; Listens for incoming data. 	
+		
+		/// <summary>
+		/// Reads N bytes
 		/// </summary>
+		/// <param name="stream"></param>
+		/// <param name="N"></param>
+		/// <returns></returns>
 		private static byte[] ReadExact(Stream stream, int N)
 		{
 			byte[] toReturn = new byte[N];
@@ -505,6 +518,7 @@ namespace VelNet
 				socketConnection = new TcpClient(host, port);
 				socketConnection.NoDelay = true;
 				NetworkStream stream = socketConnection.GetStream();
+				using BinaryReader reader = new BinaryReader(stream);
 				//now we are connected, so add a message to the queue
 				AddMessage(new ConnectedMessage());
 				//Join("MyRoom");
@@ -515,62 +529,74 @@ namespace VelNet
 				{
 					// Get a stream object for reading 				
 
-
 					//read a byte
-					byte type = (byte)stream.ReadByte();
+					byte type = reader.ReadByte();
 
-					if (type == 0) //login
+					switch (type)
 					{
-						LoginMessage m = new LoginMessage();
-						m.userId = GetIntFromBytes(ReadExact(stream, 4)); //not really the sender...
-						AddMessage(m);
-					}
-					else if (type == 1) //rooms
-					{
-						RoomsMessage m = new RoomsMessage();
-						m.rooms = new List<ListedRoom>();
-						int N = GetIntFromBytes(ReadExact(stream, 4)); //the size of the payload
-						byte[] utf8data = ReadExact(stream, N);
-						string roomMessage = Encoding.UTF8.GetString(utf8data);
-
-
-						string[] sections = roomMessage.Split(',');
-						foreach (string s in sections)
+						//login
+						case 0:
 						{
-							string[] pieces = s.Split(':');
-							if (pieces.Length == 2)
-							{
-								ListedRoom lr = new ListedRoom();
-								lr.name = pieces[0];
-								lr.numUsers = int.Parse(pieces[1]);
-								m.rooms.Add(lr);
-							}
+							LoginMessage m = new LoginMessage();
+							m.userId = reader.ReadInt32(); //not really the sender...
+							AddMessage(m);
+							break;
 						}
+						//rooms
+						case 1:
+						{
+							RoomsMessage m = new RoomsMessage();
+							m.rooms = new List<ListedRoom>();
+							int N = reader.ReadInt32();	//the size of the payload
+							byte[] utf8data = reader.ReadBytes(N);
+							string roomMessage = Encoding.UTF8.GetString(utf8data);
 
-						AddMessage(m);
-					}
-					else if (type == 2) //joined
-					{
-						JoinMessage m = new JoinMessage();
-						m.userId = GetIntFromBytes(ReadExact(stream, 4));
-						int N = stream.ReadByte();
-						byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
-						m.room = Encoding.UTF8.GetString(utf8data);
-						AddMessage(m);
-					}
-					else if (type == 3) //data
-					{
-						DataMessage m = new DataMessage();
-						m.senderId = GetIntFromBytes(ReadExact(stream, 4));
-						int N = GetIntFromBytes(ReadExact(stream, 4)); //the size of the payload
-						m.data = ReadExact(stream, N); //the message
-						AddMessage(m);
-					}
-					else if (type == 4) //new master
-					{
-						ChangeMasterMessage m = new ChangeMasterMessage();
-						m.masterId = GetIntFromBytes(ReadExact(stream, 4)); //sender is the new master
-						AddMessage(m);
+
+							string[] sections = roomMessage.Split(',');
+							foreach (string s in sections)
+							{
+								string[] pieces = s.Split(':');
+								if (pieces.Length == 2)
+								{
+									ListedRoom lr = new ListedRoom();
+									lr.name = pieces[0];
+									lr.numUsers = int.Parse(pieces[1]);
+									m.rooms.Add(lr);
+								}
+							}
+
+							AddMessage(m);
+							break;
+						}
+						//joined
+						case 2:
+						{
+							JoinMessage m = new JoinMessage();
+							m.userId = reader.ReadInt32();
+							int N = reader.ReadByte();
+							byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
+							m.room = Encoding.UTF8.GetString(utf8data);
+							AddMessage(m);
+							break;
+						}
+						//data
+						case 3:
+						{
+							DataMessage m = new DataMessage();
+							m.senderId = reader.ReadInt32();
+							int N = reader.ReadInt32(); //the size of the payload
+							m.data = reader.ReadBytes(N); //the message
+							AddMessage(m);
+							break;
+						}
+						//new master
+						case 4:
+						{
+							ChangeMasterMessage m = new ChangeMasterMessage();
+							m.masterId = reader.ReadInt32(); //sender is the new master
+							AddMessage(m);
+							break;
+						}
 					}
 				}
 			}
@@ -659,7 +685,7 @@ namespace VelNet
 		}
 
 		/// <summary> 	
-		/// Send message to server using socket connection. 	
+		/// Send message to server using socket connection.
 		/// </summary> 	
 		private static void SendTcpMessage(byte[] message) //we can assume that this message is already formatted, so we just send it
 		{
@@ -684,15 +710,14 @@ namespace VelNet
 			}
 		}
 
-		/// <summary>
-		/// Connects to the server with a username
-		/// </summary>
-		/// 
 		public static byte[] get_be_bytes(int n)
 		{
 			return BitConverter.GetBytes(n).Reverse().ToArray();
 		}
 
+		/// <summary>
+		/// Connects to the server with a username
+		/// </summary>
 		public static void Login(string username, string password)
 		{
 			MemoryStream stream = new MemoryStream();
@@ -742,7 +767,7 @@ namespace VelNet
 			}
 		}
 
-		public static void SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
+		internal static void SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
 		{
 			byte sendType = (byte)MessageSendType.MESSAGE_OTHERS;
 			if (include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_ALL_ORDERED;
@@ -752,12 +777,12 @@ namespace VelNet
 
 			if (reliable)
 			{
-				MemoryStream stream = new MemoryStream();
-				BinaryWriter writer = new BinaryWriter(stream);
+				MemoryStream mem = new MemoryStream();
+				BinaryWriter writer = new BinaryWriter(mem);
 				writer.Write(sendType);
 				writer.Write(get_be_bytes(message.Length));
 				writer.Write(message);
-				SendTcpMessage(stream.ToArray());
+				SendTcpMessage(mem.ToArray());
 			}
 			else
 			{
@@ -770,7 +795,7 @@ namespace VelNet
 		}
 
 
-		public static void SendToGroup(string group, byte[] message, bool reliable = true)
+		internal static void SendToGroup(string group, byte[] message, bool reliable = true)
 		{
 			byte[] utf8bytes = Encoding.UTF8.GetBytes(group);
 			if (reliable)
@@ -845,8 +870,14 @@ namespace VelNet
 			newObject.owner = localPlayer;
 			instance.objects.Add(newObject.networkId, newObject);
 
+			
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
-			SendToRoom(Encoding.UTF8.GetBytes("7," + newObject.networkId + "," + prefabName), false, true);
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.Instantiate);
+			writer.Write(newObject.networkId);
+			writer.Write(prefabName);
+			SendToRoom(mem.ToArray(), include_self:false, reliable:true);
 
 			return newObject;
 		}
@@ -917,8 +948,13 @@ namespace VelNet
 			// immediately successful
 			instance.objects[networkId].owner = LocalPlayer;
 
-			// must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
-			SendToRoom(Encoding.UTF8.GetBytes("6," + networkId));
+			// must be ordered, so that ownership transfers are not confused.
+			// Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.TakeOwnership);
+			writer.Write(networkId);
+			SendToRoom(mem.ToArray(), false, true);
 
 			return true;
 		}

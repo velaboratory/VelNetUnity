@@ -65,14 +65,20 @@ namespace VelNet
 		#endregion
 
 
-		public static bool SameAs(this byte[] bytes, byte[] otherBytes)
+		public static bool BytesSame(byte[] b1, byte[] b2)
 		{
-			if (bytes.Length != otherBytes.Length)
+			if (b1 == null && b2 != null) return false;	// only one null
+			if (b1 != null && b2 == null) return false;	// only one null
+			if (b1 == null) return true;	// both null
+
+			// length doesn't match
+			if (b1.Length != b2.Length)
 			{
 				return false;
 			}
 
-			return !bytes.Where((t, i) => t != otherBytes[i]).Any();
+			// check if any bytes are different
+			return !b1.Where((t, i) => t != b2[i]).Any();
 		}
 
 		/// <summary>

@@ -21,14 +21,6 @@ namespace VelNet
 		public Dropdown microphones;
 		private DissonanceComms comms;
 
-		public void HandleSend()
-		{
-			if (sendInput.text != "")
-			{
-				VelNetManager.SendToRoom(Encoding.UTF8.GetBytes(sendInput.text));
-			}
-		}
-
 		public void HandleLogin()
 		{
 			if (userInput.text != "")

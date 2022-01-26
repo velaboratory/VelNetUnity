@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System;
+using System.IO;
 using System.Text;
 
 namespace VelNet
@@ -40,7 +41,12 @@ namespace VelNet
 				{
 					if (kvp.Value.owner == this && kvp.Value.prefabName != "")
 					{
-						VelNetManager.SendToRoom(Encoding.UTF8.GetBytes("7," + kvp.Value.networkId + "," + kvp.Value.prefabName),false,true);
+						using MemoryStream mem = new MemoryStream();
+						using BinaryWriter writer = new BinaryWriter(mem);
+						writer.Write((byte)VelNetManager.MessageType.Instantiate);
+						writer.Write(kvp.Value.networkId);
+						writer.Write(kvp.Value.prefabName);
+						VelNetManager.SendToRoom(mem.ToArray(), false, true);
 					}
 				}
 
@@ -54,27 +60,39 @@ namespace VelNet
 
 		/// <summary>
 		/// These are generally things that come from the "owner" and should be enacted locally, where appropriate
+		/// 
+		/// Overall message encoding:
+		/// uint16: numMessages
+		/// for m in numMessages
+		///		int32:	message size (including message type)
+		///		byte:	message type
+		///		byte[]:	message
 		/// </summary>
 		public void HandleMessage(VelNetManager.DataMessage m)
 		{
-			//for now, we can just convert to text...because 
+			using MemoryStream mem = new MemoryStream(m.data);
+			using BinaryReader reader = new BinaryReader(mem);
 
-			string text = Encoding.UTF8.GetString(m.data);
-
-			//types of messages
-			string[] messages = text.Split(';'); //messages are split by ;
-			foreach (string s in messages)
+			ushort numMessages = reader.ReadUInt16();
+			
+			for (int i = 0; i < numMessages; i++)
 			{
 				//individual message parameters separated by comma
-				string[] sections = s.Split(',');
+				int messageLength = reader.ReadInt32();
+				VelNetManager.MessageType messageType = (VelNetManager.MessageType)reader.ReadByte();
+				byte[] message = reader.ReadBytes(messageLength-1);
+				
+				// make a separate reader to prevent malformed messages from messing us up
+				using MemoryStream messageMem = new MemoryStream(message);
+				using BinaryReader messageReader = new BinaryReader(messageMem);
 
-				switch (sections[0])
+				switch (messageType)
 				{
-					case "5": // sync update for an object I may own
+					case VelNetManager.MessageType.ObjectSync: // sync update for an object I may own
 					{
-						string objectKey = sections[1];
-						string identifier = sections[2];
-						string syncMessage = sections[3];
+						string objectKey = messageReader.ReadString();
+						string identifier = messageReader.ReadString();
+						string syncMessage = messageReader.ReadString();
 						byte[] messageBytes = Convert.FromBase64String(syncMessage);
 						if (manager.objects.ContainsKey(objectKey))
 						{
@@ -86,9 +104,9 @@ namespace VelNet
 
 						break;
 					}
-					case "6": // I'm trying to take ownership of an object 
+					case VelNetManager.MessageType.TakeOwnership: // I'm trying to take ownership of an object 
 					{
-						string networkId = sections[1];
+						string networkId = messageReader.ReadString();
 
 						if (manager.objects.ContainsKey(networkId))
 						{
@@ -97,10 +115,10 @@ namespace VelNet
 
 						break;
 					}
-					case "7": // I'm trying to instantiate an object 
+					case VelNetManager.MessageType.Instantiate: // I'm trying to instantiate an object 
 					{
-						string networkId = sections[1];
-						string prefabName = sections[2];
+						string networkId = messageReader.ReadString();
+						string prefabName = messageReader.ReadString();
 						if (manager.objects.ContainsKey(networkId))
 						{
 							break; //we already have this one, ignore
@@ -110,22 +128,25 @@ namespace VelNet
 
 						break;
 					}
-					case "8": // I'm trying to destroy a gameobject I own
+					case VelNetManager.MessageType.Destroy: // I'm trying to destroy a gameobject I own
 					{
-						string networkId = sections[1];
+						string networkId = messageReader.ReadString();
 
 						VelNetManager.NetworkDestroy(networkId);
 						break;
 					}
-					case "9": //deleted scene objects
+					case VelNetManager.MessageType.DeleteSceneObjects: //deleted scene objects
 					{
-						for (int k = 1; k < sections.Length; k++)
+						int len = messageReader.ReadInt32();
+						for (int k = 1; k < len; k++)
 						{
-							VelNetManager.NetworkDestroy(sections[k]);
+							VelNetManager.NetworkDestroy(messageReader.ReadString());
 						}
 
 						break;
 					}
+					default:
+						throw new ArgumentOutOfRangeException();
 				}
 			}
 		}
@@ -137,22 +158,39 @@ namespace VelNet
 			//FindObjectsOfType<NetworkObject>();
 		}
 
-		public void SendGroupMessage(NetworkObject obj, string group, string identifier, byte[] data, bool reliable = true)
+		public static void SendGroupMessage(NetworkObject obj, string group, byte componentIdx, byte[] data, bool reliable = true)
 		{
-			string message = "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data);
-			VelNetManager.SendToGroup(group, Encoding.UTF8.GetBytes(message), reliable);
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)VelNetManager.MessageType.ObjectSync);
+			writer.Write(obj.networkId);
+			writer.Write(componentIdx);
+			writer.Write(data);
+			VelNetManager.SendToGroup(group, mem.ToArray(), reliable);
 		}
 
-		public void SendMessage(NetworkObject obj, string identifier, byte[] data, bool reliable = true)
+		public static void SendMessage(NetworkObject obj, byte componentIdx, byte[] data, bool reliable = true)
 		{
-			string message = "5," + obj.networkId + "," + identifier + "," + Convert.ToBase64String(data);
-			VelNetManager.SendToRoom(Encoding.UTF8.GetBytes(message), false, reliable);
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)VelNetManager.MessageType.ObjectSync);
+			writer.Write(obj.networkId);
+			writer.Write(componentIdx);
+			writer.Write(data);
+			VelNetManager.SendToRoom(mem.ToArray(), false, reliable);
 		}
 
 		public void SendSceneUpdate()
 		{
-			string message = "9," + string.Join(",", manager.deletedSceneObjects);
-			VelNetManager.SendToRoom( Encoding.UTF8.GetBytes(message));
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)VelNetManager.MessageType.DeleteSceneObjects);
+			writer.Write(manager.deletedSceneObjects.Count);
+			foreach (string o in manager.deletedSceneObjects)
+			{
+				writer.Write(o);
+			}
+			VelNetManager.SendToRoom(mem.ToArray());
 		}
 
 		[Obsolete("Use VelNetManager.NetworkDestroy() instead.")]
@@ -162,7 +200,12 @@ namespace VelNet
 			if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return;
 
 			// send to all, which will make me delete as well
-			VelNetManager.SendToRoom(Encoding.UTF8.GetBytes("8," + networkId), true, true);
+			
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)VelNetManager.MessageType.Destroy);
+			writer.Write(networkId);
+			VelNetManager.SendToRoom(mem.ToArray(), true, true);
 		}
 
 		/// <returns>True if successful, False if failed to transfer ownership</returns>
@@ -178,8 +221,13 @@ namespace VelNet
 			// immediately successful
 			manager.objects[networkId].owner = this;
 
-			// must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
-			VelNetManager.SendToRoom(Encoding.UTF8.GetBytes("6," + networkId),true,true);
+			// must be ordered, so that ownership transfers are not confused.
+			// Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)VelNetManager.MessageType.TakeOwnership);
+			writer.Write(networkId);
+			VelNetManager.SendToRoom(mem.ToArray(), true, true, ordered: true);
 
 			return true;
 		}
