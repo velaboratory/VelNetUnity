@@ -31,7 +31,7 @@ namespace VelNet
 			{
 				try
 				{
-					if (IsMine)
+					if (IsMine && enabled)
 					{
 						using MemoryStream mem = new MemoryStream();
 						using BinaryWriter writer = new BinaryWriter(mem);
@@ -43,14 +43,15 @@ namespace VelNet
 							if (Time.timeAsDouble - lastSendTime > slowSendInterval || !BinaryWriterExtensions.BytesSame(lastSentBytes, newBytes))
 							{
 								SendBytes(newBytes);
+								lastSendTime = Time.timeAsDouble;
 							}
 						}
 						else
 						{
 							SendBytes(newBytes);
+							lastSendTime = Time.timeAsDouble;
 						}
 
-						lastSendTime = Time.timeAsDouble;
 						lastSentBytes = newBytes;
 					}
 				}

@@ -412,7 +412,7 @@ namespace VelNet
 						{
 							if (players.ContainsKey(dm.senderId))
 							{
-								players[dm.senderId]?.HandleMessage(dm); //todo
+								players[dm.senderId]?.HandleMessage(dm);
 							}
 							else
 							{
@@ -431,7 +431,11 @@ namespace VelNet
 
 								for (int i = 0; i < sceneObjects.Length; i++)
 								{
-									sceneObjects[i].networkId = -1 + "-" + i;
+									if (sceneObjects[i].sceneNetworkId == 0)
+									{
+										Debug.LogError("Scene Network ID is 0. Make sure to assign one first.", sceneObjects[i]);
+									}
+									sceneObjects[i].networkId = -1 + "-" + sceneObjects[i].sceneNetworkId;
 									sceneObjects[i].owner = masterPlayer;
 									sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
 									objects.Add(sceneObjects[i].networkId, sceneObjects[i]);
@@ -483,13 +487,11 @@ namespace VelNet
 				Debug.Log("On client connect exception " + e);
 			}
 		}
-		
-		/// <summary>
-		/// Reads N bytes
+
+
+		/// <summary> 	
+		/// Runs in background clientReceiveThread; Listens for incoming data. 	
 		/// </summary>
-		/// <param name="stream"></param>
-		/// <param name="N"></param>
-		/// <returns></returns>
 		private static byte[] ReadExact(Stream stream, int N)
 		{
 			byte[] toReturn = new byte[N];
@@ -517,20 +519,16 @@ namespace VelNet
 			{
 				socketConnection = new TcpClient(host, port);
 				socketConnection.NoDelay = true;
+				// Get a stream object for reading
 				NetworkStream stream = socketConnection.GetStream();
 				using BinaryReader reader = new BinaryReader(stream);
 				//now we are connected, so add a message to the queue
 				AddMessage(new ConnectedMessage());
-				//Join("MyRoom");
-				//SendTo(MessageSendType.MESSAGE_OTHERS, Encoding.UTF8.GetBytes("Hello"));
-				//FormGroup("close", new List<uint> { 1 });
-				//SendToGroup("close", Encoding.UTF8.GetBytes("HelloGroup"));
 				while (true)
 				{
-					// Get a stream object for reading 				
 
 					//read a byte
-					byte type = reader.ReadByte();
+					byte type = (byte)stream.ReadByte();
 
 					switch (type)
 					{
@@ -538,7 +536,7 @@ namespace VelNet
 						case 0:
 						{
 							LoginMessage m = new LoginMessage();
-							m.userId = reader.ReadInt32(); //not really the sender...
+							m.userId = GetIntFromBytes(ReadExact(stream, 4)); //not really the sender...
 							AddMessage(m);
 							break;
 						}
@@ -547,8 +545,8 @@ namespace VelNet
 						{
 							RoomsMessage m = new RoomsMessage();
 							m.rooms = new List<ListedRoom>();
-							int N = reader.ReadInt32();	//the size of the payload
-							byte[] utf8data = reader.ReadBytes(N);
+							int N = GetIntFromBytes(ReadExact(stream, 4)); //the size of the payload
+							byte[] utf8data = ReadExact(stream, N);
 							string roomMessage = Encoding.UTF8.GetString(utf8data);
 
 
@@ -572,9 +570,9 @@ namespace VelNet
 						case 2:
 						{
 							JoinMessage m = new JoinMessage();
-							m.userId = reader.ReadInt32();
-							int N = reader.ReadByte();
-							byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
+							m.userId = GetIntFromBytes(ReadExact(stream, 4));
+							int N = stream.ReadByte();
+							byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
 							m.room = Encoding.UTF8.GetString(utf8data);
 							AddMessage(m);
 							break;
@@ -583,9 +581,9 @@ namespace VelNet
 						case 3:
 						{
 							DataMessage m = new DataMessage();
-							m.senderId = reader.ReadInt32();
-							int N = reader.ReadInt32(); //the size of the payload
-							m.data = reader.ReadBytes(N); //the message
+							m.senderId = GetIntFromBytes(ReadExact(stream, 4));
+							int N = GetIntFromBytes(ReadExact(stream, 4)); //the size of the payload
+							m.data = ReadExact(stream, N); //the message
 							AddMessage(m);
 							break;
 						}
@@ -593,7 +591,7 @@ namespace VelNet
 						case 4:
 						{
 							ChangeMasterMessage m = new ChangeMasterMessage();
-							m.masterId = reader.ReadInt32(); //sender is the new master
+							m.masterId = GetIntFromBytes(ReadExact(stream, 4)); //sender is the new master
 							AddMessage(m);
 							break;
 						}

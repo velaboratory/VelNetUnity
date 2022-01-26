@@ -200,8 +200,8 @@ MonoBehaviour:
   isSceneObject: 0
   syncedComponents:
   - {fileID: -4404668399269848200}
-  - {fileID: 7564913803199044469}
   - {fileID: 1181612843795795320}
+  - {fileID: 7564913803199044469}
 --- !u!114 &-4404668399269848200
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -216,6 +216,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkObject: {fileID: 9102273340480352682}
   serializationRateHz: 30
+  hybridOnChangeCompression: 1
   color: {r: 0, g: 0, b: 0, a: 0}
 --- !u!114 &1181612843795795320
 MonoBehaviour:
@@ -248,6 +249,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkObject: {fileID: 9102273340480352682}
   serializationRateHz: 60
+  hybridOnChangeCompression: 1
   useLocalTransform: 0
   teleportDistance: 0
   teleportAngle: 0

@@ -65,7 +65,12 @@ namespace VelNet
 
 		protected override void ReceiveState(BinaryReader binaryReader)
 		{
-			Color newColor = binaryReader.ReadColor();
+			// Color newColor = binaryReader.ReadColor();
+			Color newColor;
+			newColor.r = binaryReader.ReadSingle();
+			newColor.g = binaryReader.ReadSingle();
+			newColor.b = binaryReader.ReadSingle();
+			newColor.a = binaryReader.ReadSingle();
 			if (newColor != color)
 			{
 				rend.material.color = newColor;
