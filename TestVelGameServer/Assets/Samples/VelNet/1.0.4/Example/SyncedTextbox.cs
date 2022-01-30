@@ -16,4 +16,9 @@ public class SyncedTextbox : NetworkSerializedObjectStream
 	{
 		text.text = binaryReader.ReadString();
 	}
+
+	public void TakeOwnership()
+	{
+		networkObject.TakeOwnership();
+	}
 }

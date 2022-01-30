@@ -27,7 +27,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.ide.visualstudio": {
-      "version": "2.0.12",
+      "version": "2.0.14",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -106,12 +106,13 @@
       "dependencies": {}
     },
     "edu.uga.engr.vel.velnet.dissonance": {
-      "version": "file:S:/git_repo/VelNetDissonanceIntegration",
+      "version": "https://github.com/velaboratory/VelNetDissonanceIntegration.git",
       "depth": 0,
-      "source": "local",
+      "source": "git",
       "dependencies": {
         "edu.uga.engr.vel.velnet": "1.0.4"
-      }
+      },
+      "hash": "2767cf12e6f1b5c568c44cd6f1753866ae2e6fca"
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",

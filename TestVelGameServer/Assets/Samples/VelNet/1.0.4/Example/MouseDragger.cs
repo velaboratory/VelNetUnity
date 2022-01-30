@@ -20,7 +20,7 @@ public class MouseDragger : MonoBehaviour
 			{
 				foreach (string draggableTag in draggableTags)
 				{
-					if (hit.transform.CompareTag(draggableTag) || hit.transform.parent == null || hit.transform.parent.CompareTag(draggableTag))
+					if (hit.transform.CompareTag(draggableTag) || (hit.transform.parent != null && hit.transform.parent.CompareTag(draggableTag)))
 					{
 						NetworkObject netObj = hit.transform.GetComponent<NetworkObject>();
 						netObj ??= hit.transform.GetComponentInParent<NetworkObject>();

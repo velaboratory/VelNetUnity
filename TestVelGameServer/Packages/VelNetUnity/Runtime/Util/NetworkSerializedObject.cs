@@ -1,6 +1,6 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace VelNet
 {
@@ -8,6 +8,15 @@ namespace VelNet
 	{
 		[Tooltip("Send rate of this object. This caps out at the framerate of the game.")]
 		public float serializationRateHz = 30;
+
+		/// <summary>
+		/// If the data hasn't changed, only sends updates across the network at 1Hz
+		/// </summary>
+		public bool hybridOnChangeCompression = true;
+
+		private byte[] lastSentBytes;
+		private double lastSendTime;
+		private const double slowSendInterval = 2;
 
 		protected virtual void Awake()
 		{
@@ -18,9 +27,31 @@ namespace VelNet
 		{
 			while (true)
 			{
-				if (IsMine)
+				try
 				{
-					SendBytes(SendState());
+					if (IsMine && enabled)
+					{
+						byte[] newBytes = SendState();
+						if (hybridOnChangeCompression)
+						{
+							if (Time.timeAsDouble - lastSendTime > slowSendInterval || !BinaryWriterExtensions.BytesSame(lastSentBytes, newBytes))
+							{
+								SendBytes(newBytes);
+								lastSendTime = Time.timeAsDouble;
+							}
+						}
+						else
+						{
+							SendBytes(newBytes);
+							lastSendTime = Time.timeAsDouble;
+						}
+
+						lastSentBytes = newBytes;
+					}
+				}
+				catch (Exception e)
+				{
+					Debug.LogError(e);
 				}
 
 				yield return new WaitForSeconds(1f / serializationRateHz);

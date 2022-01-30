@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using Dissonance;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -8,28 +10,30 @@ namespace VelNet
 {
 	public class NetworkGUI : MonoBehaviour
 	{
-		[FormerlySerializedAs("networkManager")] public VelNetManager velNetManager;
+		[FormerlySerializedAs("networkManager")]
+		public VelNetManager velNetManager;
+
 		public InputField userInput;
 		public InputField sendInput;
 		public InputField roomInput;
 		public Text messages;
 		public List<string> messageBuffer;
 		public Dropdown microphones;
-		DissonanceComms comms;
-
-		public void HandleSend()
-		{
-			if (sendInput.text != "")
-			{
-				VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, sendInput.text);
-			}
-		}
+		private DissonanceComms comms;
 
 		public void HandleLogin()
 		{
 			if (userInput.text != "")
 			{
 				VelNetManager.Login(userInput.text, "nopass");
+			}
+		}
+
+		public void HandleGetRooms()
+		{
+			if (VelNetManager.instance.connected)
+			{
+				VelNetManager.GetRooms();
 			}
 		}
 
@@ -51,23 +55,17 @@ namespace VelNet
 		{
 			comms = FindObjectOfType<DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
-			VelNetManager.MessageReceived += (m) =>
-			{
-				string s = m.type + ":" + m.sender + ":" + m.text;
-				messageBuffer.Add(s);
-				messages.text = "";
 
+			StartCoroutine(testes());
+		}
 
-				if (messageBuffer.Count > 10)
-				{
-					messageBuffer.RemoveAt(0);
-				}
-
-				foreach (string msg in messageBuffer)
-				{
-					messages.text = messages.text + msg + "\n";
-				}
-			};
+		IEnumerator testes()
+		{
+			yield return new WaitForSeconds(1.0f);
+			HandleLogin();
+			yield return new WaitForSeconds(1.0f);
+			HandleJoin();
+			yield return null;
 		}
 
 		public void handleMicrophoneSelection()
