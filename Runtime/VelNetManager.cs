@@ -81,7 +81,7 @@ namespace VelNet
 		public static Action<RoomsMessage> RoomsReceived;
 
 		public static Action<Message> MessageReceived;
-		public static Action<byte[]> CustomMessageReceived;
+		public static Action<int, byte[]> CustomMessageReceived;
 
 		#endregion
 
