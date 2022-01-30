@@ -62,7 +62,7 @@ namespace VelNet
 			}
 			else
 			{
-				owner.SendMessage(this, index.ToString(), message, reliable);
+				VelNetPlayer.SendMessage(this, (byte)index, message, reliable);
 			}
 		}
 
@@ -76,15 +76,15 @@ namespace VelNet
 
 			// send the message and an identifier for which component it belongs to
 			int index = syncedComponents.IndexOf(component);
-			owner.SendGroupMessage(this, group, index.ToString(), message, reliable);
+			VelNetPlayer.SendGroupMessage(this, group, (byte)index, message, reliable);
 		}
 
-		public void ReceiveBytes(string identifier, byte[] message)
+		public void ReceiveBytes(byte componentIdx, byte[] message)
 		{
 			// send the message to the right component
 			try
 			{
-				syncedComponents[int.Parse(identifier)].ReceiveBytes(message);
+				syncedComponents[componentIdx].ReceiveBytes(message);
 			}
 			catch (Exception e)
 			{
@@ -128,6 +128,7 @@ namespace VelNet
 				foreach (NetworkComponent c in comps)
 				{
 					c.networkObject = t;
+					PrefabUtility.RecordPrefabInstancePropertyModifications(c);
 				}
 				PrefabUtility.RecordPrefabInstancePropertyModifications(t);
 			}

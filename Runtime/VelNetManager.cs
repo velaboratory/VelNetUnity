@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -8,19 +7,35 @@ using System.Threading;
 using UnityEngine;
 using System.Net;
 using UnityEngine.SceneManagement;
+using System.IO;
 
 namespace VelNet
 {
 	[AddComponentMenu("VelNet/VelNet Manager")]
 	public class VelNetManager : MonoBehaviour
 	{
-		public enum MessageType
+		public enum MessageSendType
 		{
-			OTHERS = 0,
-			ALL = 1,
-			OTHERS_ORDERED = 2,
-			ALL_ORDERED = 3
+			MESSAGE_OTHERS_ORDERED = 7,
+			MESSAGE_ALL_ORDERED = 8,
+			MESSAGE_LOGIN = 0,
+			MESSAGE_GETROOMS = 1,
+			MESSAGE_JOINROOM = 2,
+			MESSAGE_OTHERS = 3,
+			MESSAGE_ALL = 4,
+			MESSAGE_GROUP = 5,
+			MESSAGE_SETGROUP = 6
 		};
+
+		public enum MessageType : byte
+		{
+			ObjectSync,
+			TakeOwnership,
+			Instantiate,
+			Destroy,
+			DeleteSceneObjects,
+			Custom
+		}
 
 		public string host;
 		public int port;
@@ -34,9 +49,10 @@ namespace VelNet
 		private Thread clientReceiveThread;
 		private Thread clientReceiveThreadUDP;
 		public int userid = -1;
-		private int messagesReceived = 0;
 
 		public readonly Dictionary<int, VelNetPlayer> players = new Dictionary<int, VelNetPlayer>();
+
+		#region Callbacks
 
 		/// <summary>
 		/// We just joined a room
@@ -61,9 +77,13 @@ namespace VelNet
 		public static Action<VelNetPlayer> OnPlayerLeft;
 
 		public static Action OnConnectedToServer;
-		public static Action<Message> MessageReceived;
 		public static Action OnLoggedIn;
-		public static Action<string[], int> RoomsReceived;
+		public static Action<RoomsMessage> RoomsReceived;
+
+		public static Action<Message> MessageReceived;
+		public static Action<byte[]> CustomMessageReceived;
+
+		#endregion
 
 		public bool connected;
 
@@ -85,7 +105,7 @@ namespace VelNet
 		public static VelNetPlayer LocalPlayer => instance != null ? instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault() : null;
 		public static bool InRoom => LocalPlayer != null && LocalPlayer.room != "-1" && LocalPlayer.room != "";
 		public static string Room => LocalPlayer?.room;
-		
+
 		/// <summary>
 		/// The player count in this room.
 		/// -1 if not in a room.
@@ -100,13 +120,59 @@ namespace VelNet
 
 		public static bool IsConnected => instance != null && instance.connected && instance.udpConnected;
 
+		//this is for sending udp packets
+		private static readonly byte[] toSend = new byte[1024];
 
 		// Use this for initialization
-		public class Message
+		public abstract class Message
 		{
-			public int type;
-			public string text;
-			public int sender;
+		}
+
+		public class ListedRoom
+		{
+			public string name;
+			public int numUsers;
+
+			public override string ToString()
+			{
+				return "Room Name: " + name + "\tUsers: " + numUsers;
+			}
+		}
+
+		public class LoginMessage : Message
+		{
+			public int userId;
+		}
+
+		public class RoomsMessage : Message
+		{
+			public List<ListedRoom> rooms;
+
+			public override string ToString()
+			{
+				return string.Join("\n", rooms);
+			}
+		}
+
+		public class JoinMessage : Message
+		{
+			public int userId;
+			public string room;
+		}
+
+		public class DataMessage : Message
+		{
+			public int senderId;
+			public byte[] data;
+		}
+
+		public class ChangeMasterMessage : Message
+		{
+			public int masterId;
+		}
+
+		public class ConnectedMessage : Message
+		{
 		}
 
 		public readonly List<Message> receivedMessages = new List<Message>();
@@ -123,24 +189,13 @@ namespace VelNet
 			SceneManager.sceneLoaded += (scene, mode) =>
 			{
 				// add all local network objects
-				sceneObjects = FindObjectsOfType<NetworkObject>().Where(o=>o.isSceneObject).ToArray(); 				
+				sceneObjects = FindObjectsOfType<NetworkObject>().Where(o => o.isSceneObject).ToArray();
 			};
 		}
 
-		private IEnumerator Start()
+		private void Start()
 		{
 			ConnectToTcpServer();
-			yield return null;
-
-			try
-			{
-				OnConnectedToServer?.Invoke();
-			}
-			// prevent errors in subscribers from breaking our code
-			catch (Exception e)
-			{
-				Debug.LogError(e);
-			}
 		}
 
 
@@ -151,6 +206,15 @@ namespace VelNet
 				//Debug.Log(messagesReceived++);
 				receivedMessages.Add(m);
 			}
+
+			try
+			{
+				MessageReceived?.Invoke(m);
+			}
+			catch (Exception e)
+			{
+				Debug.LogError(e);
+			}
 		}
 
 		private void Update()
@@ -160,12 +224,26 @@ namespace VelNet
 				//the main thread, which can do Unity stuff
 				foreach (Message m in receivedMessages)
 				{
-					switch (m.type)
+					switch (m)
 					{
-						// when you join the server
-						case 0:
-							userid = m.sender;
-							Debug.Log("Joined server");
+						case ConnectedMessage msg:
+						{
+							try
+							{
+								OnConnectedToServer?.Invoke();
+							}
+							// prevent errors in subscribers from breaking our code
+							catch (Exception e)
+							{
+								Debug.LogError(e);
+							}
+
+							break;
+						}
+						case LoginMessage lm:
+						{
+							userid = lm.userId;
+							Debug.Log("Joined server " + userid);
 
 							try
 							{
@@ -179,33 +257,80 @@ namespace VelNet
 
 							//start the udp thread 
 							clientReceiveThreadUDP = new Thread(ListenForDataUDP);
-							clientReceiveThreadUDP.IsBackground = true;
 							clientReceiveThreadUDP.Start();
+
 							break;
-						// if this message is for me, that means I joined a new room...
-						case 2 when userid == m.sender:
+						}
+						case RoomsMessage rm:
 						{
-							string oldRoom = LocalPlayer?.room;
+							Debug.Log("Got Rooms Message:\n" + rm);
 
-							// we clear the list, but will recreate as we get messages from people in our room
-							players.Clear();
-							masterPlayer = null;
-
-							if (m.text != "")
+							try
 							{
-								VelNetPlayer player = new VelNetPlayer
-								{
-									isLocal = true,
-									userid = m.sender,
-									room = m.text
-								};
+								RoomsReceived?.Invoke(rm);
+							}
+							// prevent errors in subscribers from breaking our code
+							catch (Exception e)
+							{
+								Debug.LogError(e);
+							}
 
-								players.Add(userid, player);
-								if (m.text != "")
+							break;
+						}
+						case JoinMessage jm:
+						{
+							if (userid == jm.userId) //this is us
+							{
+								string oldRoom = LocalPlayer?.room;
+
+								// we clear the list, but will recreate as we get messages from people in our room
+								players.Clear();
+								masterPlayer = null;
+
+								if (jm.room != "")
 								{
+									VelNetPlayer player = new VelNetPlayer
+									{
+										isLocal = true,
+										userid = jm.userId,
+										room = jm.room
+									};
+
+									players.Add(userid, player);
+
 									try
 									{
-										OnJoinedRoom?.Invoke(m.text);
+										OnJoinedRoom?.Invoke(jm.room);
+									}
+									// prevent errors in subscribers from breaking our code
+									catch (Exception e)
+									{
+										Debug.LogError(e);
+									}
+								}
+								// we just left a room
+								else
+								{
+									// delete all networkobjects that aren't sceneobjects or are null now
+									objects
+										.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
+										.Select(o => o.Key)
+										.ToList().ForEach(NetworkDestroy);
+
+									// then remove references to the ones that are left
+									objects.Clear();
+
+									// empty all the groups
+									foreach (string group in instance.groups.Keys)
+									{
+										SetupMessageGroup(group, new List<int>());
+									}
+
+									instance.groups.Clear();
+
+									try
+									{
+										OnLeftRoom?.Invoke(oldRoom);
 									}
 									// prevent errors in subscribers from breaking our code
 									catch (Exception e)
@@ -214,126 +339,95 @@ namespace VelNet
 									}
 								}
 							}
-							// we just left a room
 							else
 							{
-								// delete all networkobjects that aren't sceneobjects or are null now
-								objects
-									.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
-									.Select(o => o.Key)
-									.ToList().ForEach(NetworkDestroy);
-								
-								// then remove references to the ones that are left
-								objects.Clear();
+								VelNetPlayer me = players[userid];
 
-								// empty all the groups
-								foreach (string group in instance.groups.Keys)
+								if (me.room != jm.room)
 								{
-									SetupMessageGroup(group, new List<int>());
-								}
-
-								instance.groups.Clear();
-
-								try
-								{
-									OnLeftRoom?.Invoke(oldRoom);
-								}
-								// prevent errors in subscribers from breaking our code
-								catch (Exception e)
-								{
-									Debug.LogError(e);
-								}
-							}
-
-							break;
-						}
-						// not for me, a player is joining or leaving
-						case 2:
-						{
-							VelNetPlayer me = players[userid];
-
-							if (me.room != m.text)
-							{
-								// we got a left message, kill it
-								// change ownership of all objects to master
-								List<string> deleteObjects = new List<string>();
-								foreach ((string key, NetworkObject value) in objects)
-								{
-									if (value.owner == players[m.sender]) // the owner is the player that left
+									// we got a left message, kill it
+									// change ownership of all objects to master
+									List<string> deleteObjects = new List<string>();
+									foreach (KeyValuePair<string, NetworkObject> kvp in objects)
 									{
-										// if this object has locked ownership, delete it
-										if (value.ownershipLocked)
+										if (kvp.Value.owner == players[jm.userId]) // the owner is the player that left
 										{
-											deleteObjects.Add(value.networkId);
-										}
-										// I'm the local master player, so can take ownership immediately
-										else if (me.isLocal && me == masterPlayer)
-										{
-											TakeOwnership(key);
-										}
-										// the master player left, so everyone should set the owner null (we should get a new master shortly)
-										else if (players[m.sender] == masterPlayer)
-										{
-											value.owner = null;
+											// if this object has locked ownership, delete it
+											if (kvp.Value.ownershipLocked)
+											{
+												deleteObjects.Add(kvp.Value.networkId);
+											}
+											// I'm the local master player, so can take ownership immediately
+											else if (me.isLocal && me == masterPlayer)
+											{
+												TakeOwnership(kvp.Key);
+											}
+											// the master player left, so everyone should set the owner null (we should get a new master shortly)
+											else if (players[jm.userId] == masterPlayer)
+											{
+												kvp.Value.owner = null;
+											}
 										}
 									}
-								}
 
-								// TODO this may check for ownership in the future. We don't need ownership here
-								deleteObjects.ForEach(NetworkDestroy);
+									// TODO this may check for ownership in the future. We don't need ownership here
+									deleteObjects.ForEach(NetworkDestroy);
 
-								VelNetPlayer removedPlayer = players[m.sender];
-								players.Remove(m.sender);
-								try
-								{
-									OnPlayerLeft?.Invoke(removedPlayer);
+									VelNetPlayer leftPlayer = players[jm.userId];
+									players.Remove(jm.userId);
+
+									try
+									{
+										OnPlayerLeft?.Invoke(leftPlayer);
+									}
+									// prevent errors in subscribers from breaking our code
+									catch (Exception e)
+									{
+										Debug.LogError(e);
+									}
 								}
-								catch (Exception e)
+								else
 								{
-									Debug.LogError(e);
-								}
-							}
-							else
-							{
-								// we got a join message, create it
-								VelNetPlayer player = new VelNetPlayer
-								{
-									isLocal = false,
-									room = m.text,
-									userid = m.sender
-								};
-								players.Add(m.sender, player);
-								try
-								{
-									OnPlayerJoined?.Invoke(player);
-								}
-								// prevent errors in subscribers from breaking our code
-								catch (Exception e)
-								{
-									Debug.LogError(e);
+									// we got a join message, create it
+									VelNetPlayer player = new VelNetPlayer
+									{
+										isLocal = false,
+										room = jm.room,
+										userid = jm.userId
+									};
+									players.Add(jm.userId, player);
+									try
+									{
+										OnPlayerJoined?.Invoke(player);
+									}
+									// prevent errors in subscribers from breaking our code
+									catch (Exception e)
+									{
+										Debug.LogError(e);
+									}
 								}
 							}
 
 							break;
 						}
-						// generic message
-						case 3:
-							if (players.ContainsKey(m.sender))
+						case DataMessage dm:
+						{
+							if (players.ContainsKey(dm.senderId))
 							{
-								players[m.sender]?.HandleMessage(m);
+								players[dm.senderId]?.HandleMessage(dm);
 							}
 							else
 							{
-								Debug.LogError("Received message from player that doesn't exist: " + m.text);
+								Debug.LogError("Received message from player that doesn't exist ");
 							}
 
 							break;
-						// change master player (this should only happen when the first player joins or if the master player leaves)
-						case 4:
+						}
+						case ChangeMasterMessage cm:
 						{
 							if (masterPlayer == null)
 							{
-								masterPlayer = players[m.sender];
+								masterPlayer = players[cm.masterId];
 
 								// no master player yet, add the scene objects
 
@@ -346,12 +440,20 @@ namespace VelNet
 									sceneObjects[i].networkId = -1 + "-" + sceneObjects[i].sceneNetworkId;
 									sceneObjects[i].owner = masterPlayer;
 									sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
-									objects.Add(sceneObjects[i].networkId, sceneObjects[i]);
+
+									if (objects.ContainsKey(sceneObjects[i].networkId))
+									{
+										Debug.LogError($"Duplicate NetworkID: {sceneObjects[i].networkId} {sceneObjects[i].name} {objects[sceneObjects[i].networkId]}");
+									}
+									else
+									{
+										objects.Add(sceneObjects[i].networkId, sceneObjects[i]);
+									}
 								}
 							}
 							else
 							{
-								masterPlayer = players[m.sender];
+								masterPlayer = players[cm.masterId];
 							}
 
 							masterPlayer.SetAsMasterPlayer();
@@ -366,7 +468,7 @@ namespace VelNet
 						}
 					}
 
-					MessageReceived?.Invoke(m);
+					//MessageReceived?.Invoke(m);
 				}
 
 				receivedMessages.Clear();
@@ -376,6 +478,8 @@ namespace VelNet
 		private void OnApplicationQuit()
 		{
 			socketConnection?.Close();
+			clientReceiveThreadUDP?.Abort();
+			clientReceiveThread?.Abort();
 		}
 
 		/// <summary> 	
@@ -386,7 +490,6 @@ namespace VelNet
 			try
 			{
 				clientReceiveThread = new Thread(ListenForData);
-				clientReceiveThread.IsBackground = true;
 				clientReceiveThread.Start();
 			}
 			catch (Exception e)
@@ -395,77 +498,30 @@ namespace VelNet
 			}
 		}
 
-		private void HandleMessage(string s) // this parses messages from the server, and adds them to a queue to be processed on the main thread
-		{
-			// Debug.Log("Received: " + s);
-			Message m = new Message();
-			string[] sections = s.Split(':');
-			if (sections.Length <= 0) return;
-
-			int type = int.Parse(sections[0]);
-
-			switch (type)
-			{
-				case 0: // logged in message
-				{
-					if (sections.Length > 1)
-					{
-						m.type = type;
-						m.sender = int.Parse(sections[1]);
-						m.text = "";
-						AddMessage(m);
-					}
-
-					break;
-				}
-				case 1: // room info message
-				{
-					break;
-				}
-				case 2: // joined room message
-				{
-					if (sections.Length > 2)
-					{
-						m.type = 2;
-						int user_id = int.Parse(sections[1]);
-						m.sender = user_id;
-						string new_room = sections[2];
-						m.text = new_room;
-
-						AddMessage(m);
-					}
-
-					break;
-				}
-				case 3: // text message
-				{
-					if (sections.Length > 2)
-					{
-						m.type = 3;
-						m.sender = int.Parse(sections[1]);
-						m.text = sections[2];
-						AddMessage(m);
-					}
-
-					break;
-				}
-				case 4: // change master client
-				{
-					if (sections.Length > 1)
-					{
-						m.type = 4;
-						m.sender = int.Parse(sections[1]);
-						AddMessage(m);
-					}
-
-					break;
-				}
-			}
-		}
 
 		/// <summary> 	
-		/// Runs in background clientReceiveThread; Listens for incomming data. 	
-		/// </summary>     
+		/// Runs in background clientReceiveThread; Listens for incoming data. 	
+		/// </summary>
+		private static byte[] ReadExact(Stream stream, int N)
+		{
+			byte[] toReturn = new byte[N];
+
+			int numRead = 0;
+			int numLeft = N;
+			while (numLeft > 0)
+			{
+				numRead += stream.Read(toReturn, numRead, numLeft);
+				numLeft = N - numRead;
+			}
+
+			return toReturn;
+		}
+
+		private static int GetIntFromBytes(byte[] bytes)
+		{
+			return BitConverter.ToInt32(BitConverter.IsLittleEndian ? bytes.Reverse().ToArray() : bytes, 0);
+		}
+
 		private void ListenForData()
 		{
 			connected = true;
@@ -473,41 +529,85 @@ namespace VelNet
 			{
 				socketConnection = new TcpClient(host, port);
 				socketConnection.NoDelay = true;
-				byte[] bytes = new byte[1024];
-				string partialMessage = "";
+				// Get a stream object for reading
+				NetworkStream stream = socketConnection.GetStream();
+				using BinaryReader reader = new BinaryReader(stream);
+				//now we are connected, so add a message to the queue
+				AddMessage(new ConnectedMessage());
 				while (true)
 				{
-					// Get a stream object for reading 				
-					using NetworkStream stream = socketConnection.GetStream();
-					int length;
-					// Read incomming stream into byte arrary. 					
-					while ((length = stream.Read(bytes, 0, bytes.Length)) != 0)
+
+					//read a byte
+					MessageSendType type = (MessageSendType)stream.ReadByte();
+
+					switch (type)
 					{
-						byte[] incommingData = new byte[length];
-						Array.Copy(bytes, 0, incommingData, 0, length);
-						// Convert byte array to string message. 						
-						string serverMessage = Encoding.ASCII.GetString(incommingData);
-						string[] sections = serverMessage.Split('\n');
-						if (sections.Length > 1)
+						//login
+						case MessageSendType.MESSAGE_LOGIN:
 						{
-							lock (receivedMessages)
+							LoginMessage m = new LoginMessage();
+							m.userId = GetIntFromBytes(ReadExact(stream, 4)); //not really the sender...
+							AddMessage(m);
+							break;
+						}
+						//rooms
+						case MessageSendType.MESSAGE_GETROOMS:
+						{
+							RoomsMessage m = new RoomsMessage();
+							m.rooms = new List<ListedRoom>();
+							int N = GetIntFromBytes(ReadExact(stream, 4)); //the size of the payload
+							byte[] utf8data = ReadExact(stream, N);
+							string roomMessage = Encoding.UTF8.GetString(utf8data);
+
+
+							string[] sections = roomMessage.Split(',');
+							foreach (string s in sections)
 							{
-								for (int i = 0; i < sections.Length - 1; i++)
+								string[] pieces = s.Split(':');
+								if (pieces.Length == 2)
 								{
-									if (i == 0)
-									{
-										HandleMessage(partialMessage + sections[0]);
-										partialMessage = "";
-									}
-									else
-									{
-										HandleMessage(sections[i]);
-									}
+									ListedRoom lr = new ListedRoom();
+									lr.name = pieces[0];
+									lr.numUsers = int.Parse(pieces[1]);
+									m.rooms.Add(lr);
 								}
 							}
-						}
 
-						partialMessage = partialMessage + sections[sections.Length - 1];
+							AddMessage(m);
+							break;
+						}
+						//joined
+						case MessageSendType.MESSAGE_JOINROOM:
+						{
+							JoinMessage m = new JoinMessage();
+							m.userId = GetIntFromBytes(ReadExact(stream, 4));
+							int N = stream.ReadByte();
+							byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
+							m.room = Encoding.UTF8.GetString(utf8data);
+							AddMessage(m);
+							break;
+						}
+						//data
+						case MessageSendType.MESSAGE_OTHERS:
+						// case MessageSendType.MESSAGE_OTHERS_ORDERED:
+						// case MessageSendType.MESSAGE_ALL:
+						// case MessageSendType.MESSAGE_ALL_ORDERED:
+						{
+							DataMessage m = new DataMessage();
+							m.senderId = GetIntFromBytes(ReadExact(stream, 4));
+							int N = GetIntFromBytes(ReadExact(stream, 4)); //the size of the payload
+							m.data = ReadExact(stream, N); //the message
+							AddMessage(m);
+							break;
+						}
+						//new master
+						case MessageSendType.MESSAGE_ALL:
+						{
+							ChangeMasterMessage m = new ChangeMasterMessage();
+							m.masterId = GetIntFromBytes(ReadExact(stream, 4)); //sender is the new master
+							AddMessage(m);
+							break;
+						}
 					}
 				}
 			}
@@ -539,9 +639,9 @@ namespace VelNet
 				byte[] buffer = new byte[1024];
 				while (true)
 				{
-					string welcome = userid + ":0:Hello";
-					byte[] data = Encoding.ASCII.GetBytes(welcome);
-					udpSocket.SendTo(data, data.Length, SocketFlags.None, RemoteEndPoint);
+					buffer[0] = 0;
+					Array.Copy(get_be_bytes(userid), 0, buffer, 1, 4);
+					udpSocket.SendTo(buffer, 5, SocketFlags.None, RemoteEndPoint);
 
 					if (udpSocket.Available == 0)
 					{
@@ -558,18 +658,24 @@ namespace VelNet
 				while (true)
 				{
 					int numReceived = udpSocket.Receive(buffer);
-
-					string message = Encoding.UTF8.GetString(buffer, 0, numReceived);
-
-					string[] sections = message.Split(':');
-					if (sections[0] == "0")
+					switch (buffer[0])
 					{
-						Debug.Log("UDP connected");
-					}
-
-					if (sections[0] == "3")
-					{
-						HandleMessage(message);
+						case 0:
+							Debug.Log("UDP connected");
+							break;
+						case 3:
+						{
+							DataMessage m = new DataMessage();
+							//we should get the sender address
+							byte[] senderBytes = new byte[4];
+							Array.Copy(buffer, 1, senderBytes, 0, 4);
+							m.senderId = GetIntFromBytes(senderBytes);
+							byte[] messageBytes = new byte[numReceived - 5];
+							Array.Copy(buffer, 5, messageBytes, 0, messageBytes.Length);
+							m.data = messageBytes;
+							AddMessage(m);
+							break;
+						}
 					}
 				}
 			}
@@ -579,22 +685,20 @@ namespace VelNet
 			}
 		}
 
-		private static void SendUdpMessage(string message)
+		private static void SendUdpMessage(byte[] message, int N)
 		{
 			if (instance.udpSocket == null || !instance.udpConnected)
 			{
 				return;
 			}
 
-			byte[] data = Encoding.UTF8.GetBytes(message);
-			//Debug.Log("Attempting to send: " + message);
-			instance.udpSocket.SendTo(data, data.Length, SocketFlags.None, instance.RemoteEndPoint);
+			instance.udpSocket.SendTo(message, N, SocketFlags.None, instance.RemoteEndPoint);
 		}
 
 		/// <summary> 	
-		/// Send message to server using socket connection. 	
+		/// Send message to server using socket connection.
 		/// </summary> 	
-		private static void SendNetworkMessage(string clientMessage)
+		private static void SendTcpMessage(byte[] message) //we can assume that this message is already formatted, so we just send it
 		{
 			// Debug.Log("Sent: " + clientMessage);
 			if (instance.socketConnection == null)
@@ -608,11 +712,7 @@ namespace VelNet
 				NetworkStream stream = instance.socketConnection.GetStream();
 				if (stream.CanWrite)
 				{
-					// Convert string message to byte array.
-					clientMessage += "\n"; // append a new line to delineate the message
-					byte[] clientMessageAsByteArray = Encoding.ASCII.GetBytes(clientMessage);
-					// Write byte array to socketConnection stream.                 
-					stream.Write(clientMessageAsByteArray, 0, clientMessageAsByteArray.Length);
+					stream.Write(message, 0, message.Length);
 				}
 			}
 			catch (SocketException socketException)
@@ -621,12 +721,33 @@ namespace VelNet
 			}
 		}
 
+		public static byte[] get_be_bytes(int n)
+		{
+			return BitConverter.GetBytes(n).Reverse().ToArray();
+		}
+
 		/// <summary>
 		/// Connects to the server with a username
 		/// </summary>
 		public static void Login(string username, string password)
 		{
-			SendNetworkMessage("0:" + username + ":" + password);
+			MemoryStream stream = new MemoryStream();
+			BinaryWriter writer = new BinaryWriter(stream);
+
+			byte[] uB = Encoding.UTF8.GetBytes(username);
+			byte[] pB = Encoding.UTF8.GetBytes(password);
+			writer.Write((byte)MessageSendType.MESSAGE_LOGIN);
+			writer.Write((byte)uB.Length);
+			writer.Write(uB);
+			writer.Write((byte)pB.Length);
+			writer.Write(pB);
+
+			SendTcpMessage(stream.ToArray());
+		}
+
+		public static void GetRooms()
+		{
+			SendTcpMessage(new byte[] { 1 }); //very simple message
 		}
 
 		/// <summary>
@@ -635,52 +756,125 @@ namespace VelNet
 		/// <param name="roomname">The name of the room to join</param>
 		public static void Join(string roomname)
 		{
-			SendNetworkMessage("2:" + roomname);
+			MemoryStream stream = new MemoryStream();
+			BinaryWriter writer = new BinaryWriter(stream);
+
+			byte[] R = Encoding.UTF8.GetBytes(roomname);
+			writer.Write((byte)MessageSendType.MESSAGE_JOINROOM);
+			writer.Write((byte)R.Length);
+			writer.Write(R);
+			SendTcpMessage(stream.ToArray());
 		}
+
 
 		/// <summary>
 		/// Leaves a room if we're in one
 		/// </summary>
 		public static void Leave()
 		{
-			if (InRoom) SendNetworkMessage("2:-1");
-		}
-
-		public static void SendTo(MessageType type, string message, bool reliable = true)
-		{
-			if (reliable)
+			if (InRoom)
 			{
-				SendNetworkMessage("3:" + (int)type + ":" + message);
-			}
-			else
-			{
-				SendUdpMessage(instance.userid + ":3:" + (int)type + ":" + message);
+				Join(""); //super secret way to leave
 			}
 		}
 
-		public static void SendToGroup(string group, string message, bool reliable = true)
+		public static void SendCustomMessage(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
 		{
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.Custom);
+			writer.Write(message.Length);
+			writer.Write(message);
+			SendToRoom(mem.ToArray(), include_self, reliable, ordered);
+		}
+
+		public static void SendCustomMessageToGroup(string group, byte[] message,bool reliable = true)
+		{
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.Custom);
+			writer.Write(message.Length);
+			writer.Write(message);
+			SendToGroup(group, mem.ToArray(), reliable);
+		}
+
+		internal static void SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
+		{
+			byte sendType = (byte)MessageSendType.MESSAGE_OTHERS;
+			if (include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_ALL_ORDERED;
+			if (include_self && !ordered) sendType = (byte)MessageSendType.MESSAGE_ALL;
+			if (!include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_OTHERS_ORDERED;
+
+
 			if (reliable)
 			{
-				SendNetworkMessage("4:" + group + ":" + message);
+				MemoryStream mem = new MemoryStream();
+				BinaryWriter writer = new BinaryWriter(mem);
+				writer.Write(sendType);
+				writer.Write(get_be_bytes(message.Length));
+				writer.Write(message);
+				SendTcpMessage(mem.ToArray());
 			}
 			else
 			{
-				SendUdpMessage(instance.userid + ":4:" + group + ":" + message);
+				//udp message needs the type
+				toSend[0] = sendType; //we don't 
+				Array.Copy(get_be_bytes(instance.userid), 0, toSend, 1, 4);
+				Array.Copy(message, 0, toSend, 5, message.Length);
+				SendUdpMessage(toSend, message.Length + 5); //shouldn't be over 1024...
+			}
+		}
+
+
+		internal static void SendToGroup(string group, byte[] message, bool reliable = true)
+		{
+			byte[] utf8bytes = Encoding.UTF8.GetBytes(group);
+			if (reliable)
+			{
+				MemoryStream stream = new MemoryStream();
+				BinaryWriter writer = new BinaryWriter(stream);
+				writer.Write((byte)MessageSendType.MESSAGE_GROUP);
+				writer.Write(get_be_bytes(message.Length));
+				writer.Write(message);
+				writer.Write((byte)utf8bytes.Length);
+				writer.Write(utf8bytes);
+				SendTcpMessage(stream.ToArray());
+			}
+			else
+			{
+				toSend[0] = (byte)MessageSendType.MESSAGE_GROUP;
+				Array.Copy(get_be_bytes(instance.userid), 0, toSend, 1, 4);
+				//also need to send the group
+				toSend[5] = (byte)utf8bytes.Length;
+				Array.Copy(utf8bytes, 0, toSend, 6, utf8bytes.Length);
+				Array.Copy(message, 0, toSend, 6 + utf8bytes.Length, message.Length);
+				SendUdpMessage(toSend, 6 + utf8bytes.Length + message.Length);
 			}
 		}
 
 		/// <summary>
 		/// changes the designated group that sendto(4) will go to
 		/// </summary>
-		public static void SetupMessageGroup(string groupName, List<int> userIds)
+		public static void SetupMessageGroup(string groupname, List<int> client_ids)
 		{
-			if (userIds.Count > 0)
+			if (client_ids.Count > 0)
 			{
-				instance.groups[groupName] = userIds.ToList();
+				instance.groups[groupname] = client_ids.ToList();
 			}
 
-			SendNetworkMessage($"5:{groupName}:{string.Join(":", userIds)}");
+			MemoryStream stream = new MemoryStream();
+			BinaryWriter writer = new BinaryWriter(stream);
+			byte[] R = Encoding.UTF8.GetBytes(groupname);
+			writer.Write((byte)6);
+			writer.Write((byte)R.Length);
+			writer.Write(R);
+			writer.Write(get_be_bytes(client_ids.Count * 4));
+			for (int i = 0; i < client_ids.Count; i++)
+			{
+				writer.Write(get_be_bytes(client_ids[i]));
+			}
+
+			SendTcpMessage(stream.ToArray());
 		}
 
 
@@ -700,14 +894,21 @@ namespace VelNet
 				Debug.LogError("Can't instantiate object. Obj with that network ID was already instantiated.", instance.objects[networkId]);
 				return null;
 			}
+
 			NetworkObject newObject = Instantiate(prefab);
 			newObject.networkId = networkId;
 			newObject.prefabName = prefabName;
 			newObject.owner = localPlayer;
 			instance.objects.Add(newObject.networkId, newObject);
 
+			
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
-			SendTo(MessageType.OTHERS, "7," + newObject.networkId + "," + prefabName);
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.Instantiate);
+			writer.Write(newObject.networkId);
+			writer.Write(prefabName);
+			SendToRoom(mem.ToArray(), include_self:false, reliable:true);
 
 			return newObject;
 		}
@@ -737,6 +938,7 @@ namespace VelNet
 				instance.objects.Remove(networkId);
 				return;
 			}
+
 			if (obj.isSceneObject)
 			{
 				instance.deletedSceneObjects.Add(networkId);
@@ -745,7 +947,7 @@ namespace VelNet
 			Destroy(obj.gameObject);
 			instance.objects.Remove(networkId);
 		}
-		
+
 		/// <summary>
 		/// Takes local ownership of an object by id.
 		/// </summary>
@@ -759,7 +961,7 @@ namespace VelNet
 				Debug.LogError("Can't take ownership. No local player.");
 				return false;
 			}
-			
+
 			// obj must exist
 			if (!instance.objects.ContainsKey(networkId))
 			{
@@ -773,13 +975,18 @@ namespace VelNet
 				Debug.LogError("Can't take ownership. Ownership for this object is locked.");
 				return false;
 			}
-			
+
 			// immediately successful
 			instance.objects[networkId].owner = LocalPlayer;
 
-			// must be ordered, so that ownership transfers are not confused.  Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
-			SendTo(MessageType.ALL_ORDERED, "6," + networkId);
-			
+			// must be ordered, so that ownership transfers are not confused.
+			// Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.TakeOwnership);
+			writer.Write(networkId);
+			SendToRoom(mem.ToArray(), false, true);
+
 			return true;
 		}
 	}
