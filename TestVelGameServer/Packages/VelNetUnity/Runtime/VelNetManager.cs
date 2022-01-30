@@ -27,13 +27,14 @@ namespace VelNet
 			MESSAGE_SETGROUP = 6
 		};
 
-		public enum MessageType
+		public enum MessageType : byte
 		{
 			ObjectSync,
 			TakeOwnership,
 			Instantiate,
 			Destroy,
-			DeleteSceneObjects
+			DeleteSceneObjects,
+			Custom
 		}
 
 		public string host;
@@ -80,6 +81,7 @@ namespace VelNet
 		public static Action<RoomsMessage> RoomsReceived;
 
 		public static Action<Message> MessageReceived;
+		public static Action<byte[]> CustomMessageReceived;
 
 		#endregion
 
@@ -438,7 +440,15 @@ namespace VelNet
 									sceneObjects[i].networkId = -1 + "-" + sceneObjects[i].sceneNetworkId;
 									sceneObjects[i].owner = masterPlayer;
 									sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
-									objects.Add(sceneObjects[i].networkId, sceneObjects[i]);
+
+									if (objects.ContainsKey(sceneObjects[i].networkId))
+									{
+										Debug.LogError($"Duplicate NetworkID: {sceneObjects[i].networkId} {sceneObjects[i].name} {objects[sceneObjects[i].networkId]}");
+									}
+									else
+									{
+										objects.Add(sceneObjects[i].networkId, sceneObjects[i]);
+									}
 								}
 							}
 							else
@@ -528,12 +538,12 @@ namespace VelNet
 				{
 
 					//read a byte
-					byte type = (byte)stream.ReadByte();
+					MessageSendType type = (MessageSendType)stream.ReadByte();
 
 					switch (type)
 					{
 						//login
-						case 0:
+						case MessageSendType.MESSAGE_LOGIN:
 						{
 							LoginMessage m = new LoginMessage();
 							m.userId = GetIntFromBytes(ReadExact(stream, 4)); //not really the sender...
@@ -541,7 +551,7 @@ namespace VelNet
 							break;
 						}
 						//rooms
-						case 1:
+						case MessageSendType.MESSAGE_GETROOMS:
 						{
 							RoomsMessage m = new RoomsMessage();
 							m.rooms = new List<ListedRoom>();
@@ -567,7 +577,7 @@ namespace VelNet
 							break;
 						}
 						//joined
-						case 2:
+						case MessageSendType.MESSAGE_JOINROOM:
 						{
 							JoinMessage m = new JoinMessage();
 							m.userId = GetIntFromBytes(ReadExact(stream, 4));
@@ -578,7 +588,10 @@ namespace VelNet
 							break;
 						}
 						//data
-						case 3:
+						case MessageSendType.MESSAGE_OTHERS:
+						// case MessageSendType.MESSAGE_OTHERS_ORDERED:
+						// case MessageSendType.MESSAGE_ALL:
+						// case MessageSendType.MESSAGE_ALL_ORDERED:
 						{
 							DataMessage m = new DataMessage();
 							m.senderId = GetIntFromBytes(ReadExact(stream, 4));
@@ -588,7 +601,7 @@ namespace VelNet
 							break;
 						}
 						//new master
-						case 4:
+						case MessageSendType.MESSAGE_ALL:
 						{
 							ChangeMasterMessage m = new ChangeMasterMessage();
 							m.masterId = GetIntFromBytes(ReadExact(stream, 4)); //sender is the new master
@@ -723,7 +736,7 @@ namespace VelNet
 
 			byte[] uB = Encoding.UTF8.GetBytes(username);
 			byte[] pB = Encoding.UTF8.GetBytes(password);
-			writer.Write((byte)0);
+			writer.Write((byte)MessageSendType.MESSAGE_LOGIN);
 			writer.Write((byte)uB.Length);
 			writer.Write(uB);
 			writer.Write((byte)pB.Length);
@@ -747,7 +760,7 @@ namespace VelNet
 			BinaryWriter writer = new BinaryWriter(stream);
 
 			byte[] R = Encoding.UTF8.GetBytes(roomname);
-			writer.Write((byte)2);
+			writer.Write((byte)MessageSendType.MESSAGE_JOINROOM);
 			writer.Write((byte)R.Length);
 			writer.Write(R);
 			SendTcpMessage(stream.ToArray());
@@ -763,6 +776,26 @@ namespace VelNet
 			{
 				Join(""); //super secret way to leave
 			}
+		}
+
+		public static void SendCustomMessage(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
+		{
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.Custom);
+			writer.Write(message.Length);
+			writer.Write(message);
+			SendToRoom(mem.ToArray(), include_self, reliable, ordered);
+		}
+
+		public static void SendCustomMessageToGroup(string group, byte[] message,bool reliable = true)
+		{
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.Custom);
+			writer.Write(message.Length);
+			writer.Write(message);
+			SendToGroup(group, mem.ToArray(), reliable);
 		}
 
 		internal static void SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)

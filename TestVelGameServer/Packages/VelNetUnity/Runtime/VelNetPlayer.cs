@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Text;
+using UnityEngine;
 
 namespace VelNet
 {
@@ -131,7 +132,12 @@ namespace VelNet
 					{
 						VelNetManager.NetworkDestroy(reader.ReadString());
 					}
-
+					break;
+				}
+				case VelNetManager.MessageType.Custom: // custom packets
+				{
+					int len = reader.ReadInt32();
+					VelNetManager.CustomMessageReceived?.Invoke(reader.ReadBytes(len));
 					break;
 				}
 				default:
