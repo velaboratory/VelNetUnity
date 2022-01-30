@@ -137,7 +137,15 @@ namespace VelNet
 				case VelNetManager.MessageType.Custom: // custom packets
 				{
 					int len = reader.ReadInt32();
-					VelNetManager.CustomMessageReceived?.Invoke(reader.ReadBytes(len));
+					try
+					{
+						VelNetManager.CustomMessageReceived?.Invoke(m.senderId, reader.ReadBytes(len));
+					}
+					catch (Exception e)
+					{
+						Debug.LogError(e);
+					}
+
 					break;
 				}
 				default:
