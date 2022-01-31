@@ -15,6 +15,17 @@ namespace VelNet
 	[AddComponentMenu("VelNet/VelNet Manager")]
 	public class VelNetManager : MonoBehaviour
 	{
+		public enum MessageReceivedType
+		{
+			LOGGED_IN = 0,
+			ROOM_LIST = 1,
+			PLAYER_JOINED = 2,
+			DATA_MESSAGE = 3,
+			MASTER_MESSAGE = 4,
+			YOU_JOINED = 5,
+			PLAYER_LEFT = 6,
+			YOU_LEFT = 7
+		}
 		public enum MessageSendType
 		{
 			MESSAGE_OTHERS_ORDERED = 7,
@@ -26,14 +37,6 @@ namespace VelNet
 			MESSAGE_ALL = 4,
 			MESSAGE_GROUP = 5,
 			MESSAGE_SETGROUP = 6
-		};
-		public enum MessageReceiveType
-		{
-			MESSAGE_LOGIN = 0,
-			MESSAGE_GETROOMS = 1,
-			MESSAGE_JOINROOM = 2,
-			MESSAGE_DATA = 3,
-			MESSAGE_MASTER_CLIENT = 4,
 		};
 
 		public enum MessageType : byte
@@ -176,6 +179,22 @@ namespace VelNet
 			public int masterId;
 		}
 
+		public class YouJoinedMessage: Message
+		{
+			public List<int> ids;
+			public string room;
+		}
+
+		public class PlayerLeftMessage: Message
+		{
+			public int userId;
+			public string room;
+		}
+		public class YouLeftMessage: Message
+		{
+			public string room;
+		}
+
 		public class ConnectedMessage : Message
 		{
 		}
@@ -282,60 +301,42 @@ namespace VelNet
 
 							break;
 						}
-						case JoinMessage jm:
-						{
-							if (userid == jm.userId) //this is us
+						case YouJoinedMessage jm:
 							{
-								string oldRoom = LocalPlayer?.room;
-
 								// we clear the list, but will recreate as we get messages from people in our room
 								players.Clear();
 								masterPlayer = null;
 
-								if (jm.room != "")
+
+								foreach(int playerId in jm.ids)
 								{
+
 									VelNetPlayer player = new VelNetPlayer
 									{
-										isLocal = true,
-										userid = jm.userId,
-										room = jm.room
+										isLocal = playerId == userid,
+										room = jm.room,
+										userid = playerId
 									};
+									players.Add(player.userid, player);
 
-									players.Add(userid, player);
-
-									try
-									{
-										OnJoinedRoom?.Invoke(jm.room);
-									}
-									// prevent errors in subscribers from breaking our code
-									catch (Exception e)
-									{
-										Debug.LogError(e);
-									}
 								}
-								// we just left a room
-								else
+
+								try
 								{
-									// delete all networkobjects that aren't sceneobjects or are null now
-									objects
-										.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
-										.Select(o => o.Key)
-										.ToList().ForEach(NetworkDestroy);
+									Debug.Log(jm.room);
+									OnJoinedRoom?.Invoke(jm.room);
+								}
+								// prevent errors in subscribers from breaking our code
+								catch (Exception e)
+								{
+									Debug.LogError(e);
+								}
 
-									// then remove references to the ones that are left
-									objects.Clear();
-
-									// empty all the groups
-									foreach (string group in instance.groups.Keys)
-									{
-										SetupMessageGroup(group, new List<int>());
-									}
-
-									instance.groups.Clear();
-
+								foreach(KeyValuePair<int,VelNetPlayer> kvp in players)
+								{
 									try
 									{
-										OnLeftRoom?.Invoke(oldRoom);
+										OnPlayerJoined?.Invoke(kvp.Value);
 									}
 									// prevent errors in subscribers from breaking our code
 									catch (Exception e)
@@ -343,75 +344,109 @@ namespace VelNet
 										Debug.LogError(e);
 									}
 								}
+
+								
+
+								break;
 							}
-							else
+						case YouLeftMessage lm:
+							{
+								string oldRoom = LocalPlayer?.room;
+								// delete all networkobjects that aren't sceneobjects or are null now
+								objects
+									.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
+									.Select(o => o.Key)
+									.ToList().ForEach(NetworkDestroy);
+
+								// then remove references to the ones that are left
+								objects.Clear();
+
+								// empty all the groups
+								foreach (string group in instance.groups.Keys)
+								{
+									SetupMessageGroup(group, new List<int>());
+								}
+
+								instance.groups.Clear();
+
+								try
+								{
+									OnLeftRoom?.Invoke(oldRoom);
+								}
+								// prevent errors in subscribers from breaking our code
+								catch (Exception e)
+								{
+									Debug.LogError(e);
+								}
+								break;
+							}
+						case PlayerLeftMessage lm:
 							{
 								VelNetPlayer me = players[userid];
-
-								if (me.room != jm.room)
+								// we got a left message, kill it
+								// change ownership of all objects to master
+								List<string> deleteObjects = new List<string>();
+								foreach (KeyValuePair<string, NetworkObject> kvp in objects)
 								{
-									// we got a left message, kill it
-									// change ownership of all objects to master
-									List<string> deleteObjects = new List<string>();
-									foreach (KeyValuePair<string, NetworkObject> kvp in objects)
+									if (kvp.Value.owner == players[lm.userId]) // the owner is the player that left
 									{
-										if (kvp.Value.owner == players[jm.userId]) // the owner is the player that left
+										// if this object has locked ownership, delete it
+										if (kvp.Value.ownershipLocked)
 										{
-											// if this object has locked ownership, delete it
-											if (kvp.Value.ownershipLocked)
-											{
-												deleteObjects.Add(kvp.Value.networkId);
-											}
-											// I'm the local master player, so can take ownership immediately
-											else if (me.isLocal && me == masterPlayer)
-											{
-												TakeOwnership(kvp.Key);
-											}
-											// the master player left, so everyone should set the owner null (we should get a new master shortly)
-											else if (players[jm.userId] == masterPlayer)
-											{
-												kvp.Value.owner = null;
-											}
+											deleteObjects.Add(kvp.Value.networkId);
+										}
+										// I'm the local master player, so can take ownership immediately
+										else if (me.isLocal && me == masterPlayer)
+										{
+											TakeOwnership(kvp.Key);
+										}
+										// the master player left, so everyone should set the owner null (we should get a new master shortly)
+										else if (players[lm.userId] == masterPlayer)
+										{
+											kvp.Value.owner = null;
 										}
 									}
-
-									// TODO this may check for ownership in the future. We don't need ownership here
-									deleteObjects.ForEach(NetworkDestroy);
-
-									VelNetPlayer leftPlayer = players[jm.userId];
-									players.Remove(jm.userId);
-
-									try
-									{
-										OnPlayerLeft?.Invoke(leftPlayer);
-									}
-									// prevent errors in subscribers from breaking our code
-									catch (Exception e)
-									{
-										Debug.LogError(e);
-									}
 								}
-								else
+
+								// TODO this may check for ownership in the future. We don't need ownership here
+								deleteObjects.ForEach(NetworkDestroy);
+
+								VelNetPlayer leftPlayer = players[lm.userId];
+								players.Remove(lm.userId);
+
+								try
 								{
-									// we got a join message, create it
-									VelNetPlayer player = new VelNetPlayer
-									{
-										isLocal = false,
-										room = jm.room,
-										userid = jm.userId
-									};
-									players.Add(jm.userId, player);
-									try
-									{
-										OnPlayerJoined?.Invoke(player);
-									}
-									// prevent errors in subscribers from breaking our code
-									catch (Exception e)
-									{
-										Debug.LogError(e);
-									}
+									OnPlayerLeft?.Invoke(leftPlayer);
 								}
+								// prevent errors in subscribers from breaking our code
+								catch (Exception e)
+								{
+									Debug.LogError(e);
+								}
+								break;
 							}
+						case JoinMessage jm:
+						{
+							
+							// we got a join message, create it
+							VelNetPlayer player = new VelNetPlayer
+							{
+								isLocal = false,
+								room = jm.room,
+								userid = jm.userId
+							};
+							players.Add(jm.userId, player);
+							try
+							{
+								OnPlayerJoined?.Invoke(player);
+							}
+							// prevent errors in subscribers from breaking our code
+							catch (Exception e)
+							{
+								Debug.LogError(e);
+							}
+								
+							
 
 							break;
 						}
@@ -543,12 +578,12 @@ namespace VelNet
 				{
 
 					//read a byte
-					MessageReceiveType type = (MessageReceiveType)stream.ReadByte();
+					MessageReceivedType type = (MessageReceivedType)stream.ReadByte();
 
 					switch (type)
 					{
 						//login
-						case MessageReceiveType.MESSAGE_LOGIN:
+						case MessageReceivedType.LOGGED_IN:
 						{
 							LoginMessage m = new LoginMessage();
 							m.userId = GetIntFromBytes(ReadExact(stream, 4)); //not really the sender...
@@ -556,7 +591,7 @@ namespace VelNet
 							break;
 						}
 						//rooms
-						case MessageReceiveType.MESSAGE_GETROOMS:
+						case MessageReceivedType.ROOM_LIST:
 						{
 							RoomsMessage m = new RoomsMessage();
 							m.rooms = new List<ListedRoom>();
@@ -582,7 +617,7 @@ namespace VelNet
 							break;
 						}
 						//joined
-						case MessageReceiveType.MESSAGE_JOINROOM:
+						case MessageReceivedType.PLAYER_JOINED:
 						{
 							JoinMessage m = new JoinMessage();
 							m.userId = GetIntFromBytes(ReadExact(stream, 4));
@@ -593,7 +628,7 @@ namespace VelNet
 							break;
 						}
 						//data
-						case MessageReceiveType.MESSAGE_DATA:
+						case MessageReceivedType.DATA_MESSAGE:
 						{
 							DataMessage m = new DataMessage();
 							m.senderId = GetIntFromBytes(ReadExact(stream, 4));
@@ -603,13 +638,49 @@ namespace VelNet
 							break;
 						}
 						//new master
-						case MessageReceiveType.MESSAGE_MASTER_CLIENT:
+						case MessageReceivedType.MASTER_MESSAGE:
 						{
 							ChangeMasterMessage m = new ChangeMasterMessage();
 							m.masterId = GetIntFromBytes(ReadExact(stream, 4)); //sender is the new master
 							AddMessage(m);
 							break;
 						}
+
+						case MessageReceivedType.YOU_JOINED:
+						{
+							YouJoinedMessage m = new YouJoinedMessage();
+							int N = GetIntFromBytes(ReadExact(stream, 4));
+							m.ids = new List<int>();
+							for(int i = 0; i < N; i++)
+							{
+								m.ids.Add(GetIntFromBytes(ReadExact(stream, 4)));
+							}
+							N = stream.ReadByte();
+							byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
+							m.room = Encoding.UTF8.GetString(utf8data);
+							AddMessage(m);
+							break;
+						}
+						case MessageReceivedType.PLAYER_LEFT:
+							{
+								PlayerLeftMessage m = new PlayerLeftMessage();
+								m.userId = GetIntFromBytes(ReadExact(stream, 4));
+								int N = stream.ReadByte();
+								byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
+								m.room = Encoding.UTF8.GetString(utf8data);
+								AddMessage(m);
+								break;
+							}
+						case MessageReceivedType.YOU_LEFT:
+							{
+								YouLeftMessage m = new YouLeftMessage();
+								int N = stream.ReadByte();
+								byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
+								m.room = Encoding.UTF8.GetString(utf8data);
+								AddMessage(m);
+								break;
+							}
+
 					}
 				}
 			}
