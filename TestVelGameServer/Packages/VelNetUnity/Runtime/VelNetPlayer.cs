@@ -21,7 +21,7 @@ namespace VelNet
 		/// <summary>
 		/// For instantiation
 		/// </summary>
-		public int lastObjectId;
+		internal int lastObjectId;
 
 
 		private bool isMaster;
