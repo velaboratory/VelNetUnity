@@ -731,12 +731,12 @@ namespace VelNet
 				while (true)
 				{
 					int numReceived = udpSocket.Receive(buffer);
-					switch ((MessageReceiveType)buffer[0])
+					switch ((MessageReceivedType)buffer[0])
 					{
-						case MessageReceiveType.MESSAGE_LOGIN:
+						case MessageReceivedType.LOGGED_IN:
 							Debug.Log("UDP connected");
 							break;
-						case MessageReceiveType.MESSAGE_DATA:
+						case MessageReceivedType.DATA_MESSAGE:
 						{
 							DataMessage m = new DataMessage();
 							//we should get the sender address
