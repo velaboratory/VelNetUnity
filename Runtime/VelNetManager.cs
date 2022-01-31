@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -25,6 +26,14 @@ namespace VelNet
 			MESSAGE_ALL = 4,
 			MESSAGE_GROUP = 5,
 			MESSAGE_SETGROUP = 6
+		};
+		public enum MessageReceiveType
+		{
+			MESSAGE_LOGIN = 0,
+			MESSAGE_GETROOMS = 1,
+			MESSAGE_JOINROOM = 2,
+			MESSAGE_DATA = 3,
+			MESSAGE_MASTER_CLIENT = 4,
 		};
 
 		public enum MessageType : byte
@@ -106,17 +115,13 @@ namespace VelNet
 		public static bool InRoom => LocalPlayer != null && LocalPlayer.room != "-1" && LocalPlayer.room != "";
 		public static string Room => LocalPlayer?.room;
 
+		public static List<VelNetPlayer> Players => instance.players.Values.ToList();
+
 		/// <summary>
 		/// The player count in this room.
 		/// -1 if not in a room.
 		/// </summary>
 		public static int PlayerCount => instance.players.Count;
-
-		/// <summary>
-		/// The player count in all rooms.
-		/// Will include players connected to the server but not in a room?
-		/// </summary>
-		public static int PlayerCountInAllRooms => PlayerCount; // TODO hook up to actual player count
 
 		public static bool IsConnected => instance != null && instance.connected && instance.udpConnected;
 
@@ -264,7 +269,7 @@ namespace VelNet
 						case RoomsMessage rm:
 						{
 							Debug.Log("Got Rooms Message:\n" + rm);
-
+							
 							try
 							{
 								RoomsReceived?.Invoke(rm);
@@ -538,12 +543,12 @@ namespace VelNet
 				{
 
 					//read a byte
-					MessageSendType type = (MessageSendType)stream.ReadByte();
+					MessageReceiveType type = (MessageReceiveType)stream.ReadByte();
 
 					switch (type)
 					{
 						//login
-						case MessageSendType.MESSAGE_LOGIN:
+						case MessageReceiveType.MESSAGE_LOGIN:
 						{
 							LoginMessage m = new LoginMessage();
 							m.userId = GetIntFromBytes(ReadExact(stream, 4)); //not really the sender...
@@ -551,7 +556,7 @@ namespace VelNet
 							break;
 						}
 						//rooms
-						case MessageSendType.MESSAGE_GETROOMS:
+						case MessageReceiveType.MESSAGE_GETROOMS:
 						{
 							RoomsMessage m = new RoomsMessage();
 							m.rooms = new List<ListedRoom>();
@@ -577,7 +582,7 @@ namespace VelNet
 							break;
 						}
 						//joined
-						case MessageSendType.MESSAGE_JOINROOM:
+						case MessageReceiveType.MESSAGE_JOINROOM:
 						{
 							JoinMessage m = new JoinMessage();
 							m.userId = GetIntFromBytes(ReadExact(stream, 4));
@@ -588,10 +593,7 @@ namespace VelNet
 							break;
 						}
 						//data
-						case MessageSendType.MESSAGE_OTHERS:
-						// case MessageSendType.MESSAGE_OTHERS_ORDERED:
-						// case MessageSendType.MESSAGE_ALL:
-						// case MessageSendType.MESSAGE_ALL_ORDERED:
+						case MessageReceiveType.MESSAGE_DATA:
 						{
 							DataMessage m = new DataMessage();
 							m.senderId = GetIntFromBytes(ReadExact(stream, 4));
@@ -601,7 +603,7 @@ namespace VelNet
 							break;
 						}
 						//new master
-						case MessageSendType.MESSAGE_ALL:
+						case MessageReceiveType.MESSAGE_MASTER_CLIENT:
 						{
 							ChangeMasterMessage m = new ChangeMasterMessage();
 							m.masterId = GetIntFromBytes(ReadExact(stream, 4)); //sender is the new master
@@ -658,12 +660,12 @@ namespace VelNet
 				while (true)
 				{
 					int numReceived = udpSocket.Receive(buffer);
-					switch (buffer[0])
+					switch ((MessageReceiveType)buffer[0])
 					{
-						case 0:
+						case MessageReceiveType.MESSAGE_LOGIN:
 							Debug.Log("UDP connected");
 							break;
-						case 3:
+						case MessageReceiveType.MESSAGE_DATA:
 						{
 							DataMessage m = new DataMessage();
 							//we should get the sender address
@@ -745,9 +747,20 @@ namespace VelNet
 			SendTcpMessage(stream.ToArray());
 		}
 
-		public static void GetRooms()
+		public static void GetRooms(Action<RoomsMessage> callback = null)
 		{
-			SendTcpMessage(new byte[] { 1 }); //very simple message
+			SendTcpMessage(new byte[] { 1 }); // very simple message
+
+			if (callback != null)
+			{
+				RoomsReceived += RoomsReceivedCallback;
+			}
+
+			void RoomsReceivedCallback(RoomsMessage msg)
+			{
+				callback(msg);
+				RoomsReceived -= RoomsReceivedCallback;
+			}
 		}
 
 		/// <summary>
