@@ -93,6 +93,7 @@ namespace VelNet
 		public static Action OnConnectedToServer;
 		public static Action OnLoggedIn;
 		public static Action<RoomsMessage> RoomsReceived;
+		public static Action<RoomDataMessage> RoomDataReceived;
 
 		public static Action<Message> MessageReceived;
 		public static Action<int, byte[]> CustomMessageReceived;
@@ -312,6 +313,15 @@ namespace VelNet
 						case RoomDataMessage rdm:
 							{
 								Debug.Log("Got room data message:" + rdm.room);
+								try
+								{
+									RoomDataReceived?.Invoke(rdm);
+								}
+								// prevent errors in subscribers from breaking our code
+								catch (Exception e)
+								{
+									Debug.LogError(e);
+								}
 								break;
 							}
 						case YouJoinedMessage jm:
