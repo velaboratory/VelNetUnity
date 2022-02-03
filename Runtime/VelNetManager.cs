@@ -164,6 +164,12 @@ namespace VelNet
 			}
 		}
 
+		public class RoomDataMessage : Message
+		{
+			public string room;
+			public List<Tuple<int, string>> members = new List<Tuple<int, string>>();
+		}
+
 		public class JoinMessage : Message
 		{
 			public int userId;
@@ -303,6 +309,11 @@ namespace VelNet
 
 							break;
 						}
+						case RoomDataMessage rdm:
+							{
+								Debug.Log("Got room data message:" + rdm.room);
+								break;
+							}
 						case YouJoinedMessage jm:
 							{
 								// we clear the list, but will recreate as we get messages from people in our room
@@ -620,16 +631,24 @@ namespace VelNet
 						}
 						case MessageReceivedType.ROOM_DATA:
 						{
-							int N = GetIntFromBytes(ReadExact(stream, 4)); //the number of client datas to read
-							for(int i = 0; i < N; i++)
-								{
-									//client id + short string
-									int client_id = GetIntFromBytes(ReadExact(stream, 4));
-									int s = stream.ReadByte();
-									byte[] utf8data = ReadExact(stream, s); //the room name, encoded as utf-8
-									string username = Encoding.UTF8.GetString(utf8data);
-									Debug.Log(username);
-								}
+							RoomDataMessage rdm = new RoomDataMessage();
+							int N = stream.ReadByte();
+							byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
+							string roomname = Encoding.UTF8.GetString(utf8data);
+
+							N = GetIntFromBytes(ReadExact(stream, 4)); //the number of client datas to read
+							rdm.room = roomname;
+							for (int i = 0; i < N; i++)
+							{
+								//client id + short string
+								int client_id = GetIntFromBytes(ReadExact(stream, 4));
+								int s = stream.ReadByte(); //size of string
+								utf8data = ReadExact(stream, s); //the username
+								string username = Encoding.UTF8.GetString(utf8data);
+								rdm.members.Add(new Tuple<int, string>(client_id, username));
+								Debug.Log(username);
+							}
+							AddMessage(rdm);
 							break;
 						}
 						//joined
