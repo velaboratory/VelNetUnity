@@ -24,7 +24,8 @@ namespace VelNet
 			MASTER_MESSAGE = 4,
 			YOU_JOINED = 5,
 			PLAYER_LEFT = 6,
-			YOU_LEFT = 7
+			YOU_LEFT = 7,
+			ROOM_DATA = 8
 		}
 		public enum MessageSendType
 		{
@@ -36,7 +37,8 @@ namespace VelNet
 			MESSAGE_OTHERS = 3,
 			MESSAGE_ALL = 4,
 			MESSAGE_GROUP = 5,
-			MESSAGE_SETGROUP = 6
+			MESSAGE_SETGROUP = 6,
+			MESSAGE_GETROOMDATA = 9
 		};
 
 		public enum MessageType : byte
@@ -616,6 +618,20 @@ namespace VelNet
 							AddMessage(m);
 							break;
 						}
+						case MessageReceivedType.ROOM_DATA:
+						{
+							int N = GetIntFromBytes(ReadExact(stream, 4)); //the number of client datas to read
+							for(int i = 0; i < N; i++)
+								{
+									//client id + short string
+									int client_id = GetIntFromBytes(ReadExact(stream, 4));
+									int s = stream.ReadByte();
+									byte[] utf8data = ReadExact(stream, s); //the room name, encoded as utf-8
+									string username = Encoding.UTF8.GetString(utf8data);
+									Debug.Log(username);
+								}
+							break;
+						}
 						//joined
 						case MessageReceivedType.PLAYER_JOINED:
 						{
@@ -820,7 +836,7 @@ namespace VelNet
 
 		public static void GetRooms(Action<RoomsMessage> callback = null)
 		{
-			SendTcpMessage(new byte[] { 1 }); // very simple message
+			SendTcpMessage(new byte[] { (byte)MessageSendType.MESSAGE_GETROOMS }); // very simple message
 
 			if (callback != null)
 			{
@@ -832,6 +848,18 @@ namespace VelNet
 				callback(msg);
 				RoomsReceived -= RoomsReceivedCallback;
 			}
+		}
+
+		public static void GetRoomData(string roomname)
+		{
+			MemoryStream stream = new MemoryStream();
+			BinaryWriter writer = new BinaryWriter(stream);
+
+			byte[] R = Encoding.UTF8.GetBytes(roomname);
+			writer.Write((byte)MessageSendType.MESSAGE_GETROOMDATA);
+			writer.Write((byte)R.Length);
+			writer.Write(R);
+			SendTcpMessage(stream.ToArray());
 		}
 
 		/// <summary>

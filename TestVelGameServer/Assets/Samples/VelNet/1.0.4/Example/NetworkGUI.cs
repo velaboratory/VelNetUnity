@@ -37,6 +37,14 @@ namespace VelNet
 			}
 		}
 
+		public void GetRoomData()
+		{
+			if (VelNetManager.IsConnected)
+			{
+				VelNetManager.GetRoomData("0");
+			}
+		}
+
 		public void HandleJoin()
 		{
 			if (roomInput.text != "")
