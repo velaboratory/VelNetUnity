@@ -10,8 +10,9 @@ namespace VelNet
 {
 	public class NetworkGUI : MonoBehaviour
 	{
-		[FormerlySerializedAs("networkManager")]
 		public VelNetManager velNetManager;
+		
+		public bool autoConnect = true;
 
 		public InputField userInput;
 		public InputField sendInput;
@@ -21,11 +22,12 @@ namespace VelNet
 		public Dropdown microphones;
 		private DissonanceComms comms;
 
+
 		public void HandleLogin()
 		{
 			if (userInput.text != "")
 			{
-				VelNetManager.Login(userInput.text, "nopass");
+				VelNetManager.Login(userInput.text, SystemInfo.deviceUniqueIdentifier);
 			}
 		}
 
@@ -64,7 +66,10 @@ namespace VelNet
 			comms = FindObjectOfType<DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
 
-			StartCoroutine(testes());
+			if (autoConnect)
+			{
+				StartCoroutine(testes());
+			}
 		}
 
 		IEnumerator testes()
