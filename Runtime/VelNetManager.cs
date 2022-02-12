@@ -1020,8 +1020,13 @@ namespace VelNet
 			SendTcpMessage(stream.ToArray());
 		}
 
-
+		[Obsolete("Use NetworkInstantiate instead. This matches the naming convention of NetworkDestroy")]
 		public static NetworkObject InstantiateNetworkObject(string prefabName)
+		{
+			return NetworkInstantiate(prefabName);
+		}
+
+		public static NetworkObject NetworkInstantiate(string prefabName)
 		{
 			VelNetPlayer localPlayer = LocalPlayer;
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
