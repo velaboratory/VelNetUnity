@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using VelNet;
 
@@ -12,7 +10,7 @@ public class VelNetMan : MonoBehaviour
 	{
 		VelNetManager.OnJoinedRoom += player =>
 		{
-			VelNetManager.InstantiateNetworkObject(playerPrefab.name);
+			VelNetManager.NetworkInstantiate(playerPrefab.name);
 		};
 	}
 }

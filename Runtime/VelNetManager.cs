@@ -101,6 +101,7 @@ namespace VelNet
 		#endregion
 
 		public bool connected;
+		private double lastConnectionCheck;
 
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
 		public NetworkObject[] sceneObjects;
@@ -225,13 +226,9 @@ namespace VelNet
 				// add all local network objects
 				sceneObjects = FindObjectsOfType<NetworkObject>().Where(o => o.isSceneObject).ToArray();
 			};
+			
+			ConnectToServer();
 		}
-
-		private void Start()
-		{
-			ConnectToTcpServer();
-		}
-
 
 		private void AddMessage(Message m)
 		{
@@ -290,6 +287,7 @@ namespace VelNet
 							}
 
 							//start the udp thread 
+							clientReceiveThreadUDP?.Abort();
 							clientReceiveThreadUDP = new Thread(ListenForDataUDP);
 							clientReceiveThreadUDP.Start();
 
@@ -373,34 +371,7 @@ namespace VelNet
 						}
 						case YouLeftMessage msg:
 						{
-							string oldRoom = LocalPlayer?.room;
-							// delete all networkobjects that aren't sceneobjects or are null now
-							objects
-								.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
-								.Select(o => o.Key)
-								.ToList().ForEach(NetworkDestroy);
-
-							// then remove references to the ones that are left
-							objects.Clear();
-
-							// empty all the groups
-							foreach (string group in instance.groups.Keys)
-							{
-								SetupMessageGroup(group, new List<int>());
-							}
-
-							instance.groups.Clear();
-
-							try
-							{
-								OnLeftRoom?.Invoke(oldRoom);
-							}
-							// prevent errors in subscribers from breaking our code
-							catch (Exception e)
-							{
-								Debug.LogError(e);
-							}
-
+							LeaveRoom();
 							break;
 						}
 						case PlayerLeftMessage lm:
@@ -536,6 +507,56 @@ namespace VelNet
 
 				receivedMessages.Clear();
 			}
+
+
+			if (Time.timeAsDouble - lastConnectionCheck > 2)
+			{
+				if (!IsConnected)
+				{
+					ConnectToServer();
+				}
+
+				lastConnectionCheck = Time.timeAsDouble;
+			}
+		}
+
+		private void LeaveRoom()
+		{
+			string oldRoom = LocalPlayer?.room;
+			// delete all NetworkObjects that aren't scene objects or are null now
+			objects
+				.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
+				.Select(o => o.Key)
+				.ToList().ForEach(NetworkDestroy);
+
+			// then remove references to the ones that are left
+			objects.Clear();
+
+			// empty all the groups
+			foreach (string group in instance.groups.Keys)
+			{
+				SetupMessageGroup(@group, new List<int>());
+			}
+
+			instance.groups.Clear();
+
+			try
+			{
+				OnLeftRoom?.Invoke(oldRoom);
+			}
+			// prevent errors in subscribers from breaking our code
+			catch (Exception e)
+			{
+				Debug.LogError(e);
+			}
+			
+			foreach (NetworkObject s in sceneObjects)
+			{
+				s.owner = null;
+			}
+			
+			players.Clear();
+			masterPlayer = null;
 		}
 
 		private void OnApplicationQuit()
@@ -548,17 +569,29 @@ namespace VelNet
 		/// <summary> 	
 		/// Setup socket connection. 	
 		/// </summary> 	
-		private void ConnectToTcpServer()
+		public static void ConnectToServer()
 		{
 			try
 			{
-				clientReceiveThread = new Thread(ListenForData);
-				clientReceiveThread.Start();
+				instance.clientReceiveThread = new Thread(instance.ListenForData);
+				instance.clientReceiveThread.Start();
 			}
 			catch (Exception e)
 			{
 				Debug.Log("On client connect exception " + e);
 			}
+		}
+
+		private void DisconnectFromServer()
+		{
+			LeaveRoom();
+			connected = false;
+			udpConnected = false;
+			socketConnection?.Close();
+			clientReceiveThreadUDP?.Abort();
+			clientReceiveThread?.Abort();
+			socketConnection = null;
+			udpSocket = null;
 		}
 
 
@@ -649,7 +682,7 @@ namespace VelNet
 							rdm.room = roomname;
 							for (int i = 0; i < N; i++)
 							{
-								//client id + short string
+								// client id + short string
 								int client_id = GetIntFromBytes(ReadExact(stream, 4));
 								int s = stream.ReadByte(); //size of string
 								utf8data = ReadExact(stream, s); //the username
@@ -815,17 +848,27 @@ namespace VelNet
 
 		/// <summary> 	
 		/// Send message to server using socket connection.
+		/// <param name="message">We can assume that this message is already formatted, so we just send it</param>
 		/// </summary> 	
-		private static void SendTcpMessage(byte[] message) //we can assume that this message is already formatted, so we just send it
+		private static void SendTcpMessage(byte[] message) 
 		{
 			// Debug.Log("Sent: " + clientMessage);
 			if (instance.socketConnection == null)
 			{
+				Debug.LogError("Tried to send message while socket connection was still null.", instance);
 				return;
 			}
 
 			try
 			{
+				// check if we have been disconnected, if so shut down velnet
+				if (!instance.socketConnection.Connected)
+				{
+					instance.DisconnectFromServer();
+					Debug.LogError("Disconnected from server. Most likely due to timeout.");
+					return;
+				}
+				
 				// Get a stream object for writing. 			
 				NetworkStream stream = instance.socketConnection.GetStream();
 				if (stream.CanWrite)
@@ -839,7 +882,7 @@ namespace VelNet
 			}
 		}
 
-		public static byte[] get_be_bytes(int n)
+		private static byte[] get_be_bytes(int n)
 		{
 			return BitConverter.GetBytes(n).Reverse().ToArray();
 		}
@@ -881,12 +924,12 @@ namespace VelNet
 			}
 		}
 
-		public static void GetRoomData(string roomname)
+		public static void GetRoomData(string roomName)
 		{
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
 
-			byte[] R = Encoding.UTF8.GetBytes(roomname);
+			byte[] R = Encoding.UTF8.GetBytes(roomName);
 			writer.Write((byte)MessageSendType.MESSAGE_GETROOMDATA);
 			writer.Write((byte)R.Length);
 			writer.Write(R);
@@ -896,13 +939,13 @@ namespace VelNet
 		/// <summary>
 		/// Joins a room by name
 		/// </summary>
-		/// <param name="roomname">The name of the room to join</param>
-		public static void Join(string roomname)
+		/// <param name="roomName">The name of the room to join</param>
+		public static void Join(string roomName)
 		{
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
 
-			byte[] R = Encoding.UTF8.GetBytes(roomname);
+			byte[] R = Encoding.UTF8.GetBytes(roomName);
 			writer.Write((byte)MessageSendType.MESSAGE_JOINROOM);
 			writer.Write((byte)R.Length);
 			writer.Write(R);
@@ -917,7 +960,7 @@ namespace VelNet
 		{
 			if (InRoom)
 			{
-				Join(""); //super secret way to leave
+				Join(""); // super secret way to leave
 			}
 		}
 
@@ -996,25 +1039,25 @@ namespace VelNet
 		}
 
 		/// <summary>
-		/// changes the designated group that sendto(4) will go to
+		/// changes the designated group that SendTo(4) will go to
 		/// </summary>
-		public static void SetupMessageGroup(string groupname, List<int> client_ids)
+		public static void SetupMessageGroup(string groupName, List<int> clientIds)
 		{
-			if (client_ids.Count > 0)
+			if (clientIds.Count > 0)
 			{
-				instance.groups[groupname] = client_ids.ToList();
+				instance.groups[groupName] = clientIds.ToList();
 			}
 
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
-			byte[] R = Encoding.UTF8.GetBytes(groupname);
+			byte[] R = Encoding.UTF8.GetBytes(groupName);
 			writer.Write((byte)6);
 			writer.Write((byte)R.Length);
 			writer.Write(R);
-			writer.Write(get_be_bytes(client_ids.Count * 4));
-			for (int i = 0; i < client_ids.Count; i++)
+			writer.Write(get_be_bytes(clientIds.Count * 4));
+			foreach (int c in clientIds)
 			{
-				writer.Write(get_be_bytes(client_ids[i]));
+				writer.Write(get_be_bytes(c));
 			}
 
 			SendTcpMessage(stream.ToArray());
@@ -1081,9 +1124,36 @@ namespace VelNet
 		{
 			if (!instance.objects.ContainsKey(networkId)) return;
 			NetworkObject obj = instance.objects[networkId];
+			
+			// clean up if this is null
 			if (obj == null)
 			{
 				instance.objects.Remove(networkId);
+				Debug.LogError("Object to delete was already null");
+				return;
+			}
+			
+			// Delete locally immediately
+			SomebodyDestroyedNetworkObject(networkId);
+
+			// Only sent to others, as we already deleted this. 
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.Destroy);
+			writer.Write(networkId);
+			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+
+		}
+		
+		
+		public static void SomebodyDestroyedNetworkObject(string networkId)
+		{
+			if (!instance.objects.ContainsKey(networkId)) return;
+			NetworkObject obj = instance.objects[networkId];
+			if (obj == null)
+			{
+				instance.objects.Remove(networkId);
+				Debug.LogError("Object to delete was already null");
 				return;
 			}
 
@@ -1113,7 +1183,7 @@ namespace VelNet
 			// obj must exist
 			if (!instance.objects.ContainsKey(networkId))
 			{
-				Debug.LogError("Can't take ownership. Object with that network id doesn't exist.");
+				Debug.LogError("Can't take ownership. Object with that network id doesn't exist: " + networkId);
 				return false;
 			}
 

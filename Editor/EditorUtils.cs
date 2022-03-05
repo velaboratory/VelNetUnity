@@ -43,6 +43,12 @@ namespace VelNet.Editor
 				ids.Add(o.sceneNetworkId, o);
 			}
 		}
+
+		[UnityEditor.Callbacks.DidReloadScripts]
+		private static void OnScriptsReloaded()
+		{
+			CheckDuplicateNetworkIds();
+		}
 	}
 }
 #endif

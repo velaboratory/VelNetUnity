@@ -1,35 +1,46 @@
+using System.Collections;
 using System.Collections.Generic;
 using Dissonance;
 using UnityEngine;
-using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 namespace VelNet
 {
 	public class NetworkGUI : MonoBehaviour
 	{
-		[FormerlySerializedAs("networkManager")] public VelNetManager velNetManager;
+		public bool autoConnect = true;
+		public bool autoRejoin = true;
+
 		public InputField userInput;
 		public InputField sendInput;
 		public InputField roomInput;
 		public Text messages;
 		public List<string> messageBuffer;
 		public Dropdown microphones;
-		DissonanceComms comms;
+		private DissonanceComms comms;
 
-		public void HandleSend()
-		{
-			if (sendInput.text != "")
-			{
-				VelNetManager.SendTo(VelNetManager.MessageType.OTHERS, sendInput.text);
-			}
-		}
 
 		public void HandleLogin()
 		{
 			if (userInput.text != "")
 			{
-				VelNetManager.Login(userInput.text, "nopass");
+				VelNetManager.Login(userInput.text, SystemInfo.deviceUniqueIdentifier);
+			}
+		}
+
+		public void HandleGetRooms()
+		{
+			if (VelNetManager.instance.connected)
+			{
+				VelNetManager.GetRooms();
+			}
+		}
+
+		public void GetRoomData()
+		{
+			if (VelNetManager.IsConnected)
+			{
+				VelNetManager.GetRoomData("0");
 			}
 		}
 
@@ -41,28 +52,54 @@ namespace VelNet
 			}
 		}
 
+		public void HandleLeave()
+		{
+			VelNetManager.Leave();
+		}
+
 		// Start is called before the first frame update
 		private void Start()
 		{
 			comms = FindObjectOfType<DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
-			VelNetManager.MessageReceived += (m) =>
+
+			if (autoConnect)
 			{
-				string s = m.type + ":" + m.sender + ":" + m.text;
-				messageBuffer.Add(s);
-				messages.text = "";
+				AutoJoin();
+			}
+		}
 
+		private void AutoJoin()
+		{
+			VelNetManager.OnConnectedToServer += Login;
 
-				if (messageBuffer.Count > 10)
+			void Login()
+			{
+				if (!autoRejoin)
 				{
-					messageBuffer.RemoveAt(0);
+					VelNetManager.OnConnectedToServer -= Login;
 				}
 
-				foreach (string msg in messageBuffer)
+				HandleLogin();
+				VelNetManager.OnLoggedIn += JoinRoom;
+
+				void JoinRoom()
 				{
-					messages.text = messages.text + msg + "\n";
+					HandleJoin();
+					VelNetManager.OnLoggedIn -= JoinRoom;
 				}
-			};
+			}
+		}
+
+		private void Update()
+		{
+			if (autoRejoin)
+			{
+				if (!VelNetManager.IsConnected)
+				{
+					AutoJoin();
+				}
+			}
 		}
 
 		public void handleMicrophoneSelection()

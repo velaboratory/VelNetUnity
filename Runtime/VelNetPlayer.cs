@@ -120,17 +120,15 @@ namespace VelNet
 				}
 				case VelNetManager.MessageType.Destroy: // I'm trying to destroy a gameobject I own
 				{
-					string networkId = reader.ReadString();
-
-					VelNetManager.NetworkDestroy(networkId);
+					VelNetManager.SomebodyDestroyedNetworkObject(reader.ReadString());
 					break;
 				}
-				case VelNetManager.MessageType.DeleteSceneObjects: //deleted scene objects
+				case VelNetManager.MessageType.DeleteSceneObjects: // deleted scene objects
 				{
 					int len = reader.ReadInt32();
 					for (int k = 1; k < len; k++)
 					{
-						VelNetManager.NetworkDestroy(reader.ReadString());
+						VelNetManager.SomebodyDestroyedNetworkObject(reader.ReadString());
 					}
 					break;
 				}
