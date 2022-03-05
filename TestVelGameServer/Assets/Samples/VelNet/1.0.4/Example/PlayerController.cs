@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -12,8 +11,10 @@ namespace VelNet
 		private Renderer rend;
 		public Color color;
 
-		private void Start()
+		protected override void Awake()
 		{
+			base.Awake();
+			
 			rend = GetComponent<MeshRenderer>();
 			if (IsMine)
 			{
@@ -35,7 +36,7 @@ namespace VelNet
 
 				if (Input.GetKeyDown(KeyCode.Space))
 				{
-					VelNetManager.InstantiateNetworkObject("TestNetworkedGameObject");
+					VelNetManager.NetworkInstantiate("TestNetworkedGameObject");
 				}
 
 				if (Input.GetKeyDown(KeyCode.BackQuote))

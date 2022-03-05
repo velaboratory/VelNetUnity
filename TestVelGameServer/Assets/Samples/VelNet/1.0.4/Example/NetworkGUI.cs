@@ -1,18 +1,15 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Text;
 using Dissonance;
 using UnityEngine;
-using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 namespace VelNet
 {
 	public class NetworkGUI : MonoBehaviour
 	{
-		public VelNetManager velNetManager;
-		
 		public bool autoConnect = true;
+		public bool autoRejoin = true;
 
 		public InputField userInput;
 		public InputField sendInput;
@@ -68,17 +65,41 @@ namespace VelNet
 
 			if (autoConnect)
 			{
-				StartCoroutine(testes());
+				AutoJoin();
 			}
 		}
 
-		IEnumerator testes()
+		private void AutoJoin()
 		{
-			yield return new WaitForSeconds(1.0f);
-			HandleLogin();
-			yield return new WaitForSeconds(1.0f);
-			HandleJoin();
-			yield return null;
+			VelNetManager.OnConnectedToServer += Login;
+
+			void Login()
+			{
+				if (!autoRejoin)
+				{
+					VelNetManager.OnConnectedToServer -= Login;
+				}
+
+				HandleLogin();
+				VelNetManager.OnLoggedIn += JoinRoom;
+
+				void JoinRoom()
+				{
+					HandleJoin();
+					VelNetManager.OnLoggedIn -= JoinRoom;
+				}
+			}
+		}
+
+		private void Update()
+		{
+			if (autoRejoin)
+			{
+				if (!VelNetManager.IsConnected)
+				{
+					AutoJoin();
+				}
+			}
 		}
 
 		public void handleMicrophoneSelection()

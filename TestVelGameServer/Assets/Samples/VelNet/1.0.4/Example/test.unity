@@ -628,8 +628,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7a7db5bc792cd471dbd8039664359eee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  velNetManager: {fileID: 1099803616}
-  autoConnect: 0
+  autoConnect: 1
+  autoRejoin: 1
   userInput: {fileID: 626742069}
   sendInput: {fileID: 0}
   roomInput: {fileID: 711524768}
@@ -2028,7 +2028,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ownershipLocked: 0
   networkId: 
-  sceneNetworkId: 2
+  sceneNetworkId: 101
   prefabName: 
   isSceneObject: 1
   syncedComponents:
@@ -2474,8 +2474,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 233344de094f11341bdb834d564708dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  host: 129.158.60.79
-  port: 80
+  host: velnet-lts.ugavel.com
+  port: 5000
   udpConnected: 0
   userid: -1
   connected: 0
@@ -4249,7 +4249,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3951900052977689805, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
       propertyPath: sceneNetworkId
-      value: 1
+      value: 100
       objectReference: {fileID: 0}
     - target: {fileID: 8565720275311462453, guid: 6e4a023f70e01405e8b249a4488fe319, type: 3}
       propertyPath: m_Name

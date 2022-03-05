@@ -1,24 +1,31 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace VelNet
 {
-	public class PlayerController : NetworkComponent
+	public class PlayerController : NetworkSerializedObjectStream
 	{
-		public Vector3 targetPosition;
-		public Quaternion targetRotation;
+		private Renderer rend;
+		public Color color;
 
+		protected override void Awake()
+		{
+			base.Awake();
+			
+			rend = GetComponent<MeshRenderer>();
+			if (IsMine)
+			{
+				color = new Color(Random.Range(0, 1f), Random.Range(0, 1f), Random.Range(0, 1f));
+				rend.material.color = color;
+			}
+		}
 
 		// Update is called once per frame
 		private void Update()
 		{
-			// if (!IsMine)
-			// {
-			// 	transform.position = Vector3.Lerp(transform.position, targetPosition, .1f);
-			// 	transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, .1f);
-			// }
-			// else
 			if (IsMine)
 			{
 				Vector3 movement = new Vector3();
@@ -29,54 +36,48 @@ namespace VelNet
 
 				if (Input.GetKeyDown(KeyCode.Space))
 				{
-					VelNetManager.InstantiateNetworkObject("TestNetworkedGameObject");
+					VelNetManager.NetworkInstantiate("TestNetworkedGameObject");
 				}
 
 				if (Input.GetKeyDown(KeyCode.BackQuote))
 				{
 					foreach (KeyValuePair<string, NetworkObject> kvp in VelNetManager.instance.objects)
 					{
-						Owner.TakeOwnership(kvp.Key);
+						kvp.Value.TakeOwnership();
 					}
 				}
 
 				if (Input.GetKeyDown(KeyCode.Backspace))
 				{
-					foreach (KeyValuePair<string, NetworkObject> kvp in VelNetManager.instance.objects)
+					foreach (string key in VelNetManager.instance.objects
+						         .Where(kvp => !kvp.Value.ownershipLocked)
+						         .Select(kvp => kvp.Key).ToArray())
 					{
-						// don't destroy player objects
-						if (!kvp.Value.ownershipLocked)
-						{
-							Owner.NetworkDestroy(kvp.Key);
-						}
+						VelNetManager.NetworkDestroy(key);
 					}
 				}
 			}
 		}
 
-		//
-		// protected override byte[] SendState()
-		// {
-		// 	using MemoryStream mem = new MemoryStream();
-		// 	using BinaryWriter writer = new BinaryWriter(mem);
-		//
-		// 	writer.Write(transform.position);
-		// 	writer.Write(transform.rotation);
-		//
-		// 	return mem.ToArray();
-		// }
-		//
-		// protected override void ReceiveState(byte[] message)
-		// {
-		// 	using MemoryStream mem = new MemoryStream(message);
-		// 	using BinaryReader reader = new BinaryReader(mem);
-		//
-		// 	targetPosition = reader.ReadVector3();
-		// 	targetRotation = reader.ReadQuaternion();
-		// }
-		public override void ReceiveBytes(byte[] message)
+		protected override void SendState(BinaryWriter binaryWriter)
 		{
-			throw new System.NotImplementedException();
+			binaryWriter.Write(color);
+		}
+
+		protected override void ReceiveState(BinaryReader binaryReader)
+		{
+			// Color newColor = binaryReader.ReadColor();
+			Color newColor;
+			newColor.r = binaryReader.ReadSingle();
+			newColor.g = binaryReader.ReadSingle();
+			newColor.b = binaryReader.ReadSingle();
+			newColor.a = binaryReader.ReadSingle();
+			if (newColor != color)
+			{
+				rend.material.color = newColor;
+			}
+
+			color = newColor;
 		}
 	}
 }

@@ -10,7 +10,7 @@ public class VelNetMan : MonoBehaviour
 	{
 		VelNetManager.OnJoinedRoom += player =>
 		{
-			VelNetManager.InstantiateNetworkObject(playerPrefab.name);
+			VelNetManager.NetworkInstantiate(playerPrefab.name);
 		};
 	}
 }
