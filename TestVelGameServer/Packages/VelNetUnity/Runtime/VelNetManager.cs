@@ -101,6 +101,7 @@ namespace VelNet
 		#endregion
 
 		public bool connected;
+		private bool wasConnected;
 		private double lastConnectionCheck;
 
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
@@ -273,6 +274,11 @@ namespace VelNet
 						}
 						case LoginMessage lm:
 						{
+							if (userid == lm.userId)
+							{
+								Debug.Log("Received duplicate login message " + userid);
+								return;
+							}
 							userid = lm.userId;
 							Debug.Log("Joined server " + userid);
 
@@ -511,8 +517,9 @@ namespace VelNet
 
 			if (Time.timeAsDouble - lastConnectionCheck > 2)
 			{
-				if (!IsConnected)
+				if (!IsConnected && wasConnected)
 				{
+					Debug.Log("Reconnecting...");
 					ConnectToServer();
 				}
 
@@ -806,6 +813,7 @@ namespace VelNet
 				}
 
 				udpConnected = true;
+				wasConnected = true;
 				while (true)
 				{
 					int numReceived = udpSocket.Receive(buffer);
