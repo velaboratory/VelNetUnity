@@ -211,6 +211,7 @@ namespace VelNet
 		{
 		}
 
+		private int maxUnreadMessages = 1000;
 		public readonly List<Message> receivedMessages = new List<Message>();
 
 		private void Awake()
@@ -227,21 +228,26 @@ namespace VelNet
 				// add all local network objects
 				sceneObjects = FindObjectsOfType<NetworkObject>().Where(o => o.isSceneObject).ToArray();
 			};
-			
+
 			ConnectToServer();
 		}
 
 		private void AddMessage(Message m)
 		{
+			bool added = false;
 			lock (receivedMessages)
 			{
-				//Debug.Log(messagesReceived++);
-				receivedMessages.Add(m);
+				// this is to avoid backups when headset goes to sleep
+				if (receivedMessages.Count < maxUnreadMessages)
+				{
+					receivedMessages.Add(m);
+					added = true;
+				}
 			}
 
 			try
 			{
-				MessageReceived?.Invoke(m);
+				if (added) MessageReceived?.Invoke(m);
 			}
 			catch (Exception e)
 			{
@@ -279,6 +285,7 @@ namespace VelNet
 								Debug.Log("Received duplicate login message " + userid);
 								return;
 							}
+
 							userid = lm.userId;
 							Debug.Log("Joined server " + userid);
 
@@ -529,6 +536,7 @@ namespace VelNet
 
 		private void LeaveRoom()
 		{
+			Debug.Log("Leaving Room");
 			string oldRoom = LocalPlayer?.room;
 			// delete all NetworkObjects that aren't scene objects or are null now
 			objects
@@ -556,12 +564,12 @@ namespace VelNet
 			{
 				Debug.LogError(e);
 			}
-			
+
 			foreach (NetworkObject s in sceneObjects)
 			{
 				s.owner = null;
 			}
-			
+
 			players.Clear();
 			masterPlayer = null;
 		}
@@ -591,12 +599,37 @@ namespace VelNet
 
 		private void DisconnectFromServer()
 		{
-			LeaveRoom();
+			Debug.Log("Disconnecting from server");
+
+
+			Debug.Log("Leaving Room");
+			string oldRoom = LocalPlayer?.room;
+			// delete all NetworkObjects that aren't scene objects or are null now
+			objects
+				.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
+				.Select(o => o.Key)
+				.ToList().ForEach(SomebodyDestroyedNetworkObject);
+
+			// then remove references to the ones that are left
+			objects.Clear();
+
+			instance.groups.Clear();
+
+			foreach (NetworkObject s in sceneObjects)
+			{
+				s.owner = null;
+			}
+
+			players.Clear();
+			masterPlayer = null;
+
+
 			connected = false;
 			udpConnected = false;
 			socketConnection?.Close();
 			clientReceiveThreadUDP?.Abort();
 			clientReceiveThread?.Abort();
+			clientReceiveThread = null;
 			socketConnection = null;
 			udpSocket = null;
 		}
@@ -637,7 +670,7 @@ namespace VelNet
 				using BinaryReader reader = new BinaryReader(stream);
 				//now we are connected, so add a message to the queue
 				AddMessage(new ConnectedMessage());
-				while (true)
+				while (socketConnection.Connected)
 				{
 					//read a byte
 					MessageReceivedType type = (MessageReceivedType)stream.ReadByte();
@@ -856,15 +889,16 @@ namespace VelNet
 
 		/// <summary> 	
 		/// Send message to server using socket connection.
+		/// </summary>
 		/// <param name="message">We can assume that this message is already formatted, so we just send it</param>
-		/// </summary> 	
-		private static void SendTcpMessage(byte[] message) 
+		/// <returns>True if the message successfully sent. False if it failed and we should quit</returns>
+		private static bool SendTcpMessage(byte[] message)
 		{
 			// Debug.Log("Sent: " + clientMessage);
 			if (instance.socketConnection == null)
 			{
 				Debug.LogError("Tried to send message while socket connection was still null.", instance);
-				return;
+				return false;
 			}
 
 			try
@@ -874,9 +908,9 @@ namespace VelNet
 				{
 					instance.DisconnectFromServer();
 					Debug.LogError("Disconnected from server. Most likely due to timeout.");
-					return;
+					return false;
 				}
-				
+
 				// Get a stream object for writing. 			
 				NetworkStream stream = instance.socketConnection.GetStream();
 				if (stream.CanWrite)
@@ -884,10 +918,18 @@ namespace VelNet
 					stream.Write(message, 0, message.Length);
 				}
 			}
+			catch (IOException ioException)
+			{
+				instance.DisconnectFromServer();
+				Debug.LogError("Disconnected from server. Most likely due to timeout.\n" + ioException);
+				return false;
+			}
 			catch (SocketException socketException)
 			{
 				Debug.Log("Socket exception: " + socketException);
 			}
+
+			return true;
 		}
 
 		private static byte[] get_be_bytes(int n)
@@ -1132,7 +1174,7 @@ namespace VelNet
 		{
 			if (!instance.objects.ContainsKey(networkId)) return;
 			NetworkObject obj = instance.objects[networkId];
-			
+
 			// clean up if this is null
 			if (obj == null)
 			{
@@ -1140,7 +1182,7 @@ namespace VelNet
 				Debug.LogError("Object to delete was already null");
 				return;
 			}
-			
+
 			// Delete locally immediately
 			SomebodyDestroyedNetworkObject(networkId);
 
@@ -1150,10 +1192,9 @@ namespace VelNet
 			writer.Write((byte)MessageType.Destroy);
 			writer.Write(networkId);
 			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
-
 		}
-		
-		
+
+
 		public static void SomebodyDestroyedNetworkObject(string networkId)
 		{
 			if (!instance.objects.ContainsKey(networkId)) return;
