@@ -473,7 +473,15 @@ namespace VelNet
 						{
 							if (masterPlayer == null)
 							{
-								masterPlayer = players[cm.masterId];
+								if (players.ContainsKey(cm.masterId))
+								{
+									masterPlayer = players[cm.masterId];
+								}
+								else
+								{
+									masterPlayer = players.Aggregate((p1, p2) => p1.Value.userid.CompareTo(p2.Value.userid) > 0 ? p1 : p2).Value;
+									Debug.LogError("Got an invalid master client id from the server. Using fallback.");
+								}
 
 								// no master player yet, add the scene objects
 
@@ -755,11 +763,11 @@ namespace VelNet
 							AddMessage(m);
 							break;
 						}
-						//new master
+						// new master
 						case MessageReceivedType.MASTER_MESSAGE:
 						{
 							ChangeMasterMessage m = new ChangeMasterMessage();
-							m.masterId = GetIntFromBytes(ReadExact(stream, 4)); //sender is the new master
+							m.masterId = GetIntFromBytes(ReadExact(stream, 4)); // sender is the new master
 							AddMessage(m);
 							break;
 						}
