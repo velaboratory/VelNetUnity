@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
@@ -33,6 +32,24 @@ namespace VelNet
 			writer.Write(c.a);
 		}
 
+		public static void Write(this BinaryWriter writer, List<int> l)
+		{
+			writer.Write(l.Count());
+			foreach (int i in l)
+			{
+				writer.Write(i);
+			}
+		}
+
+		public static void Write(this BinaryWriter writer, List<string> l)
+		{
+			writer.Write(l.Count());
+			foreach (string i in l)
+			{
+				writer.Write(i);
+			}
+		}
+
 		#endregion
 
 		#region Readers
@@ -62,14 +79,38 @@ namespace VelNet
 			);
 		}
 
+		public static List<int> ReadIntList(this BinaryReader reader)
+		{
+			int length = reader.ReadInt32();
+			List<int> l = new List<int>(length);
+			for (int i = 0; i < length; i++)
+			{
+				l.Add(reader.ReadInt32());
+			}
+
+			return l;
+		}
+
+		public static List<string> ReadStringList(this BinaryReader reader)
+		{
+			int length = reader.ReadInt32();
+			List<string> l = new List<string>(length);
+			for (int i = 0; i < length; i++)
+			{
+				l.Add(reader.ReadString());
+			}
+
+			return l;
+		}
+
 		#endregion
 
 
 		public static bool BytesSame(byte[] b1, byte[] b2)
 		{
-			if (b1 == null && b2 != null) return false;	// only one null
-			if (b1 != null && b2 == null) return false;	// only one null
-			if (b1 == null) return true;	// both null
+			if (b1 == null && b2 != null) return false; // only one null
+			if (b1 != null && b2 == null) return false; // only one null
+			if (b1 == null) return true; // both null
 
 			// length doesn't match
 			if (b1.Length != b2.Length)

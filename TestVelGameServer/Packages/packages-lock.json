@@ -27,11 +27,11 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.ide.rider": {
-      "version": "2.0.7",
+      "version": "3.0.13",
       "depth": 0,
       "source": "registry",
       "dependencies": {
-        "com.unity.test-framework": "1.1.1"
+        "com.unity.ext.nunit": "1.0.6"
       },
       "url": "https://packages.unity.com"
     },
@@ -52,7 +52,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.nuget.newtonsoft-json": {
-      "version": "2.0.0-preview",
+      "version": "2.0.0",
       "depth": 1,
       "source": "registry",
       "dependencies": {},
@@ -88,7 +88,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.timeline": {
-      "version": "1.4.8",
+      "version": "1.6.4",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -109,7 +109,7 @@
       }
     },
     "com.unity.xr.legacyinputhelpers": {
-      "version": "2.1.8",
+      "version": "2.1.9",
       "depth": 1,
       "source": "registry",
       "dependencies": {
@@ -125,13 +125,12 @@
       "dependencies": {}
     },
     "edu.uga.engr.vel.velnet.dissonance": {
-      "version": "https://github.com/velaboratory/VelNetDissonanceIntegration.git",
+      "version": "file:S:/git_repo/VelNetDissonanceIntegration",
       "depth": 0,
-      "source": "git",
+      "source": "local",
       "dependencies": {
         "edu.uga.engr.vel.velnet": "1.0.4"
-      },
-      "hash": "2767cf12e6f1b5c568c44cd6f1753866ae2e6fca"
+      }
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",

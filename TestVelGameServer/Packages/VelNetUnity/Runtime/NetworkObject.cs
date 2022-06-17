@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.NetworkInformation;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -19,7 +20,7 @@ namespace VelNet
 		public bool ownershipLocked;
 
 		public bool IsMine => owner?.isLocal ?? false;
-		
+
 		/// <summary>
 		/// This is forged from the combination of the creator's id (-1 in the case of a scene object) and an object id, so it's always unique for a room
 		/// </summary>
@@ -40,51 +41,95 @@ namespace VelNet
 
 		public List<NetworkComponent> syncedComponents;
 
-		public void SendBytes(NetworkComponent component, byte[] message, bool reliable = true)
+		/// <summary>
+		/// Player is the new owner
+		/// </summary>
+		public Action<VelNetPlayer> OwnershipChanged;
+
+		public bool SendBytes(NetworkComponent component, bool isRpc, byte[] message, bool reliable = true)
 		{
-			if (!IsMine)
+			// only needs to be owner if this isn't an RPC
+			// RPC calls can be called by non-owner
+			if (!IsMine && !isRpc)
 			{
 				Debug.LogError("Can't send message if owner is null or not local", this);
-				return;
+				return false;
+			}
+
+			if (!VelNetManager.InRoom)
+			{
+				Debug.LogError("Can't send message if not in a room", this);
+				return false;
 			}
 
 			// send the message and an identifier for which component it belongs to
 			if (!syncedComponents.Contains(component))
 			{
 				Debug.LogError("Can't send message if this component is not registered with the NetworkObject.", this);
-				return;
+				return false;
 			}
 
-			int index = syncedComponents.IndexOf(component);
-			if (index < 0)
+			int componentIndex = syncedComponents.IndexOf(component);
+			switch (componentIndex)
 			{
-				Debug.LogError("WAAAAAAAH. NetworkObject doesn't have a reference to this component.", component);
+				case > 127:
+					Debug.LogError("Too many components.", component);
+					return false;
+				case < 0:
+					Debug.LogError("WAAAAAAAH. NetworkObject doesn't have a reference to this component.", component);
+					return false;
 			}
-			else
-			{
-				VelNetPlayer.SendMessage(this, (byte)index, message, reliable);
-			}
+
+			byte componentByte = (byte)(componentIndex << 1);
+			// the leftmost bit determines if this is an rpc or not
+			// this leaves only 128 possible NetworkComponents per NetworkObject
+			componentByte |= (byte)(isRpc ? 1 : 0);
+
+			return VelNetPlayer.SendMessage(this, componentByte, message, reliable);
 		}
 
-		public void SendBytesToGroup(NetworkComponent component, string group, byte[] message, bool reliable = true)
+		
+		public bool SendBytesToGroup(NetworkComponent component, bool isRpc, string group, byte[] message, bool reliable = true)
 		{
-			if (!IsMine)
+			// only needs to be owner if this isn't an RPC
+			// RPC calls can be called by non-owner
+			if (!IsMine && !isRpc)
 			{
 				Debug.LogError("Can't send message if owner is null or not local", this);
-				return;
+				return false;
 			}
 
 			// send the message and an identifier for which component it belongs to
-			int index = syncedComponents.IndexOf(component);
-			VelNetPlayer.SendGroupMessage(this, group, (byte)index, message, reliable);
+			int componentIndex = syncedComponents.IndexOf(component);
+			switch (componentIndex)
+			{
+				case > 127:
+					Debug.LogError("Too many components.", component);
+					return false;
+				case < 0:
+					Debug.LogError("WAAAAAAAH. NetworkObject doesn't have a reference to this component.", component);
+					return false;
+			}
+
+			byte componentByte = (byte)(componentIndex << 1);
+			componentByte |= (byte)(isRpc ? 1 : 0);
+
+			return VelNetPlayer.SendGroupMessage(this, group, componentByte, message, reliable);
 		}
 
-		public void ReceiveBytes(byte componentIdx, byte[] message)
+		public void ReceiveBytes(byte componentIdx, bool isRpc, byte[] message)
 		{
 			// send the message to the right component
 			try
 			{
-				syncedComponents[componentIdx].ReceiveBytes(message);
+				if (isRpc)
+				{
+					syncedComponents[componentIdx].ReceiveRPC(message);
+				}
+				else
+				{
+					syncedComponents[componentIdx].ReceiveBytes(message);
+				}
 			}
 			catch (Exception e)
 			{
@@ -123,13 +168,14 @@ namespace VelNet
 
 			if (GUILayout.Button("Find Network Components and add backreferences."))
 			{
-				NetworkComponent[] comps = t.GetComponents<NetworkComponent>();
+				NetworkComponent[] comps = t.GetComponentsInChildren<NetworkComponent>();
 				t.syncedComponents = comps.ToList();
 				foreach (NetworkComponent c in comps)
 				{
 					c.networkObject = t;
 					PrefabUtility.RecordPrefabInstancePropertyModifications(c);
 				}
+
 				PrefabUtility.RecordPrefabInstancePropertyModifications(t);
 			}
 
@@ -139,7 +185,7 @@ namespace VelNet
 				// find the first unused value
 				int[] used = FindObjectsOfType<NetworkObject>().Select(o => o.sceneNetworkId).ToArray();
 				int available = -1;
-				for (int i = 1; i <= used.Max()+1; i++)
+				for (int i = 1; i <= used.Max() + 1; i++)
 				{
 					if (!used.Contains(i))
 					{

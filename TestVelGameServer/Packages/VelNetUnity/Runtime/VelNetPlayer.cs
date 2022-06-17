@@ -24,7 +24,7 @@ namespace VelNet
 		internal int lastObjectId;
 
 
-		private bool isMaster;
+		public bool IsMaster { get; private set; }
 
 
 		public VelNetPlayer()
@@ -51,7 +51,7 @@ namespace VelNet
 					}
 				}
 
-				if (isMaster)
+				if (IsMaster)
 				{
 					//send a list of scene object ids when someone joins
 					SendSceneUpdate();
@@ -72,13 +72,15 @@ namespace VelNet
 		{
 			using MemoryStream mem = new MemoryStream(m.data);
 			using BinaryReader reader = new BinaryReader(mem);
-			
+
 			//individual message parameters separated by comma
 			VelNetManager.MessageType messageType = (VelNetManager.MessageType)reader.ReadByte();
 
 			switch (messageType)
 			{
-				case VelNetManager.MessageType.ObjectSync: // sync update for an object I may own
+				// sync update for an object "I" may own
+				// "I" being the person sending
+				case VelNetManager.MessageType.ObjectSync: 
 				{
 					string objectKey = reader.ReadString();
 					byte componentIdx = reader.ReadByte();
@@ -86,9 +88,13 @@ namespace VelNet
 					byte[] syncMessage = reader.ReadBytes(messageLength);
 					if (manager.objects.ContainsKey(objectKey))
 					{
-						if (manager.objects[objectKey].owner == this)
+						bool isRpc = (componentIdx & 1) == 1;
+						componentIdx = (byte)(componentIdx >> 1);
+						
+						// rpcs can be sent by non-owners
+						if (isRpc || manager.objects[objectKey].owner == this)
 						{
-							manager.objects[objectKey].ReceiveBytes(componentIdx, syncMessage);
+							manager.objects[objectKey].ReceiveBytes(componentIdx, isRpc, syncMessage);
 						}
 					}
 
@@ -101,6 +107,14 @@ namespace VelNet
 					if (manager.objects.ContainsKey(networkId))
 					{
 						manager.objects[networkId].owner = this;
+						try
+						{
+							manager.objects[networkId].OwnershipChanged?.Invoke(this);
+						}
+						catch (Exception e)
+						{
+							Debug.LogError("Error in event handling.\n" + e);
+						}
 					}
 
 					break;
@@ -130,9 +144,12 @@ namespace VelNet
 					{
 						VelNetManager.SomebodyDestroyedNetworkObject(reader.ReadString());
 					}
+
 					break;
 				}
-				case VelNetManager.MessageType.Custom: // custom packets
+				// Custom packets. These are global data that can be sent from anywhere.
+				// Any script can subscribe to the callback to receive the message data.
+				case VelNetManager.MessageType.Custom:
 				{
 					int len = reader.ReadInt32();
 					try
@@ -153,12 +170,12 @@ namespace VelNet
 
 		public void SetAsMasterPlayer()
 		{
-			isMaster = true;
+			IsMaster = true;
 			//if I'm master, I'm now responsible for updating all scene objects
 			//FindObjectsOfType<NetworkObject>();
 		}
 
-		public static void SendGroupMessage(NetworkObject obj, string group, byte componentIdx, byte[] data, bool reliable = true)
+		public static bool SendGroupMessage(NetworkObject obj, string group, byte componentIdx, byte[] data, bool reliable = true)
 		{
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);
@@ -167,10 +184,10 @@ namespace VelNet
 			writer.Write(componentIdx);
 			writer.Write(data.Length);
 			writer.Write(data);
-			VelNetManager.SendToGroup(group, mem.ToArray(), reliable);
+			return VelNetManager.SendToGroup(group, mem.ToArray(), reliable);
 		}
 
-		public static void SendMessage(NetworkObject obj, byte componentIdx, byte[] data, bool reliable = true)
+		public static bool SendMessage(NetworkObject obj, byte componentIdx, byte[] data, bool reliable = true)
 		{
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);
@@ -179,7 +196,7 @@ namespace VelNet
 			writer.Write(componentIdx);
 			writer.Write(data.Length);
 			writer.Write(data);
-			VelNetManager.SendToRoom(mem.ToArray(), false, reliable);
+			return VelNetManager.SendToRoom(mem.ToArray(), false, reliable);
 		}
 
 		public void SendSceneUpdate()
@@ -223,6 +240,14 @@ namespace VelNet
 
 			// immediately successful
 			manager.objects[networkId].owner = this;
+			try
+			{
+				manager.objects[networkId].OwnershipChanged?.Invoke(this);
+			}
+			catch (Exception e)
+			{
+				Debug.LogError("Error in event handling.\n" + e);
+			}
 
 			// must be ordered, so that ownership transfers are not confused.
 			// Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
