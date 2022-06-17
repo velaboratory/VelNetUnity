@@ -11,6 +11,12 @@ using System.IO;
 
 namespace VelNet
 {
+	
+	/// <summary>Used to flag methods as remote-callable.</summary>
+	public class VelNetRPC : Attribute
+	{
+	}
+	
 	[AddComponentMenu("VelNet/VelNet Manager")]
 	public class VelNetManager : MonoBehaviour
 	{
@@ -170,7 +176,7 @@ namespace VelNet
 		public class RoomDataMessage : Message
 		{
 			public string room;
-			public readonly List<Tuple<int, string>> members = new List<Tuple<int, string>>();
+			public readonly List<(int, string)> members = new List<(int, string)>();
 		}
 
 		public class JoinMessage : Message
@@ -354,7 +360,6 @@ namespace VelNet
 
 							try
 							{
-								Debug.Log(jm.room);
 								OnJoinedRoom?.Invoke(jm.room);
 							}
 							// prevent errors in subscribers from breaking our code
@@ -495,6 +500,13 @@ namespace VelNet
 									sceneObjects[i].networkId = -1 + "-" + sceneObjects[i].sceneNetworkId;
 									sceneObjects[i].owner = masterPlayer;
 									sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
+									try {
+										sceneObjects[i].OwnershipChanged?.Invoke(masterPlayer);
+									}
+									catch (Exception e)
+									{
+										Debug.LogError("Error in event handling.\n" + e);
+									}
 
 									if (objects.ContainsKey(sceneObjects[i].networkId))
 									{
@@ -681,7 +693,8 @@ namespace VelNet
 				while (socketConnection.Connected)
 				{
 					//read a byte
-					MessageReceivedType type = (MessageReceivedType)stream.ReadByte();
+					int b = stream.ReadByte();
+					MessageReceivedType type = (MessageReceivedType)b;
 
 					switch (type)
 					{
@@ -735,8 +748,7 @@ namespace VelNet
 								int s = stream.ReadByte(); //size of string
 								utf8data = ReadExact(stream, s); //the username
 								string username = Encoding.UTF8.GetString(utf8data);
-								rdm.members.Add(new Tuple<int, string>(client_id, username));
-								Debug.Log(username);
+								rdm.members.Add((client_id, username));
 							}
 
 							AddMessage(rdm);
@@ -1042,7 +1054,7 @@ namespace VelNet
 			SendToGroup(group, mem.ToArray(), reliable);
 		}
 
-		internal static void SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
+		internal static bool SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
 		{
 			byte sendType = (byte)MessageSendType.MESSAGE_OTHERS;
 			if (include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_ALL_ORDERED;
@@ -1057,7 +1069,7 @@ namespace VelNet
 				writer.Write(sendType);
 				writer.Write(get_be_bytes(message.Length));
 				writer.Write(message);
-				SendTcpMessage(mem.ToArray());
+				return SendTcpMessage(mem.ToArray());
 			}
 			else
 			{
@@ -1066,11 +1078,12 @@ namespace VelNet
 				Array.Copy(get_be_bytes(instance.userid), 0, toSend, 1, 4);
 				Array.Copy(message, 0, toSend, 5, message.Length);
 				SendUdpMessage(toSend, message.Length + 5); //shouldn't be over 1024...
+				return true;
 			}
 		}
 
 
-		internal static void SendToGroup(string group, byte[] message, bool reliable = true)
+		internal static bool SendToGroup(string group, byte[] message, bool reliable = true)
 		{
 			byte[] utf8bytes = Encoding.UTF8.GetBytes(group);
 			if (reliable)
@@ -1082,7 +1095,7 @@ namespace VelNet
 				writer.Write(message);
 				writer.Write((byte)utf8bytes.Length);
 				writer.Write(utf8bytes);
-				SendTcpMessage(stream.ToArray());
+				return SendTcpMessage(stream.ToArray());
 			}
 			else
 			{
@@ -1093,6 +1106,7 @@ namespace VelNet
 				Array.Copy(utf8bytes, 0, toSend, 6, utf8bytes.Length);
 				Array.Copy(message, 0, toSend, 6 + utf8bytes.Length, message.Length);
 				SendUdpMessage(toSend, 6 + utf8bytes.Length + message.Length);
+				return true;
 			}
 		}
 
@@ -1148,6 +1162,15 @@ namespace VelNet
 			newObject.networkId = networkId;
 			newObject.prefabName = prefabName;
 			newObject.owner = localPlayer;
+			try
+			{
+				newObject.OwnershipChanged?.Invoke(localPlayer);
+			}
+			catch (Exception e)
+			{
+				Debug.LogError("Error in event handling.\n" + e);
+			}
+
 			instance.objects.Add(newObject.networkId, newObject);
 
 
@@ -1170,6 +1193,14 @@ namespace VelNet
 			newObject.networkId = networkId;
 			newObject.prefabName = prefabName;
 			newObject.owner = owner;
+			try
+			{
+				newObject.OwnershipChanged?.Invoke(owner);
+			}
+			catch (Exception e)
+			{
+				Debug.LogError("Error in event handling.\n" + e);
+			}
 			instance.objects.Add(newObject.networkId, newObject);
 		}
 
@@ -1230,6 +1261,12 @@ namespace VelNet
 		/// <returns>True if successfully transferred, False if transfer message not sent</returns>
 		public static bool TakeOwnership(string networkId)
 		{
+			if (!InRoom)
+			{
+				Debug.LogError("Can't take ownership. Not in a room.");
+				return false;
+			}
+			
 			// local player must exist
 			if (LocalPlayer == null)
 			{
@@ -1253,6 +1290,14 @@ namespace VelNet
 
 			// immediately successful
 			instance.objects[networkId].owner = LocalPlayer;
+			try
+			{
+				instance.objects[networkId].OwnershipChanged?.Invoke(LocalPlayer);
+			}
+			catch (Exception e)
+			{
+				Debug.LogError("Error in event handling.\n" + e);
+			}
 
 			// must be ordered, so that ownership transfers are not confused.
 			// Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
