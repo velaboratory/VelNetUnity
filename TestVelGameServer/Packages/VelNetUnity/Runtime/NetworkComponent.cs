@@ -12,6 +12,8 @@ namespace VelNet
 		protected bool IsMine => networkObject != null && networkObject.owner != null && networkObject.owner.isLocal;
 		protected VelNetPlayer Owner => networkObject != null ? networkObject.owner : null;
 
+		private MethodInfo[] methodInfos;
+
 		/// <summary>
 		/// call this in child classes to send a message to other people
 		/// </summary>
@@ -41,11 +43,16 @@ namespace VelNet
 			int length = reader.ReadInt32();
 			byte[] parameterData = reader.ReadBytes(length);
 
-			MethodInfo[] mInfos = GetType().GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
-			Array.Sort(mInfos, (m1, m2) => string.Compare(m1.Name, m2.Name, StringComparison.Ordinal));
+
+			if (methodInfos == null)
+			{
+				methodInfos = GetType().GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
+				Array.Sort(methodInfos, (m1, m2) => string.Compare(m1.Name, m2.Name, StringComparison.Ordinal));
+			}
+
 			try
 			{
-				mInfos[methodIndex].Invoke(this, length > 0 ? new object[] { parameterData } : Array.Empty<object>());
+				methodInfos[methodIndex].Invoke(this, length > 0 ? new object[] { parameterData } : Array.Empty<object>());
 			}
 			catch (Exception e)
 			{
@@ -79,9 +86,13 @@ namespace VelNet
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);
 
-			MethodInfo[] mInfos = GetType().GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
-			Array.Sort(mInfos, (m1, m2) => string.Compare(m1.Name, m2.Name, StringComparison.Ordinal));
-			int methodIndex = mInfos.ToList().FindIndex(m => m.Name == methodName);
+			if (methodInfos == null)
+			{
+				methodInfos = GetType().GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
+				Array.Sort(methodInfos, (m1, m2) => string.Compare(m1.Name, m2.Name, StringComparison.Ordinal));
+			}
+
+			int methodIndex = methodInfos.ToList().FindIndex(m => m.Name == methodName);
 			switch (methodIndex)
 			{
 				case > 255:
