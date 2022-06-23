@@ -469,7 +469,8 @@ namespace VelNet
 							}
 							else
 							{
-								Debug.LogError("Received message from player that doesn't exist ");
+								LocalPlayer?.HandleMessage(dm, true);
+								//Debug.LogError("Received message from player that doesn't exist ");
 							}
 
 							break;
