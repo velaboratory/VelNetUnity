@@ -508,7 +508,7 @@ namespace VelNet
 							}
 							else
 							{
-								VelNetLogger.Error("Received message from player that doesn't exist ");
+								LocalPlayer?.HandleMessage(dm, true);
 							}
 
 							break;
@@ -861,7 +861,7 @@ namespace VelNet
 					}
 				}
 			}
-			catch (ThreadAbortException ex)
+			catch (ThreadAbortException)
 			{
 				// pass
 			}
@@ -936,7 +936,7 @@ namespace VelNet
 					}
 				}
 			}
-			catch (ThreadAbortException ex)
+			catch (ThreadAbortException)
 			{
 				// pass
 			}
