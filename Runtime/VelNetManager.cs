@@ -11,12 +11,11 @@ using System.IO;
 
 namespace VelNet
 {
-	
 	/// <summary>Used to flag methods as remote-callable.</summary>
 	public class VelNetRPC : Attribute
 	{
 	}
-	
+
 	[AddComponentMenu("VelNet/VelNet Manager")]
 	public class VelNetManager : MonoBehaviour
 	{
@@ -70,6 +69,15 @@ namespace VelNet
 		private Thread clientReceiveThreadUDP;
 		public int userid = -1;
 
+		[Tooltip("Sends debug messages about connection and join events")]
+		public bool debugMessages;
+
+		[Tooltip("Automatically logs in with app name and hash of device id after connecting")]
+		public bool autoLogin = true;
+
+		[Tooltip("Uses the version number in the login to prevent crosstalk between different app versions")]
+		public bool onlyConnectToSameVersion;
+
 		public readonly Dictionary<int, VelNetPlayer> players = new Dictionary<int, VelNetPlayer>();
 
 		#region Callbacks
@@ -88,8 +96,9 @@ namespace VelNet
 
 		/// <summary>
 		/// Somebody else just joined our room
+		/// bool is true when this is a join message for someone that was already in the room when we joined it
 		/// </summary>
-		public static Action<VelNetPlayer> OnPlayerJoined;
+		public static Action<VelNetPlayer, bool> OnPlayerJoined;
 
 		/// <summary>
 		/// Somebody else just left our room
@@ -177,6 +186,11 @@ namespace VelNet
 		{
 			public string room;
 			public readonly List<(int, string)> members = new List<(int, string)>();
+
+			public override string ToString()
+			{
+				return room + "\n" + string.Join("\n", members.Select(m => $"{m.Item1}\t{m.Item2}"));
+			}
 		}
 
 		public class JoinMessage : Message
@@ -198,7 +212,7 @@ namespace VelNet
 
 		public class YouJoinedMessage : Message
 		{
-			public List<int> ids;
+			public List<int> playerIds;
 			public string room;
 		}
 
@@ -217,25 +231,33 @@ namespace VelNet
 		{
 		}
 
-		private int maxUnreadMessages = 1000;
-		public readonly List<Message> receivedMessages = new List<Message>();
+		private const int maxUnreadMessages = 1000;
+		private readonly List<Message> receivedMessages = new List<Message>();
 
 		private void Awake()
 		{
-			if (instance != null)
-			{
-				Debug.LogError("Multiple NetworkManagers detected! Bad!", this);
-			}
-
-			instance = this;
-
-			SceneManager.sceneLoaded += (scene, mode) =>
+			SceneManager.sceneLoaded += (_, _) =>
 			{
 				// add all local network objects
 				sceneObjects = FindObjectsOfType<NetworkObject>().Where(o => o.isSceneObject).ToArray();
 			};
+		}
 
+		private void OnEnable()
+		{
+			if (instance != null)
+			{
+				VelNetLogger.Error("Multiple NetworkManagers detected! Bad!", this);
+			}
+
+			instance = this;
 			ConnectToServer();
+		}
+
+		private void OnDisable()
+		{
+			DisconnectFromServer();
+			instance = null;
 		}
 
 		private void AddMessage(Message m)
@@ -257,7 +279,7 @@ namespace VelNet
 			}
 			catch (Exception e)
 			{
-				Debug.LogError(e);
+				VelNetLogger.Error(e.ToString());
 			}
 		}
 
@@ -272,6 +294,7 @@ namespace VelNet
 					{
 						case ConnectedMessage msg:
 						{
+							VelNetLogger.Info("Connected to server.");
 							try
 							{
 								OnConnectedToServer?.Invoke();
@@ -279,7 +302,15 @@ namespace VelNet
 							// prevent errors in subscribers from breaking our code
 							catch (Exception e)
 							{
-								Debug.LogError(e);
+								VelNetLogger.Error(e.ToString());
+							}
+
+							if (autoLogin)
+							{
+								Login(
+									onlyConnectToSameVersion ? $"{Application.productName}_{Application.version}" : $"{Application.productName}",
+									Hash128.Compute(SystemInfo.deviceUniqueIdentifier).ToString()
+								);
 							}
 
 							break;
@@ -288,12 +319,11 @@ namespace VelNet
 						{
 							if (userid == lm.userId)
 							{
-								Debug.Log("Received duplicate login message " + userid);
-								return;
+								VelNetLogger.Error("Received duplicate login message " + userid);
 							}
 
 							userid = lm.userId;
-							Debug.Log("Joined server " + userid);
+							VelNetLogger.Info("Logged in: " + userid);
 
 							try
 							{
@@ -302,7 +332,7 @@ namespace VelNet
 							// prevent errors in subscribers from breaking our code
 							catch (Exception e)
 							{
-								Debug.LogError(e);
+								VelNetLogger.Error(e.ToString(), this);
 							}
 
 							//start the udp thread 
@@ -314,6 +344,7 @@ namespace VelNet
 						}
 						case RoomsMessage rm:
 						{
+							VelNetLogger.Info($"Received rooms:\n{rm}");
 							try
 							{
 								RoomsReceived?.Invoke(rm);
@@ -321,13 +352,14 @@ namespace VelNet
 							// prevent errors in subscribers from breaking our code
 							catch (Exception e)
 							{
-								Debug.LogError(e);
+								VelNetLogger.Error(e.ToString(), this);
 							}
 
 							break;
 						}
 						case RoomDataMessage rdm:
 						{
+							VelNetLogger.Info($"Received room data:\n{rdm}");
 							try
 							{
 								RoomDataReceived?.Invoke(rdm);
@@ -335,19 +367,21 @@ namespace VelNet
 							// prevent errors in subscribers from breaking our code
 							catch (Exception e)
 							{
-								Debug.LogError(e);
+								VelNetLogger.Error(e.ToString(), this);
 							}
 
 							break;
 						}
 						case YouJoinedMessage jm:
 						{
+							VelNetLogger.Info($"Joined Room: {jm.room} \t ({jm.playerIds.Count} players)");
+
 							// we clear the list, but will recreate as we get messages from people in our room
 							players.Clear();
 							masterPlayer = null;
 
 
-							foreach (int playerId in jm.ids)
+							foreach (int playerId in jm.playerIds)
 							{
 								VelNetPlayer player = new VelNetPlayer
 								{
@@ -365,7 +399,7 @@ namespace VelNet
 							// prevent errors in subscribers from breaking our code
 							catch (Exception e)
 							{
-								Debug.LogError(e);
+								VelNetLogger.Error(e.ToString(), this);
 							}
 
 							foreach (KeyValuePair<int, VelNetPlayer> kvp in players)
@@ -374,12 +408,12 @@ namespace VelNet
 								{
 									try
 									{
-										OnPlayerJoined?.Invoke(kvp.Value);
+										OnPlayerJoined?.Invoke(kvp.Value, true);
 									}
 									// prevent errors in subscribers from breaking our code
 									catch (Exception e)
 									{
-										Debug.LogError(e);
+										VelNetLogger.Error(e.ToString(), this);
 									}
 								}
 							}
@@ -394,7 +428,10 @@ namespace VelNet
 						}
 						case PlayerLeftMessage lm:
 						{
+							VelNetLogger.Info($"Player left: {lm.userId}");
+
 							VelNetPlayer me = players[userid];
+
 							// we got a left message, kill it
 							// change ownership of all objects to master
 							List<string> deleteObjects = new List<string>();
@@ -433,13 +470,15 @@ namespace VelNet
 							// prevent errors in subscribers from breaking our code
 							catch (Exception e)
 							{
-								Debug.LogError(e);
+								VelNetLogger.Error(e.ToString(), this);
 							}
 
 							break;
 						}
 						case JoinMessage jm:
 						{
+							VelNetLogger.Info($"Player joined: {jm.userId}");
+
 							// we got a join message, create it
 							VelNetPlayer player = new VelNetPlayer
 							{
@@ -450,12 +489,12 @@ namespace VelNet
 							players.Add(jm.userId, player);
 							try
 							{
-								OnPlayerJoined?.Invoke(player);
+								OnPlayerJoined?.Invoke(player, false);
 							}
 							// prevent errors in subscribers from breaking our code
 							catch (Exception e)
 							{
-								Debug.LogError(e);
+								VelNetLogger.Error(e.ToString(), this);
 							}
 
 
@@ -469,13 +508,15 @@ namespace VelNet
 							}
 							else
 							{
-								Debug.LogError("Received message from player that doesn't exist ");
+								VelNetLogger.Error("Received message from player that doesn't exist ");
 							}
 
 							break;
 						}
 						case ChangeMasterMessage cm:
 						{
+							VelNetLogger.Info($"Master client changed: {cm.masterId}");
+
 							if (masterPlayer == null)
 							{
 								if (players.ContainsKey(cm.masterId))
@@ -485,7 +526,7 @@ namespace VelNet
 								else
 								{
 									masterPlayer = players.Aggregate((p1, p2) => p1.Value.userid.CompareTo(p2.Value.userid) > 0 ? p1 : p2).Value;
-									Debug.LogError("Got an invalid master client id from the server. Using fallback.");
+									VelNetLogger.Error("Got an invalid master client id from the server. Using fallback.");
 								}
 
 								// no master player yet, add the scene objects
@@ -494,23 +535,24 @@ namespace VelNet
 								{
 									if (sceneObjects[i].sceneNetworkId == 0)
 									{
-										Debug.LogError("Scene Network ID is 0. Make sure to assign one first.", sceneObjects[i]);
+										VelNetLogger.Error("Scene Network ID is 0. Make sure to assign one first.", sceneObjects[i]);
 									}
 
 									sceneObjects[i].networkId = -1 + "-" + sceneObjects[i].sceneNetworkId;
 									sceneObjects[i].owner = masterPlayer;
 									sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
-									try {
+									try
+									{
 										sceneObjects[i].OwnershipChanged?.Invoke(masterPlayer);
 									}
 									catch (Exception e)
 									{
-										Debug.LogError("Error in event handling.\n" + e);
+										VelNetLogger.Error("Error in event handling.\n" + e);
 									}
 
 									if (objects.ContainsKey(sceneObjects[i].networkId))
 									{
-										Debug.LogError($"Duplicate NetworkID: {sceneObjects[i].networkId} {sceneObjects[i].name} {objects[sceneObjects[i].networkId]}");
+										VelNetLogger.Error($"Duplicate NetworkID: {sceneObjects[i].networkId} {sceneObjects[i].name} {objects[sceneObjects[i].networkId]}");
 									}
 									else
 									{
@@ -541,12 +583,12 @@ namespace VelNet
 				receivedMessages.Clear();
 			}
 
-
+			// reconnection
 			if (Time.timeAsDouble - lastConnectionCheck > 2)
 			{
 				if (!IsConnected && wasConnected)
 				{
-					Debug.Log("Reconnecting...");
+					VelNetLogger.Info("Reconnecting...");
 					ConnectToServer();
 				}
 
@@ -556,7 +598,7 @@ namespace VelNet
 
 		private void LeaveRoom()
 		{
-			Debug.Log("Leaving Room");
+			VelNetLogger.Info("Leaving Room");
 			string oldRoom = LocalPlayer?.room;
 			// delete all NetworkObjects that aren't scene objects or are null now
 			objects
@@ -582,7 +624,7 @@ namespace VelNet
 			// prevent errors in subscribers from breaking our code
 			catch (Exception e)
 			{
-				Debug.LogError(e);
+				VelNetLogger.Error(e.ToString(), this);
 			}
 
 			foreach (NetworkObject s in sceneObjects)
@@ -604,7 +646,7 @@ namespace VelNet
 		/// <summary> 	
 		/// Setup socket connection. 	
 		/// </summary> 	
-		public static void ConnectToServer()
+		private static void ConnectToServer()
 		{
 			try
 			{
@@ -613,16 +655,13 @@ namespace VelNet
 			}
 			catch (Exception e)
 			{
-				Debug.Log("On client connect exception " + e);
+				VelNetLogger.Error("On client connect exception " + e);
 			}
 		}
 
 		private void DisconnectFromServer()
 		{
-			Debug.Log("Disconnecting from server");
-
-
-			Debug.Log("Leaving Room");
+			VelNetLogger.Info("Disconnecting from server...");
 			string oldRoom = LocalPlayer?.room;
 			// delete all NetworkObjects that aren't scene objects or are null now
 			objects
@@ -788,10 +827,10 @@ namespace VelNet
 						{
 							YouJoinedMessage m = new YouJoinedMessage();
 							int N = GetIntFromBytes(ReadExact(stream, 4));
-							m.ids = new List<int>();
+							m.playerIds = new List<int>();
 							for (int i = 0; i < N; i++)
 							{
-								m.ids.Add(GetIntFromBytes(ReadExact(stream, 4)));
+								m.playerIds.Add(GetIntFromBytes(ReadExact(stream, 4)));
 							}
 
 							N = stream.ReadByte();
@@ -822,11 +861,17 @@ namespace VelNet
 					}
 				}
 			}
-
-
-			catch (Exception socketException)
+			catch (ThreadAbortException ex)
 			{
-				Debug.Log("Socket exception: " + socketException);
+				// pass
+			}
+			catch (SocketException socketException)
+			{
+				VelNetLogger.Error("Socket exception: " + socketException);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error(ex.ToString());
 			}
 
 			connected = false;
@@ -857,7 +902,7 @@ namespace VelNet
 					if (udpSocket.Available == 0)
 					{
 						Thread.Sleep(100);
-						Debug.Log("Waiting for UDP response");
+						VelNetLogger.Info("Waiting for UDP response");
 					}
 					else
 					{
@@ -873,7 +918,7 @@ namespace VelNet
 					switch ((MessageReceivedType)buffer[0])
 					{
 						case MessageReceivedType.LOGGED_IN:
-							Debug.Log("UDP connected");
+							VelNetLogger.Info("UDP connected");
 							break;
 						case MessageReceivedType.DATA_MESSAGE:
 						{
@@ -891,9 +936,17 @@ namespace VelNet
 					}
 				}
 			}
-			catch (Exception socketException)
+			catch (ThreadAbortException ex)
 			{
-				Debug.Log("Socket exception: " + socketException);
+				// pass
+			}
+			catch (SocketException socketException)
+			{
+				VelNetLogger.Error("Socket exception: " + socketException);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error(ex.ToString());
 			}
 		}
 
@@ -914,10 +967,10 @@ namespace VelNet
 		/// <returns>True if the message successfully sent. False if it failed and we should quit</returns>
 		private static bool SendTcpMessage(byte[] message)
 		{
-			// Debug.Log("Sent: " + clientMessage);
+			// Logging.Info("Sent: " + clientMessage);
 			if (instance.socketConnection == null)
 			{
-				Debug.LogError("Tried to send message while socket connection was still null.", instance);
+				VelNetLogger.Error("Tried to send message while socket connection was still null.", instance);
 				return false;
 			}
 
@@ -927,7 +980,7 @@ namespace VelNet
 				if (!instance.socketConnection.Connected)
 				{
 					instance.DisconnectFromServer();
-					Debug.LogError("Disconnected from server. Most likely due to timeout.");
+					VelNetLogger.Error("Disconnected from server. Most likely due to timeout.");
 					return false;
 				}
 
@@ -941,12 +994,12 @@ namespace VelNet
 			catch (IOException ioException)
 			{
 				instance.DisconnectFromServer();
-				Debug.LogError("Disconnected from server. Most likely due to timeout.\n" + ioException);
+				VelNetLogger.Error("Disconnected from server. Most likely due to timeout.\n" + ioException);
 				return false;
 			}
 			catch (SocketException socketException)
 			{
-				Debug.Log("Socket exception: " + socketException);
+				VelNetLogger.Error("Socket exception: " + socketException);
 			}
 
 			return true;
@@ -996,6 +1049,12 @@ namespace VelNet
 
 		public static void GetRoomData(string roomName)
 		{
+			if (string.IsNullOrEmpty(roomName))
+			{
+				VelNetLogger.Error("Room name is null. Can't get info for this room.");
+				return;
+			} 
+			
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
 
@@ -1147,14 +1206,14 @@ namespace VelNet
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null)
 			{
-				Debug.LogError("Couldn't find a prefab with that name: " + prefabName);
+				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName);
 				return null;
 			}
 
 			string networkId = localPlayer.userid + "-" + localPlayer.lastObjectId++;
 			if (instance.objects.ContainsKey(networkId))
 			{
-				Debug.LogError("Can't instantiate object. Obj with that network ID was already instantiated.", instance.objects[networkId]);
+				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.", instance.objects[networkId]);
 				return null;
 			}
 
@@ -1168,7 +1227,7 @@ namespace VelNet
 			}
 			catch (Exception e)
 			{
-				Debug.LogError("Error in event handling.\n" + e);
+				VelNetLogger.Error("Error in event handling.\n" + e);
 			}
 
 			instance.objects.Add(newObject.networkId, newObject);
@@ -1199,8 +1258,9 @@ namespace VelNet
 			}
 			catch (Exception e)
 			{
-				Debug.LogError("Error in event handling.\n" + e);
+				VelNetLogger.Error("Error in event handling.\n" + e);
 			}
+
 			instance.objects.Add(newObject.networkId, newObject);
 		}
 
@@ -1218,7 +1278,7 @@ namespace VelNet
 			if (obj == null)
 			{
 				instance.objects.Remove(networkId);
-				Debug.LogError("Object to delete was already null");
+				VelNetLogger.Error("Object to delete was already null");
 				return;
 			}
 
@@ -1241,7 +1301,7 @@ namespace VelNet
 			if (obj == null)
 			{
 				instance.objects.Remove(networkId);
-				Debug.LogError("Object to delete was already null");
+				// VelNetLogger.Error("Object to delete was already null");
 				return;
 			}
 
@@ -1263,28 +1323,28 @@ namespace VelNet
 		{
 			if (!InRoom)
 			{
-				Debug.LogError("Can't take ownership. Not in a room.");
+				VelNetLogger.Error("Can't take ownership. Not in a room.");
 				return false;
 			}
-			
+
 			// local player must exist
 			if (LocalPlayer == null)
 			{
-				Debug.LogError("Can't take ownership. No local player.");
+				VelNetLogger.Error("Can't take ownership. No local player.");
 				return false;
 			}
 
 			// obj must exist
 			if (!instance.objects.ContainsKey(networkId))
 			{
-				Debug.LogError("Can't take ownership. Object with that network id doesn't exist: " + networkId);
+				VelNetLogger.Error("Can't take ownership. Object with that network id doesn't exist: " + networkId);
 				return false;
 			}
 
 			// if the ownership is locked, fail
 			if (instance.objects[networkId].ownershipLocked)
 			{
-				Debug.LogError("Can't take ownership. Ownership for this object is locked.");
+				VelNetLogger.Error("Can't take ownership. Ownership for this object is locked.");
 				return false;
 			}
 
@@ -1296,7 +1356,7 @@ namespace VelNet
 			}
 			catch (Exception e)
 			{
-				Debug.LogError("Error in event handling.\n" + e);
+				VelNetLogger.Error("Error in event handling.\n" + e);
 			}
 
 			// must be ordered, so that ownership transfers are not confused.
