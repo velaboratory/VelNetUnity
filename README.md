@@ -1,7 +1,8 @@
 # VelNetUnity
 Custom networking package for Unity
 
-![VelNet Logo](velnet_logo.png)
+<img src="velnet_logo.png" width="100" alt="VelNet Logo">
+
 ---
 
 See [VelNetServer](https://github.com/velaboratory/VelNetServer) for description of the server.
