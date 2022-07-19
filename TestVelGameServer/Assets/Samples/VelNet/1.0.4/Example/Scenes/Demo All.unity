@@ -633,8 +633,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7a7db5bc792cd471dbd8039664359eee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  autoConnect: 1
-  autoRejoin: 0
   userInput: {fileID: 626742069}
   sendInput: {fileID: 0}
   roomInput: {fileID: 711524768}
@@ -2524,6 +2522,9 @@ MonoBehaviour:
   port: 5000
   udpConnected: 0
   userid: -1
+  debugMessages: 1
+  autoLogin: 1
+  onlyConnectToSameVersion: 1
   connected: 0
   prefabs:
   - {fileID: 9102273340480352682, guid: d4158ab9c4a204cdbba28d3273fc1fb3, type: 3}

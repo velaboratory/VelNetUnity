@@ -35,6 +35,7 @@ namespace VelNet
 		/// <summary>
 		/// This may be empty if it's not a prefab (scene object)
 		/// </summary>
+		[Tooltip("For spawnable prefab objects")]
 		public string prefabName;
 
 		public bool isSceneObject;

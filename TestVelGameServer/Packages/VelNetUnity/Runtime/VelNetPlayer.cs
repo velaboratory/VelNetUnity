@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System;
 using System.IO;
-using System.Text;
 using UnityEngine;
 
 namespace VelNet
@@ -33,7 +32,7 @@ namespace VelNet
 			VelNetManager.OnPlayerJoined += HandlePlayerJoined;
 		}
 
-		public void HandlePlayerJoined(VelNetPlayer player)
+		public void HandlePlayerJoined(VelNetPlayer player, bool alreadyInRoom)
 		{
 			//if this is the local player, go through the objects that I own, and send instantiation messages for the ones that have prefab names
 			if (isLocal)

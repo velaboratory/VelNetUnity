@@ -8,9 +8,6 @@ namespace VelNet
 {
 	public class NetworkGUI : MonoBehaviour
 	{
-		public bool autoConnect = true;
-		public bool autoRejoin = true;
-
 		public InputField userInput;
 		public InputField sendInput;
 		public InputField roomInput;
@@ -40,7 +37,7 @@ namespace VelNet
 		{
 			if (VelNetManager.IsConnected)
 			{
-				VelNetManager.GetRoomData("0");
+				VelNetManager.GetRoomData(VelNetManager.Room);
 			}
 		}
 
@@ -62,44 +59,6 @@ namespace VelNet
 		{
 			comms = FindObjectOfType<DissonanceComms>();
 			microphones.AddOptions(new List<string>(Microphone.devices));
-
-			if (autoConnect)
-			{
-				AutoJoin();
-			}
-		}
-
-		private void AutoJoin()
-		{
-			VelNetManager.OnConnectedToServer += Login;
-
-			void Login()
-			{
-				if (!autoRejoin)
-				{
-					VelNetManager.OnConnectedToServer -= Login;
-				}
-
-				HandleLogin();
-				VelNetManager.OnLoggedIn += JoinRoom;
-
-				void JoinRoom()
-				{
-					HandleJoin();
-					VelNetManager.OnLoggedIn -= JoinRoom;
-				}
-			}
-		}
-
-		private void Update()
-		{
-			if (autoRejoin)
-			{
-				if (!VelNetManager.IsConnected)
-				{
-					AutoJoin();
-				}
-			}
 		}
 
 		public void handleMicrophoneSelection()

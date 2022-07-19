@@ -139,11 +139,5 @@ namespace VelNet
 				);
 			}
 		}
-
-		[VelNetRPC]
-		private void Test()
-		{
-			
-		}
 	}
 }

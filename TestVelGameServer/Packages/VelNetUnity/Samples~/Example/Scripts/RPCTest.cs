@@ -16,11 +16,11 @@ public class RPCTest : NetworkComponent
 
 	private void TestRPC()
 	{
-		Debug.LogError("RPC RECEIVED!");
+		Debug.Log("RPC RECEIVED!");
 	}
 
 	public override void ReceiveBytes(byte[] message)
 	{
-		Debug.LogError("WOW. BYTES");
+		Debug.Log("WOW. BYTES");
 	}
 }
