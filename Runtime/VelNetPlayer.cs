@@ -67,13 +67,37 @@ namespace VelNet
 		///
 		/// The length of the byte[] for message is fixed according to the message type
 		/// </summary>
-		public void HandleMessage(VelNetManager.DataMessage m)
+		public void HandleMessage(VelNetManager.DataMessage m, bool unknown_sender = false)
 		{
 			using MemoryStream mem = new MemoryStream(m.data);
 			using BinaryReader reader = new BinaryReader(mem);
 
 			//individual message parameters separated by comma
 			VelNetManager.MessageType messageType = (VelNetManager.MessageType)reader.ReadByte();
+
+			if(messageType == VelNetManager.MessageType.Custom)
+			{
+				// Custom packets. These are global data that can be sent from anywhere.
+				// Any script can subscribe to the callback to receive the message data.
+				// todo: strange hack that any player can handle the custom message, which then simply calls velnetmanager.  
+				
+				int len = reader.ReadInt32();
+				try
+				{
+					VelNetManager.CustomMessageReceived?.Invoke(m.senderId, reader.ReadBytes(len));
+				}
+				catch (Exception e)
+				{
+					VelNetLogger.Error(e.ToString());
+				}
+				return;
+			}
+
+			if (unknown_sender)
+			{
+				VelNetLogger.Error("Received non-custom message from player that doesn't exist ");
+				return;
+			}
 
 			switch (messageType)
 			{
@@ -112,7 +136,7 @@ namespace VelNet
 						}
 						catch (Exception e)
 						{
-							Debug.LogError("Error in event handling.\n" + e);
+							VelNetLogger.Error("Error in event handling.\n" + e);
 						}
 					}
 
@@ -146,22 +170,7 @@ namespace VelNet
 
 					break;
 				}
-				// Custom packets. These are global data that can be sent from anywhere.
-				// Any script can subscribe to the callback to receive the message data.
-				case VelNetManager.MessageType.Custom:
-				{
-					int len = reader.ReadInt32();
-					try
-					{
-						VelNetManager.CustomMessageReceived?.Invoke(m.senderId, reader.ReadBytes(len));
-					}
-					catch (Exception e)
-					{
-						Debug.LogError(e);
-					}
-
-					break;
-				}
+				
 				default:
 					throw new ArgumentOutOfRangeException();
 			}
@@ -245,7 +254,7 @@ namespace VelNet
 			}
 			catch (Exception e)
 			{
-				Debug.LogError("Error in event handling.\n" + e);
+				VelNetLogger.Error("Error in event handling.\n" + e);
 			}
 
 			// must be ordered, so that ownership transfers are not confused.
