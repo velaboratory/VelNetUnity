@@ -1053,8 +1053,8 @@ namespace VelNet
 			{
 				VelNetLogger.Error("Room name is null. Can't get info for this room.");
 				return;
-			} 
-			
+			}
+
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
 
@@ -1206,7 +1206,7 @@ namespace VelNet
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null)
 			{
-				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName);
+				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName + "\nMake sure to add the prefab to list of prefabs in VelNetManager");
 				return null;
 			}
 
