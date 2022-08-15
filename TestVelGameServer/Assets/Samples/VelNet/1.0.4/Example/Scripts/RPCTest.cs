@@ -4,23 +4,26 @@ using System.IO;
 using UnityEngine;
 using VelNet;
 
-public class RPCTest : NetworkComponent
+namespace VelNetExample
 {
-	private void Update()
+	public class RPCTest : NetworkComponent
 	{
-		if (Input.GetKeyDown(KeyCode.R))
+		private void Update()
 		{
-			SendRPC(nameof(TestRPC), true);
+			if (Input.GetKeyDown(KeyCode.R))
+			{
+				SendRPC(nameof(TestRPC), true);
+			}
 		}
-	}
 
-	private void TestRPC()
-	{
-		Debug.Log("RPC RECEIVED!");
-	}
+		private void TestRPC()
+		{
+			Debug.Log("RPC RECEIVED!");
+		}
 
-	public override void ReceiveBytes(byte[] message)
-	{
-		Debug.Log("WOW. BYTES");
+		public override void ReceiveBytes(byte[] message)
+		{
+			Debug.Log("WOW. BYTES");
+		}
 	}
 }

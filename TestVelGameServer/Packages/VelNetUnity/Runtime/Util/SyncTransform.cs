@@ -9,12 +9,18 @@ namespace VelNet
 	[AddComponentMenu("VelNet/VelNet Sync Transform")]
 	public class SyncTransform : NetworkSerializedObjectStream
 	{
-		public bool useLocalTransform;
-		[Tooltip("0 to disable.")]
-		public float teleportDistance;
-		[Tooltip("0 to disable.")]
-		public float teleportAngle;
+		[Space]
+		public bool position = true;
+		public bool rotation = true;
+		[Tooltip("Scale is always local")] public bool scale;
 
+		[Space]
+		public bool useLocalTransform;
+
+		[Tooltip("0 to disable.")] public float teleportDistance;
+		[Tooltip("0 to disable.")] public float teleportAngle;
+
+		private Vector3 targetScale;
 		private Vector3 targetPosition;
 		private Quaternion targetRotation;
 		private float distanceAtReceiveTime;
@@ -32,6 +38,8 @@ namespace VelNet
 				targetPosition = transform.position;
 				targetRotation = transform.rotation;
 			}
+
+			targetScale = transform.localScale;
 		}
 
 		/// <summary>
@@ -39,8 +47,9 @@ namespace VelNet
 		/// </summary>
 		protected override void SendState(BinaryWriter writer)
 		{
-			writer.Write(transform.localPosition);
-			writer.Write(transform.localRotation);
+			if (position) writer.Write(transform.localPosition);
+			if (rotation) writer.Write(transform.localRotation);
+			if (scale) writer.Write(transform.localScale);
 		}
 
 		/// <summary>
@@ -49,8 +58,9 @@ namespace VelNet
 		/// </summary>
 		protected override void ReceiveState(BinaryReader reader)
 		{
-			targetPosition = reader.ReadVector3();
-			targetRotation = reader.ReadQuaternion();
+			if (position) targetPosition = reader.ReadVector3();
+			if (rotation) targetRotation = reader.ReadQuaternion();
+			if (scale) targetScale = reader.ReadVector3();
 
 			// record the distance from the target for interpolation
 			if (useLocalTransform)
@@ -61,6 +71,7 @@ namespace VelNet
 				{
 					transform.localPosition = targetPosition;
 				}
+
 				if (teleportAngle != 0 && teleportAngle < angleAtReceiveTime)
 				{
 					transform.localRotation = targetRotation;
@@ -74,6 +85,7 @@ namespace VelNet
 				{
 					transform.position = targetPosition;
 				}
+
 				if (teleportAngle != 0 && teleportAngle < angleAtReceiveTime)
 				{
 					transform.rotation = targetRotation;
@@ -87,28 +99,52 @@ namespace VelNet
 
 			if (useLocalTransform)
 			{
-				transform.localPosition = Vector3.MoveTowards(
-					transform.localPosition,
-					targetPosition,
-					Time.deltaTime * distanceAtReceiveTime * serializationRateHz
-				);
-				transform.localRotation = Quaternion.RotateTowards(
-					transform.localRotation,
-					targetRotation,
-					Time.deltaTime * angleAtReceiveTime * serializationRateHz
-				);
+				if (position)
+				{
+					transform.localPosition = Vector3.MoveTowards(
+						transform.localPosition,
+						targetPosition,
+						Time.deltaTime * distanceAtReceiveTime * serializationRateHz
+					);
+				}
+
+				if (rotation)
+				{
+					transform.localRotation = Quaternion.RotateTowards(
+						transform.localRotation,
+						targetRotation,
+						Time.deltaTime * angleAtReceiveTime * serializationRateHz
+					);
+				}
 			}
 			else
 			{
-				transform.position = Vector3.MoveTowards(
-					transform.position,
-					targetPosition,
-					Time.deltaTime * distanceAtReceiveTime * serializationRateHz
-				);
-				transform.rotation = Quaternion.RotateTowards(
-					transform.rotation,
-					targetRotation,
-					Time.deltaTime * angleAtReceiveTime * serializationRateHz
+				if (position)
+				{
+					transform.position = Vector3.MoveTowards(
+						transform.position,
+						targetPosition,
+						Time.deltaTime * distanceAtReceiveTime * serializationRateHz
+					);
+				}
+
+				if (rotation)
+				{
+					transform.rotation = Quaternion.RotateTowards(
+						transform.rotation,
+						targetRotation,
+						Time.deltaTime * angleAtReceiveTime * serializationRateHz
+					);
+				}
+			}
+
+
+			if (scale)
+			{
+				transform.localScale = Vector3.Lerp(
+					transform.localScale,
+					targetScale,
+					Time.deltaTime * serializationRateHz
 				);
 			}
 		}

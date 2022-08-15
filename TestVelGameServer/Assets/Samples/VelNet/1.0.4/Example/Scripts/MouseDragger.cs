@@ -1,44 +1,47 @@
 using UnityEngine;
 using VelNet;
 
-public class MouseDragger : MonoBehaviour
+namespace VelNetExample
 {
-	private Camera cam;
-	public string[] draggableTags = { "draggable" };
-	private NetworkObject draggingObject;
-
-	private void Start()
+	public class MouseDragger : MonoBehaviour
 	{
-		cam = Camera.main;
-	}
+		private Camera cam;
+		public string[] draggableTags = { "draggable" };
+		private NetworkObject draggingObject;
 
-	private void Update()
-	{
-		if (Input.GetMouseButtonDown(0))
+		private void Start()
 		{
-			if (Physics.Raycast(cam.ScreenPointToRay(Input.mousePosition), out RaycastHit hit))
+			cam = Camera.main;
+		}
+
+		private void Update()
+		{
+			if (Input.GetMouseButtonDown(0))
 			{
-				foreach (string draggableTag in draggableTags)
+				if (Physics.Raycast(cam.ScreenPointToRay(Input.mousePosition), out RaycastHit hit))
 				{
-					if (hit.transform.CompareTag(draggableTag) || (hit.transform.parent != null && hit.transform.parent.CompareTag(draggableTag)))
+					foreach (string draggableTag in draggableTags)
 					{
-						NetworkObject netObj = hit.transform.GetComponent<NetworkObject>();
-						netObj ??= hit.transform.GetComponentInParent<NetworkObject>();
-						if (netObj == null) break;
-						netObj.TakeOwnership();
-						draggingObject = netObj;
-						break;
+						if (hit.transform.CompareTag(draggableTag) || (hit.transform.parent != null && hit.transform.parent.CompareTag(draggableTag)))
+						{
+							NetworkObject netObj = hit.transform.GetComponent<NetworkObject>();
+							netObj ??= hit.transform.GetComponentInParent<NetworkObject>();
+							if (netObj == null) break;
+							netObj.TakeOwnership();
+							draggingObject = netObj;
+							break;
+						}
 					}
 				}
 			}
-		}
-		else if (Input.GetMouseButtonUp(0))
-		{
-			draggingObject = null;
-		}
-		else if (Input.GetMouseButton(0) && draggingObject != null)
-		{
-			draggingObject.transform.position = cam.ScreenPointToRay(Input.mousePosition).direction * Vector3.Distance(draggingObject.transform.position, cam.transform.position) + cam.transform.position;
+			else if (Input.GetMouseButtonUp(0))
+			{
+				draggingObject = null;
+			}
+			else if (Input.GetMouseButton(0) && draggingObject != null)
+			{
+				draggingObject.transform.position = cam.ScreenPointToRay(Input.mousePosition).direction * Vector3.Distance(draggingObject.transform.position, cam.transform.position) + cam.transform.position;
+			}
 		}
 	}
 }

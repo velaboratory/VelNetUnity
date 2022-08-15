@@ -2,9 +2,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using VelNet;
 using Random = UnityEngine.Random;
 
-namespace VelNet
+namespace VelNetExample
 {
 	public class PlayerController : NetworkSerializedObjectStream
 	{

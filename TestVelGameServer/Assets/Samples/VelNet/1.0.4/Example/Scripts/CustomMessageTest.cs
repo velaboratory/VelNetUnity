@@ -1,22 +1,25 @@
 using UnityEngine;
 using VelNet;
 
-public class CustomMessageTest : MonoBehaviour
+namespace VelNetExample
 {
-	private void Start()
+	public class CustomMessageTest : MonoBehaviour
 	{
-		VelNetManager.OnJoinedRoom += _ =>
+		private void Start()
 		{
-			byte[] testPacket = { 244 };
-			VelNetManager.SendCustomMessage(testPacket, true, true, false);
-		};
-
-		VelNetManager.CustomMessageReceived += (senderId, dataWithCategory) =>
-		{
-			if (dataWithCategory[0] == 244)
+			VelNetManager.OnJoinedRoom += _ =>
 			{
-				Debug.Log($"Received test packet from {senderId}");
-			}
-		};
+				byte[] testPacket = { 244 };
+				VelNetManager.SendCustomMessage(testPacket, true, true, false);
+			};
+
+			VelNetManager.CustomMessageReceived += (senderId, dataWithCategory) =>
+			{
+				if (dataWithCategory[0] == 244)
+				{
+					Debug.Log($"Received test packet from {senderId}");
+				}
+			};
+		}
 	}
 }

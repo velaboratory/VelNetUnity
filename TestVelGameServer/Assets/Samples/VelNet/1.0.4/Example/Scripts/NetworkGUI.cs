@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using Dissonance;
 using UnityEngine;
 using UnityEngine.UI;
+using VelNet;
 
-namespace VelNet
+
+namespace VelNetExample
 {
 	public class NetworkGUI : MonoBehaviour
 	{

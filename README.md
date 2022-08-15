@@ -5,7 +5,7 @@ Custom networking package for Unity
 
 ---
 
-See [VelNetServer](https://github.com/velaboratory/VelNetServer) for description of the server.
+See [VelNetServerRust](https://github.com/velaboratory/VelNetServerRust) for description of the server.
 
 By contrast to the server, the Unity side is pretty complex.
 

@@ -1,16 +1,19 @@
 using UnityEngine;
 using VelNet;
 
-public class VelNetMan : MonoBehaviour
+namespace VelNetExample
 {
-	public GameObject playerPrefab;
-
-	// Start is called before the first frame update
-	private void Start()
+	public class VelNetMan : MonoBehaviour
 	{
-		VelNetManager.OnJoinedRoom += player =>
+		public GameObject playerPrefab;
+
+		// Start is called before the first frame update
+		private void Start()
 		{
-			VelNetManager.NetworkInstantiate(playerPrefab.name);
-		};
+			VelNetManager.OnJoinedRoom += player =>
+			{
+				VelNetManager.NetworkInstantiate(playerPrefab.name);
+			};
+		}
 	}
 }
