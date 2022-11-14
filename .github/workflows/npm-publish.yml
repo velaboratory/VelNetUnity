@@ -15,6 +15,6 @@ jobs:
           node-version: 16
           registry-url: http://npm.ugavel.com/
       - run: npm publish
-        working-directory: TestVelGamesServer/Packages/VelNetUnity
+        working-directory: ../TestVelGamesServer/Packages/VelNetUnity
         env:
           NODE_AUTH_TOKEN: ${{secrets.VERDACCIO_TOKEN}}
