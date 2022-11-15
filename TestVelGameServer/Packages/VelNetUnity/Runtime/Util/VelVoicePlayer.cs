@@ -29,7 +29,6 @@ namespace VelNet
 			}
 		}
 
-
 		// Start is called before the first frame update
 		void Start()
 		{
@@ -77,7 +76,7 @@ namespace VelNet
 				if ((offset > 1000) || (Time.time - delayStartTime) > .1f) //this seems to make the quality better
 				{
 					var temp = Mathf.Max(0, offset - 2000); 
-					source.pitch = 1 + temp / 18000.0f; //okay to behind by 2000, but speed up real quick if by 170000
+					source.pitch = Mathf.Min(2,1 + temp / 18000.0f); //okay to behind by 2000.  These numbers correspond to about 2x speed at a seconds behind
 					
 
 					if (!source.isPlaying)

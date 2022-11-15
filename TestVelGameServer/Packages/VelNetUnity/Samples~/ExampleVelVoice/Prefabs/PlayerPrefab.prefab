@@ -259,6 +259,8 @@ MonoBehaviour:
   networkObject: {fileID: 9102273340480352682}
   voiceSystem: {fileID: 0}
   source: {fileID: 7756407589087806652}
+  bufferedAmount: 0
+  playedAmount: 0
 --- !u!82 &7756407589087806652
 AudioSource:
   m_ObjectHideFlags: 0
@@ -387,7 +389,7 @@ AudioSource:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 1
+      value: 0
       inSlope: 0
       outSlope: 0
       tangentMode: 0
