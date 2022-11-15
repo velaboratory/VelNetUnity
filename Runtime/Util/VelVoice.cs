@@ -45,9 +45,9 @@ namespace VelNet
         double lastMicSample; //holds the last mic sample, in case we need to interpolate it
         double sampleTimer = 0; //increments with every mic sample, but when over the encodeTime, causes a sample and subtracts that encode time
         EventWaitHandle waiter;
-        float silenceThreshold = .02f; //average volume of packet
+        public float silenceThreshold = .01f; //average volume of packet
         int numSilent = 0; //number of silent packets detected
-        int minSilencePacketsToStop = 5;
+        public int minSilencePacketsToStop = 5;
         double averageVolume = 0;
         Thread t;
         public Action<FixedArray> encodedFrameAvailable = delegate { };
