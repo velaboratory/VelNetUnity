@@ -10,13 +10,14 @@ namespace VelNet
 		public VelVoice voiceSystem; //must be set for the player only
 		public AudioSource source; //must be set for the clone only
 		AudioClip myClip;
-		int bufferedAmount = 0;
-		int playedAmount = 0;
+		public int bufferedAmount = 0;
+		public int playedAmount = 0;
 		int lastTime = 0;
 		float[] empty = new float[1000]; //a buffer of 0s to force silence, because playing doesn't stop on demand
 		float delayStartTime;
 		public override void ReceiveBytes(byte[] message)
 		{
+			
 			float[] temp = voiceSystem.decodeOpusData(message, message.Length);
 			myClip.SetData(temp, bufferedAmount % source.clip.samples);
 			bufferedAmount += temp.Length;
@@ -44,7 +45,7 @@ namespace VelNet
 				{
 				//float[] temp = new float[frame.count];
 				//System.Array.Copy(frame.array, temp, frame.count);
-				MemoryStream mem = new MemoryStream();
+					MemoryStream mem = new MemoryStream();
 					BinaryWriter writer = new BinaryWriter(mem);
 					writer.Write(frame.array, 0, frame.count);
 					this.SendBytes(mem.ToArray(), false);
@@ -54,22 +55,35 @@ namespace VelNet
 				};
 			}
 
-			myClip = AudioClip.Create(this.name, 16000 * 7, 1, 16000, false);
+			myClip = AudioClip.Create(this.name, 16000 * 10, 1, 16000, false);
 			source.clip = myClip;
 			source.loop = true;
 			source.Pause();
 
 		}
 
+		
+
 		// Update is called once per frame
 		void Update()
 		{
+			
+			
 
-			if (bufferedAmount > playedAmount && !source.isPlaying)
+			if (bufferedAmount > playedAmount)
 			{
-				if ((bufferedAmount - playedAmount > 1000) || (Time.time - delayStartTime) > .1f) //this seems to make the quality better
+
+				var offset = bufferedAmount - playedAmount;
+				if ((offset > 1000) || (Time.time - delayStartTime) > .1f) //this seems to make the quality better
 				{
-					source.Play();
+					var temp = Mathf.Max(0, offset - 2000); 
+					source.pitch = 1 + temp / 18000.0f; //okay to behind by 2000, but speed up real quick if by 170000
+					
+
+					if (!source.isPlaying)
+					{
+						source.Play();
+					}
 				}
 				else
 				{
