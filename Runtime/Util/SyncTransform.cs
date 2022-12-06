@@ -47,8 +47,16 @@ namespace VelNet
 		/// </summary>
 		protected override void SendState(BinaryWriter writer)
 		{
-			if (position) writer.Write(transform.localPosition);
-			if (rotation) writer.Write(transform.localRotation);
+			if (useLocalTransform)
+			{
+				if (position) writer.Write(transform.localPosition);
+				if (rotation) writer.Write(transform.localRotation);
+			}
+			else
+			{
+				if (position) writer.Write(transform.position);
+				if (rotation) writer.Write(transform.rotation);
+			}
 			if (scale) writer.Write(transform.localScale);
 		}
 
