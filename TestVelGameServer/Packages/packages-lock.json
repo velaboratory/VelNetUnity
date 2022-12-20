@@ -11,7 +11,7 @@
       "hash": "330ff73d80febbf9b505dd0ebd86d370d12fc73d"
     },
     "com.unity.collab-proxy": {
-      "version": "1.15.15",
+      "version": "1.17.7",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -20,14 +20,14 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.ext.nunit": {
-      "version": "1.0.6",
+      "version": "2.0.3",
       "depth": 1,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
     },
     "com.unity.ide.rider": {
-      "version": "3.0.13",
+      "version": "3.0.17",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -36,7 +36,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.ide.visualstudio": {
-      "version": "2.0.15",
+      "version": "2.0.17",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -68,11 +68,11 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.test-framework": {
-      "version": "1.1.31",
+      "version": "1.3.2",
       "depth": 0,
       "source": "registry",
       "dependencies": {
-        "com.unity.ext.nunit": "1.0.6",
+        "com.unity.ext.nunit": "2.0.3",
         "com.unity.modules.imgui": "1.0.0",
         "com.unity.modules.jsonserialize": "1.0.0"
       },
@@ -123,14 +123,6 @@
       "depth": 0,
       "source": "embedded",
       "dependencies": {}
-    },
-    "edu.uga.engr.vel.velnet.dissonance": {
-      "version": "file:S:/git_repo/VelNetDissonanceIntegration",
-      "depth": 0,
-      "source": "local",
-      "dependencies": {
-        "edu.uga.engr.vel.velnet": "1.1.0"
-      }
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",
