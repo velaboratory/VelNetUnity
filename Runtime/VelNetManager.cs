@@ -423,7 +423,7 @@ namespace VelNet
 						}
 						case YouLeftMessage msg:
 						{
-							LeaveRoom();
+							LeaveRoomInternal();
 							break;
 						}
 						case PlayerLeftMessage lm:
@@ -596,7 +596,7 @@ namespace VelNet
 			}
 		}
 
-		private void LeaveRoom()
+		private void LeaveRoomInternal()
 		{
 			VelNetLogger.Info("Leaving Room");
 			string oldRoom = LocalPlayer?.room;
@@ -740,9 +740,11 @@ namespace VelNet
 						//login
 						case MessageReceivedType.LOGGED_IN:
 						{
-							LoginMessage m = new LoginMessage();
-							m.userId = GetIntFromBytes(ReadExact(stream, 4)); //not really the sender...
-							AddMessage(m);
+							AddMessage(new LoginMessage
+							{
+								// not really the sender...
+								userId = GetIntFromBytes(ReadExact(stream, 4))
+							});
 							break;
 						}
 						//rooms
@@ -761,10 +763,11 @@ namespace VelNet
 								string[] pieces = s.Split(':');
 								if (pieces.Length == 2)
 								{
-									ListedRoom lr = new ListedRoom();
-									lr.name = pieces[0];
-									lr.numUsers = int.Parse(pieces[1]);
-									m.rooms.Add(lr);
+									m.rooms.Add(new ListedRoom
+									{
+										name = pieces[0],
+										numUsers = int.Parse(pieces[1])
+									});
 								}
 							}
 
@@ -1069,8 +1072,23 @@ namespace VelNet
 		/// Joins a room by name
 		/// </summary>
 		/// <param name="roomName">The name of the room to join</param>
+		[Obsolete("Use JoinRoom() instead")]
 		public static void Join(string roomName)
 		{
+			JoinRoom(roomName);
+		}
+
+		/// <summary>
+		/// Joins a room by name
+		/// </summary>
+		/// <param name="roomName">The name of the room to join</param>
+		public static void JoinRoom(string roomName)
+		{
+			if (instance.userid == -1)
+			{
+				Debug.LogError("Joining room before logging in.", instance);
+				return;
+			}
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
 
@@ -1085,11 +1103,21 @@ namespace VelNet
 		/// <summary>
 		/// Leaves a room if we're in one
 		/// </summary>
+		[Obsolete("Use LeaveRoom() instead")]
 		public static void Leave()
+		{
+			LeaveRoom();
+		}
+
+
+		/// <summary>
+		/// Leaves a room if we're in one
+		/// </summary>
+		public static void LeaveRoom()
 		{
 			if (InRoom)
 			{
-				Join(""); // super secret way to leave
+				JoinRoom(""); // super secret way to leave
 			}
 		}
 
@@ -1200,6 +1228,11 @@ namespace VelNet
 			return NetworkInstantiate(prefabName);
 		}
 
+		/// <summary>
+		/// Instantiates a prefab for all players.
+		/// </summary>
+		/// <param name="prefabName">This prefab *must* by added to the list of prefabs in the scene's VelNetManager for all players.</param>
+		/// <returns>The NetworkObject for the instantiated object.</returns>
 		public static NetworkObject NetworkInstantiate(string prefabName)
 		{
 			VelNetPlayer localPlayer = LocalPlayer;
