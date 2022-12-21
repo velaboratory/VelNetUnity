@@ -3,7 +3,7 @@ name: Publish to Verdaccio
 on:
   push:
     branches:
-    - main
+    - upm
 
 jobs:
   publish-npm:
@@ -15,6 +15,6 @@ jobs:
           node-version: 16
           registry-url: http://npm.ugavel.com/
       - run: npm publish
-        working-directory: ./TestVelGameServer/Packages/VelNetUnity
+        working-directory: ./
         env:
           NODE_AUTH_TOKEN: ${{secrets.VERDACCIO_TOKEN}}

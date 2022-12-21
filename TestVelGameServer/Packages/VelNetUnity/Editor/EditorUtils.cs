@@ -17,30 +17,32 @@ namespace VelNet.Editor
 			Dictionary<int, NetworkObject> ids = new Dictionary<int, NetworkObject>();
 			foreach (NetworkObject o in objs)
 			{
+				SerializedObject so = new SerializedObject(o);
+				SerializedProperty sceneNetworkId = so.FindProperty("sceneNetworkId");
 				if (!o.isSceneObject) continue;
 
-				if (ids.ContainsKey(o.sceneNetworkId) || o.sceneNetworkId < 100)
+				if (ids.ContainsKey(sceneNetworkId.intValue) || sceneNetworkId.intValue < 100)
 				{
-					if (ids.ContainsKey(o.sceneNetworkId))
+					if (ids.ContainsKey(sceneNetworkId.intValue))
 					{
-						Debug.Log($"Found duplicated id: {o.name} {ids[o.sceneNetworkId].name}", o);
+						Debug.Log($"Found duplicated id: {o.name} {ids[sceneNetworkId.intValue].name}", o);
 					}
 					else
 					{
-						Debug.Log($"Found duplicated id: {o.name} {o.sceneNetworkId}", o);
+						Debug.Log($"Found duplicated id: {o.name} {sceneNetworkId.intValue}", o);
 					}
 
-					o.sceneNetworkId = 100;
-					while (ids.ContainsKey(o.sceneNetworkId))
+					sceneNetworkId.intValue = 100;
+					while (ids.ContainsKey(sceneNetworkId.intValue))
 					{
-						o.sceneNetworkId += 1;
+						sceneNetworkId.intValue += 1;
 					}
 
-					PrefabUtility.RecordPrefabInstancePropertyModifications(o);
+					so.ApplyModifiedProperties();
 					EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
 				}
 
-				ids.Add(o.sceneNetworkId, o);
+				ids.Add(sceneNetworkId.intValue, o);
 			}
 		}
 

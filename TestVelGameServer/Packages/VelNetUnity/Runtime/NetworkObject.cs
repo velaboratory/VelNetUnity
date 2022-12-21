@@ -89,7 +89,7 @@ namespace VelNet
 			return VelNetPlayer.SendMessage(this, componentByte, message, reliable);
 		}
 
-		
+
 		public bool SendBytesToGroup(NetworkComponent component, bool isRpc, string group, byte[] message, bool reliable = true)
 		{
 			// only needs to be owner if this isn't an RPC
@@ -169,15 +169,20 @@ namespace VelNet
 
 			if (GUILayout.Button("Find Network Components and add backreferences."))
 			{
-				NetworkComponent[] comps = t.GetComponentsInChildren<NetworkComponent>();
-				t.syncedComponents = comps.ToList();
-				foreach (NetworkComponent c in comps)
+				NetworkComponent[] components = t.GetComponentsInChildren<NetworkComponent>();
+				SerializedObject so = new SerializedObject(t);
+				SerializedProperty prop = so.FindProperty("syncedComponents");
+				prop.ClearArray();
+				foreach (NetworkComponent comp in components)
 				{
-					c.networkObject = t;
-					PrefabUtility.RecordPrefabInstancePropertyModifications(c);
+					prop.InsertArrayElementAtIndex(0);
+					prop.GetArrayElementAtIndex(0).objectReferenceValue = comp;
+					SerializedObject soComponent = new SerializedObject(comp);
+					soComponent.FindProperty("networkObject").objectReferenceValue = t;
+					soComponent.ApplyModifiedProperties();
 				}
 
-				PrefabUtility.RecordPrefabInstancePropertyModifications(t);
+				so.ApplyModifiedProperties();
 			}
 
 			// make the sceneNetworkId a new unique value
@@ -195,8 +200,10 @@ namespace VelNet
 					}
 				}
 
-				t.sceneNetworkId = available;
-				PrefabUtility.RecordPrefabInstancePropertyModifications(t);
+				SerializedObject so = new SerializedObject(t);
+				SerializedProperty prop = so.FindProperty("sceneNetworkId");
+				prop.intValue = available;
+				so.ApplyModifiedProperties();
 			}
 
 			EditorGUILayout.Space();
