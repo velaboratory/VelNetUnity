@@ -11,6 +11,7 @@ jobs:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
+        token: ${{ secrets.WORKFLOW_TOKEN }}
     - name: split upm branch
       run: |
         git subtree split -P "$PKG_ROOT" -b upm
