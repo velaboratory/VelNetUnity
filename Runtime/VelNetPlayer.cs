@@ -18,7 +18,7 @@ namespace VelNet
 		private VelNetManager manager;
 
 		/// <summary>
-		/// For instantiation
+		/// For instantiation. This is not synced across the network
 		/// </summary>
 		internal int lastObjectId;
 
@@ -41,12 +41,27 @@ namespace VelNet
 				{
 					if (kvp.Value.owner == this && kvp.Value.prefabName != "")
 					{
-						using MemoryStream mem = new MemoryStream();
-						using BinaryWriter writer = new BinaryWriter(mem);
-						writer.Write((byte)VelNetManager.MessageType.Instantiate);
-						writer.Write(kvp.Value.networkId);
-						writer.Write(kvp.Value.prefabName);
-						VelNetManager.SendToRoom(mem.ToArray(), false, true);
+						if (kvp.Value.instantiatedWithTransform)
+						{
+							using MemoryStream mem = new MemoryStream();
+							using BinaryWriter writer = new BinaryWriter(mem);
+							writer.Write((byte)VelNetManager.MessageType.InstantiateWithTransform);
+							writer.Write(kvp.Value.networkId);
+							writer.Write(kvp.Value.prefabName);
+							writer.Write(kvp.Value.initialPosition);
+							writer.Write(kvp.Value.initialRotation);
+							VelNetManager.SendToRoom(mem.ToArray(), false, true);
+						}
+						else
+						{
+							using MemoryStream mem = new MemoryStream();
+							using BinaryWriter writer = new BinaryWriter(mem);
+							writer.Write((byte)VelNetManager.MessageType.Instantiate);
+							writer.Write(kvp.Value.networkId);
+							writer.Write(kvp.Value.prefabName);
+							VelNetManager.SendToRoom(mem.ToArray(), false, true);	
+						}
+						
 					}
 				}
 
@@ -75,12 +90,12 @@ namespace VelNet
 			//individual message parameters separated by comma
 			VelNetManager.MessageType messageType = (VelNetManager.MessageType)reader.ReadByte();
 
-			if(messageType == VelNetManager.MessageType.Custom)
+			if (messageType == VelNetManager.MessageType.Custom)
 			{
 				// Custom packets. These are global data that can be sent from anywhere.
 				// Any script can subscribe to the callback to receive the message data.
 				// todo: strange hack that any player can handle the custom message, which then simply calls velnetmanager.  
-				
+
 				int len = reader.ReadInt32();
 				try
 				{
@@ -90,6 +105,7 @@ namespace VelNet
 				{
 					VelNetLogger.Error(e.ToString());
 				}
+
 				return;
 			}
 
@@ -103,7 +119,7 @@ namespace VelNet
 			{
 				// sync update for an object "I" may own
 				// "I" being the person sending
-				case VelNetManager.MessageType.ObjectSync: 
+				case VelNetManager.MessageType.ObjectSync:
 				{
 					string objectKey = reader.ReadString();
 					byte componentIdx = reader.ReadByte();
@@ -113,7 +129,7 @@ namespace VelNet
 					{
 						bool isRpc = (componentIdx & 1) == 1;
 						componentIdx = (byte)(componentIdx >> 1);
-						
+
 						// rpcs can be sent by non-owners
 						if (isRpc || manager.objects[objectKey].owner == this)
 						{
@@ -151,7 +167,22 @@ namespace VelNet
 						break; //we already have this one, ignore
 					}
 
-					VelNetManager.SomebodyInstantiatedNetworkObject(networkId, prefabName, this);
+					VelNetManager.ActuallyInstantiate(networkId, prefabName, this);
+
+					break;
+				}
+				case VelNetManager.MessageType.InstantiateWithTransform: // I'm trying to instantiate an object 
+				{
+					string networkId = reader.ReadString();
+					string prefabName = reader.ReadString();
+					Vector3 position = reader.ReadVector3();
+					Quaternion rotation = reader.ReadQuaternion();
+					if (manager.objects.ContainsKey(networkId))
+					{
+						break; //we already have this one, ignore
+					}
+
+					VelNetManager.ActuallyInstantiate(networkId, prefabName, this, position, rotation);
 
 					break;
 				}
@@ -170,7 +201,7 @@ namespace VelNet
 
 					break;
 				}
-				
+
 				default:
 					throw new ArgumentOutOfRangeException();
 			}
