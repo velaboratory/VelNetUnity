@@ -27,7 +27,15 @@ namespace VelNet
 		public string networkId;
 
 		/// <summary>
-		/// This is generated at editor time and used to generated the network id at runtime.
+		/// This is used internally to handle spawning of objects for players that joined late.
+		/// This way objects can be spawned in a static location
+		/// </summary>
+		internal bool instantiatedWithTransform = false;
+		internal Vector3 initialPosition;
+		internal Quaternion initialRotation;
+
+		/// <summary>
+		/// This is generated at editor time and used to generate the network id at runtime.
 		/// This is needed because finding all objects of type at runtime doesn't have a guaranteed order.
 		/// </summary>
 		public int sceneNetworkId;

@@ -51,6 +51,7 @@ namespace VelNet
 			ObjectSync,
 			TakeOwnership,
 			Instantiate,
+			InstantiateWithTransform,
 			Destroy,
 			DeleteSceneObjects,
 			Custom
@@ -1089,6 +1090,7 @@ namespace VelNet
 				Debug.LogError("Joining room before logging in.", instance);
 				return;
 			}
+
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
 
@@ -1235,36 +1237,15 @@ namespace VelNet
 		/// <returns>The NetworkObject for the instantiated object.</returns>
 		public static NetworkObject NetworkInstantiate(string prefabName)
 		{
-			VelNetPlayer localPlayer = LocalPlayer;
-			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
-			if (prefab == null)
-			{
-				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName + "\nMake sure to add the prefab to list of prefabs in VelNetManager");
-				return null;
-			}
-
-			string networkId = localPlayer.userid + "-" + localPlayer.lastObjectId++;
+			VelNetPlayer owner = LocalPlayer;
+			string networkId = AllocateNetworkId();
 			if (instance.objects.ContainsKey(networkId))
 			{
 				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.", instance.objects[networkId]);
 				return null;
 			}
 
-			NetworkObject newObject = Instantiate(prefab);
-			newObject.networkId = networkId;
-			newObject.prefabName = prefabName;
-			newObject.owner = localPlayer;
-			try
-			{
-				newObject.OwnershipChanged?.Invoke(localPlayer);
-			}
-			catch (Exception e)
-			{
-				VelNetLogger.Error("Error in event handling.\n" + e);
-			}
-
-			instance.objects.Add(newObject.networkId, newObject);
-
+			NetworkObject newObject = ActuallyInstantiate(networkId, prefabName, owner);
 
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
 			using MemoryStream mem = new MemoryStream();
@@ -1277,10 +1258,54 @@ namespace VelNet
 			return newObject;
 		}
 
-		public static void SomebodyInstantiatedNetworkObject(string networkId, string prefabName, VelNetPlayer owner)
+		/// <summary>
+		/// Instantiates a prefab for all players at a specific location
+		/// </summary>
+		/// <param name="prefabName">This prefab *must* by added to the list of prefabs in the scene's VelNetManager for all players.</param>
+		/// <param name="position"></param>
+		/// <param name="rotation"></param>
+		/// <returns>The NetworkObject for the instantiated object.</returns>
+		public static NetworkObject NetworkInstantiate(string prefabName, Vector3 position, Quaternion rotation)
+		{
+			VelNetPlayer owner = LocalPlayer;
+			string networkId = AllocateNetworkId();
+			if (instance.objects.ContainsKey(networkId))
+			{
+				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.", instance.objects[networkId]);
+				return null;
+			}
+
+			NetworkObject newObject = ActuallyInstantiate(networkId, prefabName, owner, position, rotation);
+
+			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.InstantiateWithTransform);
+			writer.Write(newObject.networkId);
+			writer.Write(prefabName);
+			writer.Write(position);
+			writer.Write(rotation);
+			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+
+			return newObject;
+		}
+
+		/// <summary>
+		/// This happens locally on all clients
+		/// </summary>
+		/// <param name="networkId"></param>
+		/// <param name="prefabName"></param>
+		/// <param name="owner"></param>
+		/// <returns></returns>
+		internal static NetworkObject ActuallyInstantiate(string networkId, string prefabName, VelNetPlayer owner)
 		{
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
-			if (prefab == null) return;
+			if (prefab == null)
+			{
+				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName + "\nMake sure to add the prefab to list of prefabs in VelNetManager");
+				return null;
+			}
+
 			NetworkObject newObject = Instantiate(prefab);
 			newObject.networkId = networkId;
 			newObject.prefabName = prefabName;
@@ -1295,6 +1320,42 @@ namespace VelNet
 			}
 
 			instance.objects.Add(newObject.networkId, newObject);
+			return newObject;
+		}
+
+
+		internal static NetworkObject ActuallyInstantiate(string networkId, string prefabName, VelNetPlayer owner, Vector3 position, Quaternion rotation)
+		{
+			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
+			if (prefab == null)
+			{
+				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName + "\nMake sure to add the prefab to list of prefabs in VelNetManager");
+				return null;
+			}
+
+			NetworkObject newObject = Instantiate(prefab, position, rotation);
+			newObject.instantiatedWithTransform = true;
+			newObject.initialPosition = position;
+			newObject.initialRotation = rotation;
+			newObject.networkId = networkId;
+			newObject.prefabName = prefabName;
+			newObject.owner = owner;
+			try
+			{
+				newObject.OwnershipChanged?.Invoke(owner);
+			}
+			catch (Exception e)
+			{
+				VelNetLogger.Error("Error in event handling.\n" + e);
+			}
+
+			instance.objects.Add(newObject.networkId, newObject);
+			return newObject;
+		}
+
+		private static string AllocateNetworkId()
+		{
+			return LocalPlayer.userid + "-" + LocalPlayer.lastObjectId++;
 		}
 
 		public static void NetworkDestroy(NetworkObject obj)
