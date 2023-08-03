@@ -750,6 +750,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f231c4fb786f3946a6b90b886c48677, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_SendPointerHoverToParent: 1
   m_HorizontalAxis: Horizontal
   m_VerticalAxis: Vertical
   m_SubmitButton: Submit
@@ -2599,6 +2600,7 @@ MonoBehaviour:
   prefabs:
   - {fileID: 9102273340480352682, guid: e07dfcf3af0e6ad438df1df54cd960a5, type: 3}
   - {fileID: 419466048389313174, guid: c0c7ee35b5be203468523c819c9da422, type: 3}
+  - {fileID: 419466048389313174, guid: ca24b76e2d421f7468d28a27a9858d29, type: 3}
   sceneObjects: []
   deletedSceneObjects: []
 --- !u!114 &1099803618

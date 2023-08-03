@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace VelNet
 {
-	public abstract class NetworkSerializedObjectStream : NetworkComponent
+	public abstract class NetworkSerializedObjectStream : NetworkComponent, IPackState
 	{
 		[Tooltip("Send rate of this object. This caps out at the framerate of the game.")]
 		public float serializationRateHz = 30;
@@ -40,7 +40,8 @@ namespace VelNet
 						byte[] newBytes = mem.ToArray();
 						if (hybridOnChangeCompression)
 						{
-							if (Time.timeAsDouble - lastSendTime > slowSendInterval || !BinaryWriterExtensions.BytesSame(lastSentBytes, newBytes))
+							if (Time.timeAsDouble - lastSendTime > slowSendInterval ||
+							    !BinaryWriterExtensions.BytesSame(lastSentBytes, newBytes))
 							{
 								SendBytes(newBytes);
 								lastSendTime = Time.timeAsDouble;
@@ -76,5 +77,21 @@ namespace VelNet
 		protected abstract void SendState(BinaryWriter binaryWriter);
 
 		protected abstract void ReceiveState(BinaryReader binaryReader);
+
+		public byte[] PackState()
+		{
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			SendState(writer);
+			return mem.ToArray();
+		}
+
+		public void UnpackState(byte[] state)
+		{
+			using MemoryStream mem = new MemoryStream(state);
+			using BinaryReader reader = new BinaryReader(mem);
+
+			ReceiveState(reader);
+		}
 	}
 }

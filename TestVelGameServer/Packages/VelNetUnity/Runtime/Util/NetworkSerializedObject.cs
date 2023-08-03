@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace VelNet
 {
-	public abstract class NetworkSerializedObject : NetworkComponent
+	public abstract class NetworkSerializedObject : NetworkComponent, IPackState
 	{
 		[Tooltip("Send rate of this object. This caps out at the framerate of the game.")]
 		public float serializationRateHz = 30;
@@ -67,5 +67,15 @@ namespace VelNet
 		protected abstract byte[] SendState();
 
 		protected abstract void ReceiveState(byte[] message);
+		
+		public byte[] PackState()
+		{
+			return SendState();
+		}
+
+		public void UnpackState(byte[] state)
+		{
+			ReceiveState(state);
+		}
 	}
 }

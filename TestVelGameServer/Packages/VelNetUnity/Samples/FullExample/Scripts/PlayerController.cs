@@ -10,11 +10,12 @@ namespace VelNet
 	{
 		private Renderer rend;
 		public Color color;
+		public NetworkObject spawnableObj;
 
 		protected void Start()
 		{
 			rend = GetComponent<MeshRenderer>();
-			
+
 			if (IsMine)
 			{
 				color = new Color(Random.Range(0, 1f), Random.Range(0, 1f), Random.Range(0, 1f));
@@ -35,7 +36,17 @@ namespace VelNet
 
 				if (Input.GetKeyDown(KeyCode.Space))
 				{
-					VelNetManager.NetworkInstantiate("TestNetworkedGameObject");
+					if (Input.GetKey(KeyCode.LeftShift))
+					{
+						for (int i = 0; i < 100; i++)
+						{
+							VelNetManager.NetworkInstantiate(spawnableObj);
+						}
+					}
+					else
+					{
+						VelNetManager.NetworkInstantiate(spawnableObj);
+					}
 				}
 
 				if (Input.GetKeyDown(KeyCode.BackQuote))

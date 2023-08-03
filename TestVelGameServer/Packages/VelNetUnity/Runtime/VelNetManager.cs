@@ -135,7 +135,11 @@ namespace VelNet
 		public readonly Dictionary<string, List<int>> groups = new Dictionary<string, List<int>>();
 
 		private VelNetPlayer masterPlayer;
-		public static VelNetPlayer LocalPlayer => instance != null ? instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault() : null;
+
+		public static VelNetPlayer LocalPlayer => instance != null
+			? instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault()
+			: null;
+
 		public static bool InRoom => LocalPlayer != null && LocalPlayer.room != "-1" && LocalPlayer.room != "";
 		public static string Room => LocalPlayer?.room;
 
@@ -309,7 +313,9 @@ namespace VelNet
 							if (autoLogin)
 							{
 								Login(
-									onlyConnectToSameVersion ? $"{Application.productName}_{Application.version}" : $"{Application.productName}",
+									onlyConnectToSameVersion
+										? $"{Application.productName}_{Application.version}"
+										: $"{Application.productName}",
 									Hash128.Compute(SystemInfo.deviceUniqueIdentifier).ToString()
 								);
 							}
@@ -526,8 +532,10 @@ namespace VelNet
 								}
 								else
 								{
-									masterPlayer = players.Aggregate((p1, p2) => p1.Value.userid.CompareTo(p2.Value.userid) > 0 ? p1 : p2).Value;
-									VelNetLogger.Error("Got an invalid master client id from the server. Using fallback.");
+									masterPlayer = players.Aggregate((p1, p2) =>
+										p1.Value.userid.CompareTo(p2.Value.userid) > 0 ? p1 : p2).Value;
+									VelNetLogger.Error(
+										"Got an invalid master client id from the server. Using fallback.");
 								}
 
 								// no master player yet, add the scene objects
@@ -536,7 +544,8 @@ namespace VelNet
 								{
 									if (sceneObjects[i].sceneNetworkId == 0)
 									{
-										VelNetLogger.Error("Scene Network ID is 0. Make sure to assign one first.", sceneObjects[i]);
+										VelNetLogger.Error("Scene Network ID is 0. Make sure to assign one first.",
+											sceneObjects[i]);
 									}
 
 									sceneObjects[i].networkId = -1 + "-" + sceneObjects[i].sceneNetworkId;
@@ -553,7 +562,8 @@ namespace VelNet
 
 									if (objects.ContainsKey(sceneObjects[i].networkId))
 									{
-										VelNetLogger.Error($"Duplicate NetworkID: {sceneObjects[i].networkId} {sceneObjects[i].name} {objects[sceneObjects[i].networkId]}");
+										VelNetLogger.Error(
+											$"Duplicate NetworkID: {sceneObjects[i].networkId} {sceneObjects[i].name} {objects[sceneObjects[i].networkId]}");
 									}
 									else
 									{
@@ -1123,7 +1133,8 @@ namespace VelNet
 			}
 		}
 
-		public static void SendCustomMessage(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
+		public static void SendCustomMessage(byte[] message, bool include_self = false, bool reliable = true,
+			bool ordered = false)
 		{
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);
@@ -1143,7 +1154,8 @@ namespace VelNet
 			SendToGroup(group, mem.ToArray(), reliable);
 		}
 
-		internal static bool SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
+		internal static bool SendToRoom(byte[] message, bool include_self = false, bool reliable = true,
+			bool ordered = false)
 		{
 			byte sendType = (byte)MessageSendType.MESSAGE_OTHERS;
 			if (include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_ALL_ORDERED;
@@ -1230,6 +1242,16 @@ namespace VelNet
 			return NetworkInstantiate(prefabName);
 		}
 
+		public static NetworkObject NetworkInstantiate(NetworkObject prefab)
+		{
+			if (instance.prefabs.Contains(prefab))
+			{
+				return NetworkInstantiate(prefab.name);
+			}
+
+			throw new ArgumentException("Can't instantiate object that isn't added to the network manager.");
+		}
+
 		/// <summary>
 		/// Instantiates a prefab for all players.
 		/// </summary>
@@ -1241,7 +1263,8 @@ namespace VelNet
 			string networkId = AllocateNetworkId();
 			if (instance.objects.ContainsKey(networkId))
 			{
-				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.", instance.objects[networkId]);
+				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
+					instance.objects[networkId]);
 				return null;
 			}
 
@@ -1271,7 +1294,8 @@ namespace VelNet
 			string networkId = AllocateNetworkId();
 			if (instance.objects.ContainsKey(networkId))
 			{
-				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.", instance.objects[networkId]);
+				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
+					instance.objects[networkId]);
 				return null;
 			}
 
@@ -1302,7 +1326,8 @@ namespace VelNet
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null)
 			{
-				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName + "\nMake sure to add the prefab to list of prefabs in VelNetManager");
+				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName +
+				                   "\nMake sure to add the prefab to list of prefabs in VelNetManager");
 				return null;
 			}
 
@@ -1324,12 +1349,14 @@ namespace VelNet
 		}
 
 
-		internal static NetworkObject ActuallyInstantiate(string networkId, string prefabName, VelNetPlayer owner, Vector3 position, Quaternion rotation)
+		internal static NetworkObject ActuallyInstantiate(string networkId, string prefabName, VelNetPlayer owner,
+			Vector3 position, Quaternion rotation)
 		{
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null)
 			{
-				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName + "\nMake sure to add the prefab to list of prefabs in VelNetManager");
+				VelNetLogger.Error("Couldn't find a prefab with that name: " + prefabName +
+				                   "\nMake sure to add the prefab to list of prefabs in VelNetManager");
 				return null;
 			}
 

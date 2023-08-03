@@ -175,6 +175,11 @@ namespace VelNet
 			EditorGUI.EndDisabledGroup();
 			EditorGUILayout.Space();
 
+			if (EditorApplication.isPlaying && GUILayout.Button("Take ownership now."))
+			{
+				t.TakeOwnership();
+			}
+
 			if (GUILayout.Button("Find Network Components and add backreferences."))
 			{
 				NetworkComponent[] components = t.GetComponentsInChildren<NetworkComponent>();
@@ -192,6 +197,8 @@ namespace VelNet
 
 				so.ApplyModifiedProperties();
 			}
+
+
 
 			// make the sceneNetworkId a new unique value
 			if (Application.isEditor && !Application.isPlaying && t.isSceneObject && t.sceneNetworkId == 0)
