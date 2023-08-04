@@ -1,10 +1,16 @@
 ---
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import LeftSidebar from "../components/LeftSidebar.astro";
+
 interface Props {
   title: string;
   description: string;
 }
 
 const { title, description } = Astro.props;
+const url = Astro.url;
+const currentPage = url.pathname;
 ---
 
 <!DOCTYPE html>
@@ -16,31 +22,78 @@ const { title, description } = Astro.props;
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
-    <link rel="stylesheet" href="/css/retro.css" />
+    <!-- <link rel="stylesheet" href="/css/theme.css" />
+    <link rel="stylesheet" href="/css/index.css" /> -->
+    <link rel="stylesheet" href="/css/pico.classless.min.css" />
   </head>
   <body>
-    <slot />
+    <!-- Header -->
+    <header>
+      <hgroup>
+        <h1>VelNet Unity</h1>
+        <h2>An open source networking library for Unity</h2>
+      </hgroup>
+    </header>
   </body>
+  <!-- ./ Header -->
+
+  <!-- Main -->
+  <main>
+    <grid>
+      <aside>
+        <LeftSidebar currentPage={currentPage} />
+      </aside>
+      <div>
+        <slot />
+      </div>
+    </grid>
+  </main>
+  <!-- ./ Main -->
+
+  <!-- Footer -->
+  <footer>
+    <small
+      >Built with <a href="https://picocss.com">Pico</a> •
+      <a
+        href="https://github.com/picocss/examples/blob/master/v1-classless/index.html"
+        >Source code</a
+      ></small
+    >
+  </footer>
+  <!-- ./ Footer -->
+
+  <!-- Minimal theme switcher -->
+  <!-- <script src="js/minimal-theme-switcher.js"></script> -->
 </html>
+
 <style is:global>
-  /* :root {
-    --accent: 136, 58, 234;
-    --accent-light: 224, 204, 250;
-    --accent-dark: 49, 10, 101;
-    --accent-gradient: linear-gradient(
-      45deg,
-      rgb(var(--accent)),
-      rgb(var(--accent-light)) 30%,
-      white 60%
-    );
+  /* Red Light scheme (Default) */
+  /* Can be forced with data-theme="light" */
+  [data-theme="light"],
+  :root:not([data-theme="dark"]) {
+    --primary: #e53935;
+    --primary-hover: #d32f2f;
+    --primary-focus: rgba(229, 57, 53, 0.125);
+    --primary-inverse: #fff;
   }
-  html {
-    font-family: system-ui, sans-serif;
-    background: #13151a;
-    background-size: 224px;
+
+  /* Red Dark scheme (Auto) */
+  /* Automatically enabled if user has Dark mode enabled */
+  @media only screen and (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      --primary: #e53935;
+      --primary-hover: #f44336;
+      --primary-focus: rgba(229, 57, 53, 0.25);
+      --primary-inverse: #fff;
+      --background-color: #222;
+    }
   }
-  code {
-    font-family: Menlo, Monaco, Lucida Console, Liberation Mono,
-      DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace;
-  } */
+
+  /* Red (Common styles) */
+  :root {
+    /* --form-element-active-border-color: var(--primary);
+    --form-element-focus-color: var(--primary-focus); */
+    --switch-color: var(--primary-inverse);
+    --switch-checked-background-color: var(--primary);
+  }
 </style>
