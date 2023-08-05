@@ -208,9 +208,9 @@ GameObject:
   - component: {fileID: 5845716565458182149}
   - component: {fileID: 9102273340480352682}
   - component: {fileID: 7564913803199044469}
-  - component: {fileID: 3931189231264197893}
   - component: {fileID: 1833529818468634519}
   - component: {fileID: 1058783918878763107}
+  - component: {fileID: 3933010506106872429}
   m_Layer: 0
   m_Name: PlayerPrefab
   m_TagString: TestSphere
@@ -340,19 +340,6 @@ MonoBehaviour:
   useLocalTransform: 0
   teleportDistance: 0
   teleportAngle: 0
---- !u!114 &3931189231264197893
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6139051692386484099}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 544bfd0908e09d141adb9828d99baa08, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  networkObject: {fileID: 9102273340480352682}
 --- !u!114 &1833529818468634519
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -466,6 +453,19 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &3933010506106872429
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6139051692386484099}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1006f76dad9c183459e79084f8c67539, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkObject: {fileID: 9102273340480352682}
 --- !u!1 &7360746642267561319
 GameObject:
   m_ObjectHideFlags: 0

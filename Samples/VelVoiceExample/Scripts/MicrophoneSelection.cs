@@ -12,12 +12,16 @@ namespace VelNet
 
 		private void Start()
 		{
+#if !UNITY_WEBGL && !UNITY_EDITOR
 			microphones.AddOptions(Microphone.devices.ToList());
+#endif
 		}
 
 		public void HandleMicrophoneSelection()
 		{
+#if !UNITY_WEBGL && !UNITY_EDITOR
 			velVoice.StartMicrophone(microphones.options[microphones.value].text);
+#endif
 		}
 	}
 }

@@ -9,13 +9,11 @@ namespace VelNet
 	[AddComponentMenu("VelNet/VelNet Sync Transform")]
 	public class SyncTransform : NetworkSerializedObjectStream
 	{
-		[Space]
-		public bool position = true;
+		[Space] public bool position = true;
 		public bool rotation = true;
 		[Tooltip("Scale is always local")] public bool scale;
 
-		[Space]
-		public bool useLocalTransform;
+		[Space] public bool useLocalTransform;
 
 		[Tooltip("0 to disable.")] public float teleportDistance;
 		[Tooltip("0 to disable.")] public float teleportAngle;
@@ -57,6 +55,7 @@ namespace VelNet
 				if (position) writer.Write(transform.position);
 				if (rotation) writer.Write(transform.rotation);
 			}
+
 			if (scale) writer.Write(transform.localScale);
 		}
 

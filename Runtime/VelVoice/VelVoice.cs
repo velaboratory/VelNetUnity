@@ -101,7 +101,9 @@ namespace VelNet.Voice
 		/// </summary>
 		public void StartMicrophone()
 		{
+#if !UNITY_WEBGL && !UNITY_EDITOR
 			StartMicrophone(Microphone.devices.FirstOrDefault());
+#endif
 		}
 
 		/// <summary>
@@ -110,6 +112,7 @@ namespace VelNet.Voice
 		/// <param name="micDeviceName">The device name of the microphone to record with</param>
 		public void StartMicrophone(string micDeviceName)
 		{
+#if !UNITY_WEBGL && !UNITY_EDITOR
 			Debug.Log("Starting with microphone: " + micDeviceName);
 			if (micDeviceName == null) return;
 			device = micDeviceName;
@@ -121,6 +124,7 @@ namespace VelNet.Voice
 			Debug.Log("Frequency:" + clip.frequency);
 			tempData = new float[clip.samples * clip.channels];
 			Debug.Log("channels: " + clip.channels);
+#endif
 		}
 
 		private void OnApplicationQuit()
@@ -149,8 +153,10 @@ namespace VelNet.Voice
 		// Update is called once per frame
 		private void Update()
 		{
+#if !UNITY_WEBGL && !UNITY_EDITOR
 			if (clip != null)
 			{
+				
 				int micPosition = Microphone.GetPosition(device);
 				if (micPosition == lastPosition)
 				{
@@ -238,6 +244,7 @@ namespace VelNet.Voice
 
 				sendQueue.Clear();
 			}
+#endif
 		}
 
 		public float[] DecodeOpusData(byte[] data, int count)
