@@ -19,8 +19,10 @@ namespace VelNet
 		// Start is called before the first frame update
 		private void Start()
 		{
+#if !UNITY_WEBGL && !UNITY_EDITOR
 			microphones.AddOptions(new List<string>(Microphone.devices));
 			HandleMicrophoneSelection();
+#endif
 		}
 
 		
