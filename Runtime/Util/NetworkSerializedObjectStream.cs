@@ -1,24 +1,26 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 
 namespace VelNet
 {
+	[Obsolete("Use SyncState instead")]
 	public abstract class NetworkSerializedObjectStream : NetworkComponent, IPackState
 	{
 		[Tooltip("Send rate of this object. This caps out at the framerate of the game.")]
 		public float serializationRateHz = 30;
 
 		/// <summary>
-		/// If the data hasn't changed, only sends updates across the network at 1Hz
+		/// If the data hasn't changed, only sends updates across the network at 0.5Hz
 		/// </summary>
 		public bool hybridOnChangeCompression = true;
 
 		private byte[] lastSentBytes;
 		private double lastSendTime;
 		private const double slowSendInterval = 2;
-
 
 		protected virtual void Awake()
 		{

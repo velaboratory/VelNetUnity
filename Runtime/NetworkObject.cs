@@ -31,6 +31,7 @@ namespace VelNet
 		/// This way objects can be spawned in a static location
 		/// </summary>
 		internal bool instantiatedWithTransform = false;
+
 		internal Vector3 initialPosition;
 		internal Quaternion initialRotation;
 
