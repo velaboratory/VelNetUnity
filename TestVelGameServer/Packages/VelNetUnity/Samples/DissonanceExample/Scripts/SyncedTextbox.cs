@@ -2,7 +2,7 @@ using System.IO;
 using UnityEngine.UI;
 using VelNet;
 
-public class SyncedTextbox : NetworkSerializedObjectStream
+public class SyncedTextbox : SyncState
 {
 	public InputField text;
 

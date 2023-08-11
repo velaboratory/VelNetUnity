@@ -7,7 +7,7 @@ namespace VelNet
 	/// A simple class that will sync the position and rotation of a network object
 	/// </summary>
 	[AddComponentMenu("VelNet/VelNet Sync Transform")]
-	public class SyncTransform : NetworkSerializedObjectStream
+	public class SyncTransform : SyncState
 	{
 		[Space] public bool position = true;
 		public bool rotation = true;

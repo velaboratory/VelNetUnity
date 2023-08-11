@@ -4,7 +4,7 @@ using System.IO;
 using UnityEngine;
 using VelNet;
 
-public class SyncedCustomObj : NetworkSerializedObjectStream
+public class SyncedCustomObj : SyncState
 {
 	private Renderer rend;
 	private Rigidbody rb;

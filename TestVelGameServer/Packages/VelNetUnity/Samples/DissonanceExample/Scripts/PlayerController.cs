@@ -6,7 +6,7 @@ using Random = UnityEngine.Random;
 
 namespace VelNet
 {
-	public class PlayerController : NetworkSerializedObjectStream
+	public class PlayerController : SyncState
 	{
 		private Renderer rend;
 		public Color color;

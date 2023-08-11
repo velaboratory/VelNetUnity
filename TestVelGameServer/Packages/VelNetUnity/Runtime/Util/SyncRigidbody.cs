@@ -10,7 +10,7 @@ namespace VelNet
 	/// </summary>
 	[AddComponentMenu("VelNet/VelNet Sync Rigidbody")]
 	[RequireComponent(typeof(Rigidbody))]
-	public class SyncRigidbody : NetworkSerializedObjectStream
+	public class SyncRigidbody : SyncState
 	{
 		public bool useLocalTransform;
 		public float minPosDelta = .01f;
