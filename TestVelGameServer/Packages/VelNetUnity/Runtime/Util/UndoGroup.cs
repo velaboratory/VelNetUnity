@@ -17,6 +17,7 @@ namespace VelNet
 
 		private readonly List<byte[][]> undoBuffer = new List<byte[][]>();
 		public int maxUndoSteps = 50;
+		public bool debugLog;
 
 
 		/// <summary>
@@ -32,6 +33,11 @@ namespace VelNet
 					objects[i].networkObject.TakeOwnership();
 					objects[i].UnpackState(lastStates[i]);
 				}
+				if (debugLog) Debug.Log($"Undo {objects.Count} objects");
+			}
+			else
+			{
+				if (debugLog) Debug.Log($"No more undo to undo");
 			}
 		}
 
@@ -45,10 +51,13 @@ namespace VelNet
 
 			undoBuffer.Add(states);
 
+			if (debugLog) Debug.Log($"Saved undo state");
 			while (undoBuffer.Count > maxUndoSteps)
 			{
 				undoBuffer.RemoveAt(0);
+				if (debugLog) Debug.Log($"Reached maximum undo history");
 			}
+			
 		}
 
 		public int UndoHistoryLength()
@@ -79,6 +88,11 @@ namespace VelNet
 			if (EditorApplication.isPlaying && GUILayout.Button("Save undo checkpoint now."))
 			{
 				t.SaveUndoState();
+			}
+
+			if (EditorApplication.isPlaying && GUILayout.Button("Undo now"))
+			{
+				t.Undo();
 			}
 
 			if (GUILayout.Button("Find all undoable components in children."))
