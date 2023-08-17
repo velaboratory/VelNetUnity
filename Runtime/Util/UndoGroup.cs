@@ -33,6 +33,8 @@ namespace VelNet
 					objects[i].networkObject.TakeOwnership();
 					objects[i].UnpackState(lastStates[i]);
 				}
+
+				undoBuffer.RemoveAt(undoBuffer.Count - 1);
 				if (debugLog) Debug.Log($"Undo {objects.Count} objects");
 			}
 			else
@@ -57,7 +59,6 @@ namespace VelNet
 				undoBuffer.RemoveAt(0);
 				if (debugLog) Debug.Log($"Reached maximum undo history");
 			}
-			
 		}
 
 		public int UndoHistoryLength()
@@ -65,7 +66,7 @@ namespace VelNet
 			return undoBuffer.Count;
 		}
 	}
-	
+
 #if UNITY_EDITOR
 	[CustomEditor(typeof(UndoGroup))]
 	public class UndoGroupEditor : Editor
