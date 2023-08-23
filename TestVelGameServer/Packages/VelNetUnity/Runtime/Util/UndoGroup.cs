@@ -21,7 +21,7 @@ namespace VelNet
 
 
 		/// <summary>
-		/// Reset to the last UndoState. This only takes ownership if the IPackState component is also a NetworkComponent
+		/// Reset to the last UndoState and remove the state from history. This only takes ownership if the IPackState component is also a NetworkComponent
 		/// </summary>
 		public void Undo()
 		{
@@ -36,6 +36,28 @@ namespace VelNet
 
 				undoBuffer.RemoveAt(undoBuffer.Count - 1);
 				if (debugLog) Debug.Log($"Undo {objects.Count} objects");
+			}
+			else
+			{
+				if (debugLog) Debug.Log($"No more undo to undo");
+			}
+		}
+
+		/// <summary>
+		/// Reset to the last UndoState. This only takes ownership if the IPackState component is also a NetworkComponent
+		/// </summary>
+		public void Revert()
+		{
+			byte[][] lastStates = undoBuffer.LastOrDefault();
+			if (lastStates != null)
+			{
+				for (int i = 0; i < objects.Count; i++)
+				{
+					objects[i].networkObject.TakeOwnership();
+					objects[i].UnpackState(lastStates[i]);
+				}
+
+				if (debugLog) Debug.Log($"Revert {objects.Count} objects");
 			}
 			else
 			{
