@@ -1,33 +1,50 @@
 site_name: VelNet Docs
+site_url: https://docs.velnet.ugavel.com
+repo_url: https://github.com/velaboratory/VelNetUnity
+repo_name: velaboratory/VelNetUnity
+edit_uri: edit/main/Documentation
+
 theme:
   name: material
+  features:
+    - content.action.edit
+    - navigation.instant
+    # - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - toc.follow
+    - toc.integrate
+
   palette:
     scheme: slate
     primary: custom
     accent: red
     # background: custom
-  font:
+  font: false
     # text: Oswald
     # text: Merriweather
-    text: Merriweather Sans
+    # text: Merriweather Sans
   logo: assets/logo.png
+  favicon: assets/logo.png
+
+plugins:
+  - search:
+  # - social:
+  #     cards_layout_options:
+  #       font_family: Oswald
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
 
 extra_css:
   - stylesheets/extra.css
-# theme:
-#   name: material
-#   palette:
-#     # Palette toggle for dark mode
-#     - scheme: custom
-#       media: "(prefers-color-scheme: dark)"
-#       # primary: custom
-#       toggle:
-#         icon: material/weather-sunny
-#         name: Switch to light mode
-
-#     # Palette toggle for light mode
-#     - scheme: default
-#       media: "(prefers-color-scheme: light)"
-#       toggle:
-#         icon: material/weather-night
-#         name: Switch to dark mode
