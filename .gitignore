@@ -1,3 +1,6 @@
 .DS_Store
 my.secrets
 .git.bfg-report/
+Documentation-old/
+env/
+Documentation/public/
