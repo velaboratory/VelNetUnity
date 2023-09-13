@@ -4,7 +4,7 @@ env:
 on:
   push:
     paths:
-      - $SUBFOLDER/**
+      - Documentation/**
 
 jobs:
   publish-docs:
