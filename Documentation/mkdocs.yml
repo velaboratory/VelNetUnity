@@ -2,7 +2,7 @@ site_name: VelNet Docs
 site_url: https://docs.velnet.ugavel.com
 repo_url: https://github.com/velaboratory/VelNetUnity
 repo_name: velaboratory/VelNetUnity
-edit_uri: edit/main/Documentation
+edit_uri: edit/main/Documentation/docs
 
 theme:
   name: material

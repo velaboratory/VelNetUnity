@@ -4,3 +4,4 @@ my.secrets
 Documentation-old/
 env/
 Documentation/public/
+node_modules/

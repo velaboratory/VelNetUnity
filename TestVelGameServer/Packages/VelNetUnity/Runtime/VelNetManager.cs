@@ -8,6 +8,7 @@ using UnityEngine;
 using System.Net;
 using UnityEngine.SceneManagement;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace VelNet
 {
@@ -119,6 +120,8 @@ namespace VelNet
 		public bool connected;
 		private bool wasConnected;
 		private double lastConnectionCheck;
+		private bool offlineMode;
+		private string offlineRoomName;
 
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
 		public NetworkObject[] sceneObjects;
@@ -316,7 +319,8 @@ namespace VelNet
 									onlyConnectToSameVersion
 										? $"{Application.productName}_{Application.version}"
 										: $"{Application.productName}",
-									Hash128.Compute(SystemInfo.deviceUniqueIdentifier).ToString()
+									Hash128.Compute(SystemInfo.deviceUniqueIdentifier + Application.productName)
+										.ToString()
 								);
 							}
 
@@ -742,137 +746,7 @@ namespace VelNet
 				AddMessage(new ConnectedMessage());
 				while (socketConnection.Connected)
 				{
-					//read a byte
-					int b = stream.ReadByte();
-					MessageReceivedType type = (MessageReceivedType)b;
-
-					switch (type)
-					{
-						//login
-						case MessageReceivedType.LOGGED_IN:
-						{
-							AddMessage(new LoginMessage
-							{
-								// not really the sender...
-								userId = GetIntFromBytes(ReadExact(stream, 4))
-							});
-							break;
-						}
-						//rooms
-						case MessageReceivedType.ROOM_LIST:
-						{
-							RoomsMessage m = new RoomsMessage();
-							m.rooms = new List<ListedRoom>();
-							int N = GetIntFromBytes(ReadExact(stream, 4)); //the size of the payload
-							byte[] utf8data = ReadExact(stream, N);
-							string roomMessage = Encoding.UTF8.GetString(utf8data);
-
-
-							string[] sections = roomMessage.Split(',');
-							foreach (string s in sections)
-							{
-								string[] pieces = s.Split(':');
-								if (pieces.Length == 2)
-								{
-									m.rooms.Add(new ListedRoom
-									{
-										name = pieces[0],
-										numUsers = int.Parse(pieces[1])
-									});
-								}
-							}
-
-							AddMessage(m);
-							break;
-						}
-						case MessageReceivedType.ROOM_DATA:
-						{
-							RoomDataMessage rdm = new RoomDataMessage();
-							int N = stream.ReadByte();
-							byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
-							string roomname = Encoding.UTF8.GetString(utf8data);
-
-							N = GetIntFromBytes(ReadExact(stream, 4)); //the number of client datas to read
-							rdm.room = roomname;
-							for (int i = 0; i < N; i++)
-							{
-								// client id + short string
-								int client_id = GetIntFromBytes(ReadExact(stream, 4));
-								int s = stream.ReadByte(); //size of string
-								utf8data = ReadExact(stream, s); //the username
-								string username = Encoding.UTF8.GetString(utf8data);
-								rdm.members.Add((client_id, username));
-							}
-
-							AddMessage(rdm);
-							break;
-						}
-						//joined
-						case MessageReceivedType.PLAYER_JOINED:
-						{
-							JoinMessage m = new JoinMessage();
-							m.userId = GetIntFromBytes(ReadExact(stream, 4));
-							int N = stream.ReadByte();
-							byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
-							m.room = Encoding.UTF8.GetString(utf8data);
-							AddMessage(m);
-							break;
-						}
-						//data
-						case MessageReceivedType.DATA_MESSAGE:
-						{
-							DataMessage m = new DataMessage();
-							m.senderId = GetIntFromBytes(ReadExact(stream, 4));
-							int N = GetIntFromBytes(ReadExact(stream, 4)); //the size of the payload
-							m.data = ReadExact(stream, N); //the message
-							AddMessage(m);
-							break;
-						}
-						// new master
-						case MessageReceivedType.MASTER_MESSAGE:
-						{
-							ChangeMasterMessage m = new ChangeMasterMessage();
-							m.masterId = GetIntFromBytes(ReadExact(stream, 4)); // sender is the new master
-							AddMessage(m);
-							break;
-						}
-
-						case MessageReceivedType.YOU_JOINED:
-						{
-							YouJoinedMessage m = new YouJoinedMessage();
-							int N = GetIntFromBytes(ReadExact(stream, 4));
-							m.playerIds = new List<int>();
-							for (int i = 0; i < N; i++)
-							{
-								m.playerIds.Add(GetIntFromBytes(ReadExact(stream, 4)));
-							}
-
-							N = stream.ReadByte();
-							byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
-							m.room = Encoding.UTF8.GetString(utf8data);
-							AddMessage(m);
-							break;
-						}
-						case MessageReceivedType.PLAYER_LEFT:
-						{
-							PlayerLeftMessage m = new PlayerLeftMessage();
-							m.userId = GetIntFromBytes(ReadExact(stream, 4));
-							int N = stream.ReadByte();
-							byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
-							m.room = Encoding.UTF8.GetString(utf8data);
-							AddMessage(m);
-							break;
-						}
-						case MessageReceivedType.YOU_LEFT:
-						{
-							YouLeftMessage m = new YouLeftMessage();
-							int N = stream.ReadByte();
-							byte[] utf8data = ReadExact(stream, N); //the room name, encoded as utf-8
-							m.room = Encoding.UTF8.GetString(utf8data);
-							AddMessage(m);
-							break;
-						}
-					}
+					HandleIncomingMessage(reader);
 				}
 			}
 			catch (ThreadAbortException)
@@ -882,6 +756,9 @@ namespace VelNet
 			catch (SocketException socketException)
 			{
 				VelNetLogger.Error("Socket exception: " + socketException);
+				VelNetLogger.Error("Switching to offline mode");
+				offlineMode = true;
+				AddMessage(new ConnectedMessage());
 			}
 			catch (Exception ex)
 			{
@@ -891,8 +768,145 @@ namespace VelNet
 			connected = false;
 		}
 
+		private void HandleIncomingMessage(BinaryReader reader)
+		{
+			MessageReceivedType type = (MessageReceivedType)reader.ReadByte();
+			Debug.Log(type);
+			switch (type)
+			{
+				//login
+				case MessageReceivedType.LOGGED_IN:
+				{
+					AddMessage(new LoginMessage
+					{
+						// not really the sender...
+						userId = GetIntFromBytes(reader.ReadBytes(4))
+					});
+					break;
+				}
+				//rooms
+				case MessageReceivedType.ROOM_LIST:
+				{
+					RoomsMessage m = new RoomsMessage();
+					m.rooms = new List<ListedRoom>();
+					int N = GetIntFromBytes(reader.ReadBytes(4)); //the size of the payload
+					byte[] utf8data = reader.ReadBytes(N);
+					string roomMessage = Encoding.UTF8.GetString(utf8data);
+
+					string[] sections = roomMessage.Split(',');
+					foreach (string s in sections)
+					{
+						string[] pieces = s.Split(':');
+						if (pieces.Length == 2)
+						{
+							m.rooms.Add(new ListedRoom
+							{
+								name = pieces[0],
+								numUsers = int.Parse(pieces[1])
+							});
+						}
+					}
+
+					AddMessage(m);
+					break;
+				}
+				case MessageReceivedType.ROOM_DATA:
+				{
+					RoomDataMessage rdm = new RoomDataMessage();
+					int N = reader.ReadByte();
+					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
+					string roomname = Encoding.UTF8.GetString(utf8data);
+
+					N = GetIntFromBytes(reader.ReadBytes(4)); //the number of client datas to read
+					rdm.room = roomname;
+					for (int i = 0; i < N; i++)
+					{
+						// client id + short string
+						int clientId = GetIntFromBytes(reader.ReadBytes(4));
+						int s = reader.ReadByte(); //size of string
+						utf8data = reader.ReadBytes(s); //the username
+						string username = Encoding.UTF8.GetString(utf8data);
+						rdm.members.Add((clientId, username));
+					}
+
+					AddMessage(rdm);
+					break;
+				}
+				//joined
+				case MessageReceivedType.PLAYER_JOINED:
+				{
+					JoinMessage m = new JoinMessage();
+					m.userId = GetIntFromBytes(reader.ReadBytes(4));
+					int N = reader.ReadByte();
+					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
+					m.room = Encoding.UTF8.GetString(utf8data);
+					AddMessage(m);
+					break;
+				}
+				//data
+				case MessageReceivedType.DATA_MESSAGE:
+				{
+					DataMessage m = new DataMessage();
+					m.senderId = GetIntFromBytes(reader.ReadBytes(4));
+					int N = GetIntFromBytes(reader.ReadBytes(4)); //the size of the payload
+					m.data = reader.ReadBytes(N); //the message
+					AddMessage(m);
+					break;
+				}
+				// new master
+				case MessageReceivedType.MASTER_MESSAGE:
+				{
+					ChangeMasterMessage m = new ChangeMasterMessage();
+					m.masterId = GetIntFromBytes(reader.ReadBytes(4)); // sender is the new master
+					AddMessage(m);
+					break;
+				}
+
+				case MessageReceivedType.YOU_JOINED:
+				{
+					YouJoinedMessage m = new YouJoinedMessage();
+					int N = GetIntFromBytes(reader.ReadBytes(4));
+					m.playerIds = new List<int>();
+					for (int i = 0; i < N; i++)
+					{
+						m.playerIds.Add(GetIntFromBytes(reader.ReadBytes(4)));
+					}
+
+					N = reader.ReadByte();
+					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
+					m.room = Encoding.UTF8.GetString(utf8data);
+					AddMessage(m);
+					break;
+				}
+				case MessageReceivedType.PLAYER_LEFT:
+				{
+					PlayerLeftMessage m = new PlayerLeftMessage();
+					m.userId = GetIntFromBytes(reader.ReadBytes(4));
+					int N = reader.ReadByte();
+					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
+					m.room = Encoding.UTF8.GetString(utf8data);
+					AddMessage(m);
+					break;
+				}
+				case MessageReceivedType.YOU_LEFT:
+				{
+					YouLeftMessage m = new YouLeftMessage();
+					int N = reader.ReadByte();
+					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
+					m.room = Encoding.UTF8.GetString(utf8data);
+					AddMessage(m);
+					break;
+				}
+				default:
+					VelNetLogger.Error("Unknown message type");
+					throw new ArgumentOutOfRangeException(nameof(type), type, null);
+			}
+		}
+
 		private void ListenForDataUDP()
 		{
+			if (offlineMode) return;
+
 			//I don't yet have a UDP connection
 			try
 			{
@@ -900,17 +914,14 @@ namespace VelNet
 				Debug.Assert(addresses.Length > 0);
 				RemoteEndPoint = new IPEndPoint(addresses[0], port);
 
-
-				udpSocket = new Socket(AddressFamily.InterNetwork,
-					SocketType.Dgram, ProtocolType.Udp);
-
+				udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
 				udpConnected = false;
 				byte[] buffer = new byte[1024];
 				while (true)
 				{
 					buffer[0] = 0;
-					Array.Copy(get_be_bytes(userid), 0, buffer, 1, 4);
+					Array.Copy(GetBigEndianBytes(userid), 0, buffer, 1, 4);
 					udpSocket.SendTo(buffer, 5, SocketFlags.None, RemoteEndPoint);
 
 					if (udpSocket.Available == 0)
@@ -981,6 +992,12 @@ namespace VelNet
 		/// <returns>True if the message successfully sent. False if it failed and we should quit</returns>
 		private static bool SendTcpMessage(byte[] message)
 		{
+			if (instance.offlineMode)
+			{
+				instance.FakeServer(message);
+				return true;
+			}
+
 			// Logging.Info("Sent: " + clientMessage);
 			if (instance.socketConnection == null)
 			{
@@ -1019,7 +1036,7 @@ namespace VelNet
 			return true;
 		}
 
-		private static byte[] get_be_bytes(int n)
+		private static byte[] GetBigEndianBytes(int n)
 		{
 			return BitConverter.GetBytes(n).Reverse().ToArray();
 		}
@@ -1104,10 +1121,10 @@ namespace VelNet
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
 
-			byte[] R = Encoding.UTF8.GetBytes(roomName);
+			byte[] roomBytes = Encoding.UTF8.GetBytes(roomName);
 			writer.Write((byte)MessageSendType.MESSAGE_JOINROOM);
-			writer.Write((byte)R.Length);
-			writer.Write(R);
+			writer.Write((byte)roomBytes.Length);
+			writer.Write(roomBytes);
 			SendTcpMessage(stream.ToArray());
 		}
 
@@ -1168,7 +1185,7 @@ namespace VelNet
 				MemoryStream mem = new MemoryStream();
 				BinaryWriter writer = new BinaryWriter(mem);
 				writer.Write(sendType);
-				writer.Write(get_be_bytes(message.Length));
+				writer.WriteBigEndian(message.Length);
 				writer.Write(message);
 				return SendTcpMessage(mem.ToArray());
 			}
@@ -1176,7 +1193,7 @@ namespace VelNet
 			{
 				//udp message needs the type
 				toSend[0] = sendType; //we don't 
-				Array.Copy(get_be_bytes(instance.userid), 0, toSend, 1, 4);
+				Array.Copy(GetBigEndianBytes(instance.userid), 0, toSend, 1, 4);
 				Array.Copy(message, 0, toSend, 5, message.Length);
 				SendUdpMessage(toSend, message.Length + 5); //shouldn't be over 1024...
 				return true;
@@ -1192,7 +1209,7 @@ namespace VelNet
 				MemoryStream stream = new MemoryStream();
 				BinaryWriter writer = new BinaryWriter(stream);
 				writer.Write((byte)MessageSendType.MESSAGE_GROUP);
-				writer.Write(get_be_bytes(message.Length));
+				writer.WriteBigEndian(message.Length);
 				writer.Write(message);
 				writer.Write((byte)utf8bytes.Length);
 				writer.Write(utf8bytes);
@@ -1201,7 +1218,7 @@ namespace VelNet
 			else
 			{
 				toSend[0] = (byte)MessageSendType.MESSAGE_GROUP;
-				Array.Copy(get_be_bytes(instance.userid), 0, toSend, 1, 4);
+				Array.Copy(GetBigEndianBytes(instance.userid), 0, toSend, 1, 4);
 				//also need to send the group
 				toSend[5] = (byte)utf8bytes.Length;
 				Array.Copy(utf8bytes, 0, toSend, 6, utf8bytes.Length);
@@ -1223,14 +1240,14 @@ namespace VelNet
 
 			MemoryStream stream = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(stream);
-			byte[] R = Encoding.UTF8.GetBytes(groupName);
+			byte[] groupNameBytes = Encoding.UTF8.GetBytes(groupName);
 			writer.Write((byte)6);
-			writer.Write((byte)R.Length);
-			writer.Write(R);
-			writer.Write(get_be_bytes(clientIds.Count * 4));
+			writer.Write((byte)groupNameBytes.Length);
+			writer.Write(groupNameBytes);
+			writer.WriteBigEndian(clientIds.Count * 4);
 			foreach (int c in clientIds)
 			{
-				writer.Write(get_be_bytes(c));
+				writer.WriteBigEndian(c);
 			}
 
 			SendTcpMessage(stream.ToArray());
@@ -1489,6 +1506,101 @@ namespace VelNet
 			SendToRoom(mem.ToArray(), false, true);
 
 			return true;
+		}
+
+		/// <summary>
+		/// Pretends to be the server and sends back the result to be handled. Only should be called in offline mode.
+		/// </summary>
+		/// <param name="message">The message that was meant to be sent to the server.</param>
+		private void FakeServer(byte[] message)
+		{
+			MemoryStream mem = new MemoryStream(message);
+			BinaryReader reader = new BinaryReader(mem);
+			MessageSendType messageType = (MessageSendType)reader.ReadByte();
+
+			MemoryStream outMem = new MemoryStream();
+			BinaryWriter outWriter = new BinaryWriter(outMem);
+
+			switch (messageType)
+			{
+				case MessageSendType.MESSAGE_OTHERS_ORDERED:
+					break;
+				case MessageSendType.MESSAGE_ALL_ORDERED:
+					break;
+				case MessageSendType.MESSAGE_LOGIN:
+					outWriter.Write((byte)MessageReceivedType.LOGGED_IN);
+					outWriter.WriteBigEndian(0);
+					break;
+				case MessageSendType.MESSAGE_GETROOMS:
+					outWriter.Write((byte)MessageReceivedType.ROOM_LIST);
+					outWriter.WriteBigEndian(0);
+					break;
+				case MessageSendType.MESSAGE_JOINROOM:
+				{
+					string roomName = Encoding.UTF8.GetString(reader.ReadBytes(reader.ReadByte()));
+
+					// if leaving a room
+					if (string.IsNullOrEmpty(roomName))
+					{
+						outWriter.Write((byte)MessageReceivedType.YOU_LEFT);
+						byte[] roomNameBytes = Encoding.UTF8.GetBytes(offlineRoomName);
+						outWriter.Write((byte)roomNameBytes.Length);
+						outWriter.Write(roomNameBytes);
+					}
+					else
+					{
+						outWriter.Write((byte)MessageReceivedType.YOU_JOINED);
+						outWriter.WriteBigEndian(1); // num players
+						outWriter.WriteBigEndian(0); // our userid
+						byte[] roomNameBytes = Encoding.UTF8.GetBytes(roomName);
+						outWriter.Write((byte)roomNameBytes.Length);
+						outWriter.Write(roomNameBytes);
+					}
+
+					offlineRoomName = roomName;
+					break;
+				}
+				case MessageSendType.MESSAGE_OTHERS:
+					break;
+				case MessageSendType.MESSAGE_ALL:
+					break;
+				case MessageSendType.MESSAGE_GROUP:
+					break;
+				case MessageSendType.MESSAGE_SETGROUP:
+					break;
+				case MessageSendType.MESSAGE_GETROOMDATA:
+				{
+					outWriter.Write((byte)MessageReceivedType.ROOM_DATA);
+					byte[] roomNameBytes = Encoding.UTF8.GetBytes("OFFLINE");
+					outWriter.Write((byte)roomNameBytes.Length);
+					outWriter.Write(roomNameBytes);
+					outWriter.WriteBigEndian(0);
+					break;
+				}
+				default:
+					throw new ArgumentOutOfRangeException();
+			}
+
+			outMem.Position = 0;
+			// if we run this in the same thread, then it is modifying the messages collection while iterating
+			Task.Run(() => { HandleIncomingMessage(new BinaryReader(outMem)); });
+		}
+	}
+
+	public static partial class BinaryWriterExtensions
+	{
+		public static void WriteBigEndian(this BinaryWriter writer, int value)
+		{
+			byte[] data = BitConverter.GetBytes(value);
+			Array.Reverse(data);
+			writer.Write(data);
+		}
+
+		public static int ReadBigEndian(this BinaryReader reader)
+		{
+			byte[] data = reader.ReadBytes(4);
+			Array.Reverse(data);
+			return BitConverter.ToInt32(data, 0);
 		}
 	}
 }
