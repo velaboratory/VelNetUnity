@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace VelNet
 {
-	public static class BinaryWriterExtensions
+	public static partial class BinaryWriterExtensions
 	{
 		#region Writers
 

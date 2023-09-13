@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System;
 using System.IO;
+using System.Text;
 using UnityEngine;
 
 namespace VelNet
@@ -82,12 +83,11 @@ namespace VelNet
 		///
 		/// The length of the byte[] for message is fixed according to the message type
 		/// </summary>
-		public void HandleMessage(VelNetManager.DataMessage m, bool unknown_sender = false)
+		public void HandleMessage(VelNetManager.DataMessage m, bool unknownSender = false)
 		{
 			using MemoryStream mem = new MemoryStream(m.data);
 			using BinaryReader reader = new BinaryReader(mem);
 
-			//individual message parameters separated by comma
 			VelNetManager.MessageType messageType = (VelNetManager.MessageType)reader.ReadByte();
 
 			if (messageType == VelNetManager.MessageType.Custom)
@@ -109,7 +109,7 @@ namespace VelNet
 				return;
 			}
 
-			if (unknown_sender)
+			if (unknownSender)
 			{
 				VelNetLogger.Error("Received non-custom message from player that doesn't exist ");
 				return;
