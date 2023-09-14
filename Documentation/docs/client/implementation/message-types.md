@@ -23,16 +23,16 @@ public enum MessageSendType
 ```
 ### MESSAGE_LOGIN = 0
 This message contains:
-- `byte` - The length of the deviceId string
-- `byte[]` - UTF8 encoding of the deviceId string
-- `byte` - The length of the appName string
-- `byte[]` - UTF8 encoding of the appName string
+ - `byte` - The length of the deviceId string
+ - `byte[]` - UTF8 encoding of the deviceId string
+ - `byte` - The length of the appName string
+ - `byte[]` - UTF8 encoding of the appName string
 ### MESSAGE_GETROOMS = 1
 This message contains no data, just the single-byte header.
 ### MESSAGE_JOINROOM = 2
 This message contains:
-- `byte` - The length of the roomName string
-- `byte[]` - UTF8 encoding of the roomName string
+ - `byte` - The length of the roomName string
+ - `byte[]` - UTF8 encoding of the roomName string
 ### MESSAGE_OTHERS = 3
 ### MESSAGE_ALL = 4
 ### MESSAGE_GROUP = 5
@@ -58,63 +58,63 @@ public enum MessageReceivedType
 ```
 ### LOGGED_IN = 0
 This message contains:
-- `int` - The userid given by the server to this user.
+ - `int` - The userid given by the server to this user.
 ### ROOM_LIST = 1
 This message contains:
-- `int` - The length of the room mesesage string. This is an int instead of a byte because of the possible string length with many rooms.
-- `byte[]` - A UTF8-encoded string for the room message
-  - This string is encoded as a comma-separated list of rooms, with the format `name:numUsers` for each room.
-  - e.g. `Common_1:0:3,Auditorium_123:0,room1:10`
+ - `int` - The length of the room mesesage string. This is an int instead of a byte because of the possible string length with many rooms.
+ - `byte[]` - A UTF8-encoded string for the room message
+   - This string is encoded as a comma-separated list of rooms, with the format `name:numUsers` for each room.
+   - e.g. `Common_1:0:3,Auditorium_123:0,room1:10`
 ### PLAYER_JOINED = 2
 This message contains:
-- `int` - The userid of the player that joined
-- `byte` - The length of the room name string
-- `byte[]` - A UTF8-encoded string for the room name
+ - `int` - The userid of the player that joined
+ - `byte` - The length of the room name string
+ - `byte[]` - A UTF8-encoded string for the room name
 ### DATA_MESSAGE = 3
 This message contains:
-- `int` - The userid of the player that sent this message
-- `int` - The size of the payload
-- `byte[]` - The message data
-  - Decoding the actual message data is handled in `VelNetPlayer.cs`
-  - Within DATA_MESSAGE messages, there is an additonal type header:
-    ```cs
-    public enum MessageType : byte
-    {
-        ObjectSync,
-        TakeOwnership,
-        Instantiate,
-        InstantiateWithTransform,
-        Destroy,
-        DeleteSceneObjects,
-        Custom
-    }
-    ```
+ - `int` - The userid of the player that sent this message
+ - `int` - The size of the payload
+ - `byte[]` - The message data
+   - Decoding the actual message data is handled in `VelNetPlayer.cs`
+   - Within DATA_MESSAGE messages, there is an additonal type header:
+     ```cs
+     public enum MessageType : byte
+     {
+         ObjectSync,
+         TakeOwnership,
+         Instantiate,
+         InstantiateWithTransform,
+         Destroy,
+         DeleteSceneObjects,
+         Custom
+     }
+     ```
 ### MASTER_MESSAGE = 4
 This message contains:
-- `int` - The new master client id. The sender of this message is the master.
+ - `int` - The new master client id. The sender of this message is the master.
 ### YOU_JOINED = 5
 This is returned after you join a room.
 This message contains:
-- `int` - The number of players in the room
-- For each player:
-  - `int` - The player's userid
-- `byte` - The length of the room name string
-- `byte[]` - A UTF8-encoded string for the room name
+ - `int` - The number of players in the room
+ - For each player:
+   - `int` - The player's userid
+ - `byte` - The length of the room name string
+ - `byte[]` - A UTF8-encoded string for the room name
 ### PLAYER_LEFT = 6
 This message contains:
-- `int` - The player's userid
-- `byte` - The length of the room name string
-- `byte[]` - A UTF8-encoded string for the room name
+ - `int` - The player's userid
+ - `byte` - The length of the room name string
+ - `byte[]` - A UTF8-encoded string for the room name
 ### YOU_LEFT = 7
 This message contains:
-- `byte` - The length of the room name string
-- `byte[]` - A UTF8-encoded string for the room name
+ - `byte` - The length of the room name string
+ - `byte[]` - A UTF8-encoded string for the room name
 ### ROOM_DATA = 8
 This message contains:
-- `byte` - The length of the room name string
-- `byte[]` - A UTF8-encoded string for the room name
-- `int` - The number of client data blocks to read
-- For each client data block:
-  - `int` - The userid of this client
-  - `byte` - The length of the username string
-  - `byte[]` - A UTF8-encoded string for the username
+ - `byte` - The length of the room name string
+ - `byte[]` - A UTF8-encoded string for the room name
+ - `int` - The number of client data blocks to read
+ - For each client data block:
+   - `int` - The userid of this client
+   - `byte` - The length of the username string
+   - `byte[]` - A UTF8-encoded string for the username
