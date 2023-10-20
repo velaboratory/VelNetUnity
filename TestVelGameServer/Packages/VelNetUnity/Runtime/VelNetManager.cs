@@ -771,7 +771,6 @@ namespace VelNet
 		private void HandleIncomingMessage(BinaryReader reader)
 		{
 			MessageReceivedType type = (MessageReceivedType)reader.ReadByte();
-			Debug.Log(type);
 			switch (type)
 			{
 				//login

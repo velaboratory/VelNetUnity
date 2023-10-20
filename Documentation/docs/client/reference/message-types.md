@@ -89,9 +89,13 @@ This message contains:
          Custom
      }
      ```
+
 ### MASTER_MESSAGE = 4
+
 This message contains:
+
  - `int` - The new master client id. The sender of this message is the master.
+
 ### YOU_JOINED = 5
 This is returned after you join a room.
 This message contains:
@@ -101,14 +105,18 @@ This message contains:
  - `byte` - The length of the room name string
  - `byte[]` - A UTF8-encoded string for the room name
 ### PLAYER_LEFT = 6
+
 This message contains:
+
  - `int` - The player's userid
  - `byte` - The length of the room name string
  - `byte[]` - A UTF8-encoded string for the room name
+
 ### YOU_LEFT = 7
 This message contains:
  - `byte` - The length of the room name string
  - `byte[]` - A UTF8-encoded string for the room name
+
 ### ROOM_DATA = 8
 This message contains:
  - `byte` - The length of the room name string
