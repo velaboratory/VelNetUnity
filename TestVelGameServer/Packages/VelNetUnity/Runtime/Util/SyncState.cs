@@ -97,5 +97,10 @@ namespace VelNet
 			readerMemory.Position = 0;
 			ReceiveState(reader);
 		}
+
+		public void ForceSync()
+		{
+			SendBytes(PackState());
+		}
 	}
 }

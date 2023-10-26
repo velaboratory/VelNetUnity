@@ -35,34 +35,22 @@ namespace VelNet
 
 		public void HandlePlayerJoined(VelNetPlayer player, bool alreadyInRoom)
 		{
-			//if this is the local player, go through the objects that I own, and send instantiation messages for the ones that have prefab names
+			// if this is the local player, go through the objects that I own, and send instantiation messages for the ones that have prefab names
 			if (isLocal)
 			{
 				foreach (KeyValuePair<string, NetworkObject> kvp in manager.objects)
 				{
 					if (kvp.Value.owner == this && kvp.Value.prefabName != "")
 					{
-						if (kvp.Value.instantiatedWithTransform)
-						{
-							using MemoryStream mem = new MemoryStream();
-							using BinaryWriter writer = new BinaryWriter(mem);
-							writer.Write((byte)VelNetManager.MessageType.InstantiateWithTransform);
-							writer.Write(kvp.Value.networkId);
-							writer.Write(kvp.Value.prefabName);
-							writer.Write(kvp.Value.initialPosition);
-							writer.Write(kvp.Value.initialRotation);
-							VelNetManager.SendToRoom(mem.ToArray(), false, true);
-						}
-						else
-						{
-							using MemoryStream mem = new MemoryStream();
-							using BinaryWriter writer = new BinaryWriter(mem);
-							writer.Write((byte)VelNetManager.MessageType.Instantiate);
-							writer.Write(kvp.Value.networkId);
-							writer.Write(kvp.Value.prefabName);
-							VelNetManager.SendToRoom(mem.ToArray(), false, true);	
-						}
-						
+						using MemoryStream mem = new MemoryStream();
+						using BinaryWriter writer = new BinaryWriter(mem);
+						writer.Write((byte)VelNetManager.MessageType.InstantiateWithState);
+						writer.Write(kvp.Value.networkId);
+						writer.Write(kvp.Value.prefabName);
+						kvp.Value.PackState(writer);
+
+						// TODO this sends to everybody in the room, not just the new guy
+						VelNetManager.SendToRoom(mem.ToArray(), false, true);
 					}
 				}
 
@@ -186,6 +174,19 @@ namespace VelNet
 
 					break;
 				}
+				case VelNetManager.MessageType.InstantiateWithState: // I'm trying to instantiate an object 
+				{
+					string networkId = reader.ReadString();
+					string prefabName = reader.ReadString();
+					if (manager.objects.ContainsKey(networkId))
+					{
+						break; // we already have this one, ignore
+					}
+
+					NetworkObject networkObject = VelNetManager.ActuallyInstantiate(networkId, prefabName, this);
+					networkObject.UnpackState(reader);
+					break;
+				}
 				case VelNetManager.MessageType.Destroy: // I'm trying to destroy a gameobject I own
 				{
 					VelNetManager.SomebodyDestroyedNetworkObject(reader.ReadString());
@@ -214,7 +215,8 @@ namespace VelNet
 			//FindObjectsOfType<NetworkObject>();
 		}
 
-		public static bool SendGroupMessage(NetworkObject obj, string group, byte componentIdx, byte[] data, bool reliable = true)
+		public static bool SendGroupMessage(NetworkObject obj, string group, byte componentIdx, byte[] data,
+			bool reliable = true)
 		{
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);

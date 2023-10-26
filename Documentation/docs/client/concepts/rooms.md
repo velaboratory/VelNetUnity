@@ -1,0 +1,3 @@
+Rooms are joined by entering any string into `JoinRoom()`. This lets you set up a variety of organizational schemes to match rooms to scenes, or "servers", or even password-protected rooms by concatenating additional data into the room name.
+
+For example, you could set up an application to always switch VelNet rooms when switching Unity scenes by using the name of the scene file as the room name, but also append a "server id" to the end of the room name. That way you can have multiple instances of the same scene in parallel with different people in them.

@@ -14,7 +14,7 @@ VelNet consists of two main parts, [VelNet Server](/server) and [VelNetUnity](/c
 
 ## Installation
 
-1. Set up the [server](/server), or use the default server at `velnet-example.ugavel.com`
+1. Set up the [server](/server), or use the default server at `velnet-demo.ugavel.com`
 
 - Install the UPM package in Unity:
 
@@ -27,7 +27,7 @@ VelNet consists of two main parts, [VelNet Server](/server) and [VelNetUnity](/c
     - In Unity, go to `Edit->Project Settings...->Package Manager`
     - Under "Scoped Registries" click the + icon
     - Add the following details, then click Apply
-        - Name: `VEL`
+        - Name: `VEL` (or anything you want)
         - URL: `https://npm.ugavel.com`
         - Scope(s): `edu.uga.engr.vel`
     - Install the package:

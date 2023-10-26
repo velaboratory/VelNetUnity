@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "name": "Serve Docs",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "mkdocs serve"
+        }
+    ]
+}
