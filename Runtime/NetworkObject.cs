@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
 #if UNITY_EDITOR
@@ -49,6 +50,9 @@ namespace VelNet
 
 		public bool isSceneObject;
 
+		/// <summary>
+		/// This can't change at runtime
+		/// </summary>
 		public List<NetworkComponent> syncedComponents;
 
 		/// <summary>
@@ -144,6 +148,33 @@ namespace VelNet
 			catch (Exception e)
 			{
 				Debug.LogError($"Error in handling message:\n{e}", this);
+			}
+		}
+
+		public void PackState(BinaryWriter writer)
+		{
+			foreach (NetworkComponent component in syncedComponents)
+			{
+				IPackState packState = component.GetComponent<IPackState>();
+				if (packState != null)
+				{
+					byte[] state = packState.PackState();
+					writer.Write(state.Length);
+					writer.Write(state);
+				}
+			}
+		}
+
+		public void UnpackState(BinaryReader reader)
+		{
+			foreach (NetworkComponent networkObjectSyncedComponent in syncedComponents)
+			{
+				IPackState packState = networkObjectSyncedComponent.GetComponent<IPackState>();
+				if (packState != null)
+				{
+					int length = reader.ReadInt32();
+					packState.UnpackState(reader.ReadBytes(length));
+				}
 			}
 		}
 

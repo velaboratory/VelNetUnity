@@ -53,6 +53,7 @@ namespace VelNet
 			TakeOwnership,
 			Instantiate,
 			InstantiateWithTransform,
+			InstantiateWithState,
 			Destroy,
 			DeleteSceneObjects,
 			Custom
@@ -1325,6 +1326,41 @@ namespace VelNet
 			writer.Write(prefabName);
 			writer.Write(position);
 			writer.Write(rotation);
+			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+
+			return newObject;
+		}
+
+		/// <summary>
+		/// Instantiates a prefab for all players at a specific location
+		/// </summary>
+		/// <param name="prefabName">This prefab *must* by added to the list of prefabs in the scene's VelNetManager for all players.</param>
+		/// <param name="initialState">See NetworkObject.PackState for implementation format</param>
+		/// <returns>The NetworkObject for the instantiated object.</returns>
+		public static NetworkObject NetworkInstantiate(string prefabName, byte[] initialState)
+		{
+			VelNetPlayer owner = LocalPlayer;
+			string networkId = AllocateNetworkId();
+			if (instance.objects.ContainsKey(networkId))
+			{
+				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
+					instance.objects[networkId]);
+				return null;
+			}
+
+			NetworkObject newObject = ActuallyInstantiate(networkId, prefabName, owner);
+			
+			using MemoryStream initialStateMem = new MemoryStream(initialState);
+			using BinaryReader reader = new BinaryReader(initialStateMem);
+			newObject.UnpackState(reader);
+
+			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.InstantiateWithState);
+			writer.Write(newObject.networkId);
+			writer.Write(prefabName);
+			writer.Write(initialState);
 			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
 
 			return newObject;
