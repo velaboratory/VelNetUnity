@@ -59,6 +59,15 @@ namespace VelNet
 					//send a list of scene object ids when someone joins
 					SendSceneUpdate();
 				}
+				
+				// tell everybody that I own this object
+				foreach (NetworkObject obj in manager.sceneObjects)
+				{
+					if (obj.IsMine)
+					{
+						obj.TakeOwnership();
+					}
+				}
 			}
 		}
 
