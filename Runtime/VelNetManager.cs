@@ -1333,7 +1333,7 @@ namespace VelNet
 
 		public static NetworkObject NetworkInstantiate(NetworkObject prefab)
 		{
-			if (instance.prefabs.Contains(prefab))
+			if (instance.prefabs.Find(p => p.name == prefab.name) != null)
 			{
 				return NetworkInstantiate(prefab.name);
 			}
