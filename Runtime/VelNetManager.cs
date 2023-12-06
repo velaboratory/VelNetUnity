@@ -777,124 +777,196 @@ namespace VelNet
 				//login
 				case MessageReceivedType.LOGGED_IN:
 				{
-					AddMessage(new LoginMessage
+					try
 					{
-						// not really the sender...
-						userId = GetIntFromBytes(reader.ReadBytes(4))
-					});
+						AddMessage(new LoginMessage
+						{
+							// not really the sender...
+							userId = GetIntFromBytes(reader.ReadBytes(4))
+						});
+					}
+					catch (EndOfStreamException e)
+					{
+						VelNetLogger.Error($"Error while handling {type} message:\n{e}");
+					}
+
 					break;
 				}
 				//rooms
 				case MessageReceivedType.ROOM_LIST:
 				{
-					RoomsMessage m = new RoomsMessage();
-					m.rooms = new List<ListedRoom>();
-					int N = GetIntFromBytes(reader.ReadBytes(4)); //the size of the payload
-					byte[] utf8data = reader.ReadBytes(N);
-					string roomMessage = Encoding.UTF8.GetString(utf8data);
-
-					string[] sections = roomMessage.Split(',');
-					foreach (string s in sections)
+					try
 					{
-						string[] pieces = s.Split(':');
-						if (pieces.Length == 2)
+						RoomsMessage m = new RoomsMessage();
+						m.rooms = new List<ListedRoom>();
+						int n = GetIntFromBytes(reader.ReadBytes(4)); //the size of the payload
+						byte[] utf8data = reader.ReadBytes(n);
+						string roomMessage = Encoding.UTF8.GetString(utf8data);
+
+						string[] sections = roomMessage.Split(',');
+						foreach (string s in sections)
 						{
-							m.rooms.Add(new ListedRoom
+							string[] pieces = s.Split(':');
+							if (pieces.Length == 2)
 							{
-								name = pieces[0],
-								numUsers = int.Parse(pieces[1])
-							});
+								m.rooms.Add(new ListedRoom
+								{
+									name = pieces[0],
+									numUsers = int.Parse(pieces[1])
+								});
+							}
 						}
+
+						AddMessage(m);
+					}
+					catch (EndOfStreamException e)
+					{
+						VelNetLogger.Error($"Error while handling {type} message:\n{e}");
 					}
 
-					AddMessage(m);
 					break;
 				}
 				case MessageReceivedType.ROOM_DATA:
 				{
-					RoomDataMessage rdm = new RoomDataMessage();
-					int N = reader.ReadByte();
-					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
-					string roomname = Encoding.UTF8.GetString(utf8data);
-
-					N = GetIntFromBytes(reader.ReadBytes(4)); //the number of client datas to read
-					rdm.room = roomname;
-					for (int i = 0; i < N; i++)
+					try
 					{
-						// client id + short string
-						int clientId = GetIntFromBytes(reader.ReadBytes(4));
-						int s = reader.ReadByte(); //size of string
-						utf8data = reader.ReadBytes(s); //the username
-						string username = Encoding.UTF8.GetString(utf8data);
-						rdm.members.Add((clientId, username));
+						RoomDataMessage rdm = new RoomDataMessage();
+						int n = reader.ReadByte();
+						byte[] utf8data = reader.ReadBytes(n); //the room name, encoded as utf-8
+						string roomname = Encoding.UTF8.GetString(utf8data);
+
+						n = GetIntFromBytes(reader.ReadBytes(4)); //the number of client datas to read
+						rdm.room = roomname;
+						for (int i = 0; i < n; i++)
+						{
+							// client id + short string
+							int clientId = GetIntFromBytes(reader.ReadBytes(4));
+							int s = reader.ReadByte(); //size of string
+							utf8data = reader.ReadBytes(s); //the username
+							string username = Encoding.UTF8.GetString(utf8data);
+							rdm.members.Add((clientId, username));
+						}
+
+						AddMessage(rdm);
+					}
+					catch (EndOfStreamException e)
+					{
+						VelNetLogger.Error($"Error while handling {type} message:\n{e}");
 					}
 
-					AddMessage(rdm);
 					break;
 				}
 				//joined
 				case MessageReceivedType.PLAYER_JOINED:
 				{
-					JoinMessage m = new JoinMessage();
-					m.userId = GetIntFromBytes(reader.ReadBytes(4));
-					int N = reader.ReadByte();
-					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
-					m.room = Encoding.UTF8.GetString(utf8data);
-					AddMessage(m);
+					try
+					{
+						JoinMessage m = new JoinMessage();
+						m.userId = GetIntFromBytes(reader.ReadBytes(4));
+						int n = reader.ReadByte();
+						byte[] utf8data = reader.ReadBytes(n); //the room name, encoded as utf-8
+						m.room = Encoding.UTF8.GetString(utf8data);
+						AddMessage(m);
+					}
+					catch (EndOfStreamException e)
+					{
+						VelNetLogger.Error($"Error while handling {type} message:\n{e}");
+					}
+
 					break;
 				}
 				//data
 				case MessageReceivedType.DATA_MESSAGE:
 				{
-					DataMessage m = new DataMessage();
-					m.senderId = GetIntFromBytes(reader.ReadBytes(4));
-					int N = GetIntFromBytes(reader.ReadBytes(4)); //the size of the payload
-					m.data = reader.ReadBytes(N); //the message
-					AddMessage(m);
+					try
+					{
+						DataMessage m = new DataMessage();
+						m.senderId = GetIntFromBytes(reader.ReadBytes(4));
+						int n = GetIntFromBytes(reader.ReadBytes(4)); //the size of the payload
+						m.data = reader.ReadBytes(n); //the message
+						AddMessage(m);
+					}
+					catch (EndOfStreamException e)
+					{
+						VelNetLogger.Error($"Error while handling {type} message:\n{e}");
+					}
+
 					break;
 				}
 				// new master
 				case MessageReceivedType.MASTER_MESSAGE:
 				{
-					ChangeMasterMessage m = new ChangeMasterMessage();
-					m.masterId = GetIntFromBytes(reader.ReadBytes(4)); // sender is the new master
-					AddMessage(m);
+					try
+					{
+						ChangeMasterMessage m = new ChangeMasterMessage();
+						m.masterId = GetIntFromBytes(reader.ReadBytes(4)); // sender is the new master
+						AddMessage(m);
+					}
+					catch (EndOfStreamException e)
+					{
+						VelNetLogger.Error($"Error while handling {type} message:\n{e}");
+					}
+
 					break;
 				}
 
 				case MessageReceivedType.YOU_JOINED:
 				{
-					YouJoinedMessage m = new YouJoinedMessage();
-					int N = GetIntFromBytes(reader.ReadBytes(4));
-					m.playerIds = new List<int>();
-					for (int i = 0; i < N; i++)
+					try
 					{
-						m.playerIds.Add(GetIntFromBytes(reader.ReadBytes(4)));
+						YouJoinedMessage m = new YouJoinedMessage();
+						int n = GetIntFromBytes(reader.ReadBytes(4));
+						m.playerIds = new List<int>();
+						for (int i = 0; i < n; i++)
+						{
+							m.playerIds.Add(GetIntFromBytes(reader.ReadBytes(4)));
+						}
+
+						n = reader.ReadByte();
+						byte[] utf8data = reader.ReadBytes(n); //the room name, encoded as utf-8
+						m.room = Encoding.UTF8.GetString(utf8data);
+						AddMessage(m);
+					}
+					catch (EndOfStreamException e)
+					{
+						VelNetLogger.Error($"Error while handling {type} message:\n{e}");
 					}
 
-					N = reader.ReadByte();
-					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
-					m.room = Encoding.UTF8.GetString(utf8data);
-					AddMessage(m);
 					break;
 				}
 				case MessageReceivedType.PLAYER_LEFT:
 				{
-					PlayerLeftMessage m = new PlayerLeftMessage();
-					m.userId = GetIntFromBytes(reader.ReadBytes(4));
-					int N = reader.ReadByte();
-					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
-					m.room = Encoding.UTF8.GetString(utf8data);
-					AddMessage(m);
+					try
+					{
+						PlayerLeftMessage m = new PlayerLeftMessage();
+						m.userId = GetIntFromBytes(reader.ReadBytes(4));
+						int n = reader.ReadByte();
+						byte[] utf8data = reader.ReadBytes(n); //the room name, encoded as utf-8
+						m.room = Encoding.UTF8.GetString(utf8data);
+						AddMessage(m);
+					}
+					catch (EndOfStreamException e)
+					{
+						VelNetLogger.Error($"Error while handling {type} message:\n{e}");
+					}
+
 					break;
 				}
 				case MessageReceivedType.YOU_LEFT:
 				{
-					YouLeftMessage m = new YouLeftMessage();
-					int N = reader.ReadByte();
-					byte[] utf8data = reader.ReadBytes(N); //the room name, encoded as utf-8
-					m.room = Encoding.UTF8.GetString(utf8data);
-					AddMessage(m);
+					try
+					{
+						YouLeftMessage m = new YouLeftMessage();
+						int n = reader.ReadByte();
+						byte[] utf8data = reader.ReadBytes(n); //the room name, encoded as utf-8
+						m.room = Encoding.UTF8.GetString(utf8data);
+						AddMessage(m);
+					}
+					catch (EndOfStreamException e)
+					{
+						VelNetLogger.Error($"Error while handling {type} message:\n{e}");
+					}
+
 					break;
 				}
 				default:
@@ -1349,7 +1421,7 @@ namespace VelNet
 			}
 
 			NetworkObject newObject = ActuallyInstantiate(networkId, prefabName, owner);
-			
+
 			using MemoryStream initialStateMem = new MemoryStream(initialState);
 			using BinaryReader reader = new BinaryReader(initialStateMem);
 			newObject.UnpackState(reader);
