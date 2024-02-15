@@ -116,6 +116,22 @@ namespace VelNet
 		public static Action<Message> MessageReceived;
 		public static Action<int, byte[]> CustomMessageReceived;
 
+		/// <summary>
+		/// I just spawned a local network object
+		/// </summary>
+		public static Action<NetworkObject> OnLocalNetworkObjectSpawned;
+
+		/// <summary>
+		/// Anybody (including myself) just spawned a network object
+		/// </summary>
+		public static Action<NetworkObject> OnNetworkObjectSpawned;
+
+		/// <summary>
+		/// Called after a network object is destroyed
+		/// string is the networkId of the destroyed object
+		/// </summary>
+		public static Action<string> OnNetworkObjectDestroyed;
+
 		#endregion
 
 		public bool connected;
@@ -1359,6 +1375,15 @@ namespace VelNet
 
 			NetworkObject newObject = ActuallyInstantiate(networkId, prefabName, owner);
 
+			try
+			{
+				OnLocalNetworkObjectSpawned?.Invoke(newObject);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error("Error in event handling.\n" + ex);
+			}
+
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
 			using MemoryStream mem = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(mem);
@@ -1389,6 +1414,15 @@ namespace VelNet
 			}
 
 			NetworkObject newObject = ActuallyInstantiate(networkId, prefabName, owner, position, rotation);
+
+			try
+			{
+				OnLocalNetworkObjectSpawned?.Invoke(newObject);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error("Error in event handling.\n" + ex);
+			}
 
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
 			using MemoryStream mem = new MemoryStream();
@@ -1421,6 +1455,15 @@ namespace VelNet
 			}
 
 			NetworkObject newObject = ActuallyInstantiate(networkId, prefabName, owner);
+
+			try
+			{
+				OnLocalNetworkObjectSpawned?.Invoke(newObject);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error("Error in event handling.\n" + ex);
+			}
 
 			using MemoryStream initialStateMem = new MemoryStream(initialState);
 			using BinaryReader reader = new BinaryReader(initialStateMem);
@@ -1469,6 +1512,16 @@ namespace VelNet
 			}
 
 			instance.objects.Add(newObject.networkId, newObject);
+
+			try
+			{
+				OnNetworkObjectSpawned?.Invoke(newObject);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error("Error in event handling.\n" + ex);
+			}
+
 			return newObject;
 		}
 
@@ -1501,6 +1554,16 @@ namespace VelNet
 			}
 
 			instance.objects.Add(newObject.networkId, newObject);
+
+			try
+			{
+				OnNetworkObjectSpawned?.Invoke(newObject);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error("Error in event handling.\n" + ex);
+			}
+
 			return newObject;
 		}
 
@@ -1557,6 +1620,15 @@ namespace VelNet
 
 			Destroy(obj.gameObject);
 			instance.objects.Remove(networkId);
+
+			try
+			{
+				OnNetworkObjectDestroyed?.Invoke(networkId);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error("Error in event handling.\n" + ex);
+			}
 		}
 
 		/// <summary>
