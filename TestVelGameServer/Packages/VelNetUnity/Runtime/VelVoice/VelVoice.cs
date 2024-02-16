@@ -37,6 +37,7 @@ namespace VelNet.Voice
 		private int lastUsedDecoderPool;
 		private int encoderBufferIndex;
 		private int lastPosition;
+		private string device = "";
 		private const int encoderFrameSize = 640;
 		private double micSampleTime;
 		private const int opusFreq = 16000;
