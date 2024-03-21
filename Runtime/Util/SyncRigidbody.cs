@@ -90,12 +90,12 @@ namespace VelNet
 			{
 				distanceAtReceiveTime = Vector3.Distance(targetPosition, transform.localPosition);
 				angleAtReceiveTime = Quaternion.Angle(targetRotation, transform.localRotation);
-				if (minPosDelta < distanceAtReceiveTime)
+				if (IsMine || minPosDelta < distanceAtReceiveTime)
 				{
 					transform.localPosition = targetPosition;
 				}
 
-				if (minAngleDelta < angleAtReceiveTime)
+				if (IsMine || minAngleDelta < angleAtReceiveTime)
 				{
 					transform.localRotation = targetRotation;
 				}
@@ -104,12 +104,12 @@ namespace VelNet
 			{
 				distanceAtReceiveTime = Vector3.Distance(targetPosition, transform.position);
 				angleAtReceiveTime = Quaternion.Angle(targetRotation, transform.rotation);
-				if (minPosDelta < distanceAtReceiveTime)
+				if (IsMine || minPosDelta < distanceAtReceiveTime)
 				{
 					transform.position = targetPosition;
 				}
 
-				if (minAngleDelta < angleAtReceiveTime)
+				if (IsMine || minAngleDelta < angleAtReceiveTime)
 				{
 					transform.rotation = targetRotation;
 				}
