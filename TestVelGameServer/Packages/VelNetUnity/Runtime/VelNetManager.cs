@@ -88,6 +88,7 @@ namespace VelNet
 		/// <summary>
 		/// We just joined a room
 		/// string - the room name
+		/// `VelNetManager.Players` is already populated when we get this message.
 		/// </summary>
 		public static Action<string> OnJoinedRoom;
 

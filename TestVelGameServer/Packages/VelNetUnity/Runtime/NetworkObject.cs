@@ -153,28 +153,20 @@ namespace VelNet
 
 		public void PackState(BinaryWriter writer)
 		{
-			foreach (NetworkComponent component in syncedComponents)
+			foreach (IPackState packState in syncedComponents.OfType<IPackState>())
 			{
-				IPackState packState = component.GetComponent<IPackState>();
-				if (packState != null)
-				{
-					byte[] state = packState.PackState();
-					writer.Write(state.Length);
-					writer.Write(state);
-				}
+				byte[] state = packState.PackState();
+				writer.Write(state.Length);
+				writer.Write(state);
 			}
 		}
 
 		public void UnpackState(BinaryReader reader)
 		{
-			foreach (NetworkComponent networkObjectSyncedComponent in syncedComponents)
+			foreach (IPackState packState in syncedComponents.OfType<IPackState>())
 			{
-				IPackState packState = networkObjectSyncedComponent.GetComponent<IPackState>();
-				if (packState != null)
-				{
-					int length = reader.ReadInt32();
-					packState.UnpackState(reader.ReadBytes(length));
-				}
+				int length = reader.ReadInt32();
+				packState.UnpackState(reader.ReadBytes(length));
 			}
 		}
 
@@ -229,7 +221,6 @@ namespace VelNet
 
 				so.ApplyModifiedProperties();
 			}
-
 
 
 			// make the sceneNetworkId a new unique value
