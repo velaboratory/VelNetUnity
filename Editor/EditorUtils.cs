@@ -13,7 +13,7 @@ namespace VelNet.Editor
 		[MenuItem("VelNet/Check For Duplicate NetworkIds", false, 10)]
 		private static void CheckDuplicateNetworkIds()
 		{
-			NetworkObject[] objs = FindObjectsOfType<NetworkObject>();
+			NetworkObject[] objs = FindObjectsByType<NetworkObject>(FindObjectsSortMode.InstanceID);
 			Dictionary<int, NetworkObject> ids = new Dictionary<int, NetworkObject>();
 			foreach (NetworkObject o in objs)
 			{

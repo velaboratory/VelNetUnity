@@ -265,7 +265,7 @@ namespace VelNet
 			SceneManager.sceneLoaded += (_, _) =>
 			{
 				// add all local network objects
-				sceneObjects = FindObjectsOfType<NetworkObject>().Where(o => o.isSceneObject).ToArray();
+				sceneObjects = FindObjectsByType<NetworkObject>(FindObjectsSortMode.None).Where(o => o.isSceneObject).ToArray();
 			};
 		}
 
