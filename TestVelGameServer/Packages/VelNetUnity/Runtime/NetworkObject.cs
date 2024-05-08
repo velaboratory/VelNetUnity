@@ -227,7 +227,7 @@ namespace VelNet
 			if (Application.isEditor && !Application.isPlaying && t.isSceneObject && t.sceneNetworkId == 0)
 			{
 				// find the first unused value
-				int[] used = FindObjectsOfType<NetworkObject>().Select(o => o.sceneNetworkId).ToArray();
+				int[] used = FindObjectsByType<NetworkObject>(FindObjectsSortMode.InstanceID).Select(o => o.sceneNetworkId).ToArray();
 				int available = -1;
 				for (int i = 1; i <= used.Max() + 1; i++)
 				{
