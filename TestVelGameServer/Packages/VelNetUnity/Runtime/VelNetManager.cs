@@ -292,13 +292,23 @@ namespace VelNet
 			}
 
 			instance = this;
-			ConnectToServer();
+			StartCoroutine(DelayedEnabled());
 		}
 
 		private void OnDisable()
 		{
 			DisconnectFromServer();
 			instance = null;
+		}
+
+		private IEnumerator DelayedEnabled()
+		{
+			yield return null;
+			// make sure we're still enabled
+			if (enabled)
+			{
+				ConnectToServer();
+			}
 		}
 
 		private void AddMessage(Message m)

@@ -3,7 +3,7 @@ using VelNet;
 
 public class TestCallbacks : MonoBehaviour
 {
-	private void Awake()
+	private void Start()
 	{
 		VelNetManager.OnJoinedRoom += _ => { Debug.Log("VelNetManager.OnJoinedRoom"); };
 		VelNetManager.OnLeftRoom += _ => { Debug.Log("VelNetManager.OnLeftRoom"); };
