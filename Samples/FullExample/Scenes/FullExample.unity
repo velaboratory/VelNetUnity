@@ -2600,7 +2600,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 233344de094f11341bdb834d564708dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  host: velnet-demo2.ugavel.com
+  host: velnet-demo.ugavel.com
   port: 5000
   udpConnected: 0
   userid: -1
@@ -2608,6 +2608,7 @@ MonoBehaviour:
   autoLogin: 1
   onlyConnectToSameVersion: 1
   connected: 0
+  autoSwitchToOfflineMode: 0
   prefabs:
   - {fileID: 9102273340480352682, guid: e07dfcf3af0e6ad438df1df54cd960a5, type: 3}
   - {fileID: 419466048389313174, guid: c0c7ee35b5be203468523c819c9da422, type: 3}
