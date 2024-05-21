@@ -82,6 +82,8 @@ namespace VelNet
 		[Tooltip("Uses the version number in the login to prevent crosstalk between different app versions")]
 		public bool onlyConnectToSameVersion;
 
+		private static readonly Queue<Action> mainThreadExecutionQueue = new Queue<Action>();
+
 		public readonly Dictionary<int, VelNetPlayer> players = new Dictionary<int, VelNetPlayer>();
 
 		#region Callbacks
@@ -292,23 +294,13 @@ namespace VelNet
 			}
 
 			instance = this;
-			StartCoroutine(DelayedEnabled());
+			ConnectToServer();
 		}
 
 		private void OnDisable()
 		{
 			DisconnectFromServer();
 			instance = null;
-		}
-
-		private IEnumerator DelayedEnabled()
-		{
-			yield return null;
-			// make sure we're still enabled
-			if (enabled)
-			{
-				ConnectToServer();
-			}
 		}
 
 		private void AddMessage(Message m)
@@ -641,6 +633,14 @@ namespace VelNet
 				receivedMessages.Clear();
 			}
 
+			lock (mainThreadExecutionQueue)
+			{
+				while (mainThreadExecutionQueue.Count > 0)
+				{
+					mainThreadExecutionQueue.Dequeue().Invoke();
+				}
+			}
+
 			// reconnection
 			if (Time.timeAsDouble - lastConnectionCheck > 2)
 			{
@@ -794,7 +794,10 @@ namespace VelNet
 					HandleIncomingMessage(reader);
 				}
 
-				OnDisconnectedFromServer?.Invoke();
+				lock (mainThreadExecutionQueue)
+				{
+					mainThreadExecutionQueue.Enqueue(() => { OnDisconnectedFromServer?.Invoke(); });
+				}
 			}
 			catch (ThreadAbortException)
 			{
@@ -810,7 +813,10 @@ namespace VelNet
 					AddMessage(new ConnectedMessage());
 				}
 
-				OnFailedToConnectToServer?.Invoke();
+				lock (mainThreadExecutionQueue)
+				{
+					mainThreadExecutionQueue.Enqueue(() => { OnFailedToConnectToServer?.Invoke(); });
+				}
 			}
 			catch (Exception ex)
 			{
@@ -1091,7 +1097,10 @@ namespace VelNet
 			catch (SocketException socketException)
 			{
 				VelNetLogger.Error("Socket exception: " + socketException);
-				OnDisconnectedFromServer?.Invoke();
+				lock (mainThreadExecutionQueue)
+				{
+					mainThreadExecutionQueue.Enqueue(() => { OnDisconnectedFromServer?.Invoke(); });
+				}
 			}
 			catch (Exception ex)
 			{
