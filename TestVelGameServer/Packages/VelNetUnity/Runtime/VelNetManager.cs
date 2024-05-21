@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -110,6 +111,17 @@ namespace VelNet
 		public static Action<VelNetPlayer> OnPlayerLeft;
 
 		public static Action OnConnectedToServer;
+
+		/// <summary>
+		/// We tried to connect to the server, but failed
+		/// </summary>
+		public static Action OnFailedToConnectToServer;
+
+		/// <summary>
+		/// We were previously successfully connected to a server, but we got disconnected
+		/// </summary>
+		public static Action OnDisconnectedFromServer;
+
 		public static Action OnLoggedIn;
 		public static Action<RoomsMessage> RoomsReceived;
 		public static Action<RoomDataMessage> RoomDataReceived;
@@ -138,7 +150,9 @@ namespace VelNet
 		public bool connected;
 		private bool wasConnected;
 		private double lastConnectionCheck;
+		public bool autoSwitchToOfflineMode;
 		private bool offlineMode;
+		public static bool OfflineMode => instance?.offlineMode ?? false;
 		private string offlineRoomName;
 
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
@@ -265,7 +279,8 @@ namespace VelNet
 			SceneManager.sceneLoaded += (_, _) =>
 			{
 				// add all local network objects
-				sceneObjects = FindObjectsByType<NetworkObject>(FindObjectsSortMode.None).Where(o => o.isSceneObject).ToArray();
+				sceneObjects = FindObjectsByType<NetworkObject>(FindObjectsSortMode.None).Where(o => o.isSceneObject)
+					.ToArray();
 			};
 		}
 
@@ -676,9 +691,9 @@ namespace VelNet
 			clientReceiveThread?.Abort();
 		}
 
-		/// <summary> 	
-		/// Setup socket connection. 	
-		/// </summary> 	
+		/// <summary>
+		/// Setup socket connection.
+		/// </summary>
 		private static void ConnectToServer()
 		{
 			try
@@ -724,6 +739,8 @@ namespace VelNet
 			clientReceiveThread = null;
 			socketConnection = null;
 			udpSocket = null;
+
+			OnDisconnectedFromServer?.Invoke();
 		}
 
 
@@ -766,6 +783,8 @@ namespace VelNet
 				{
 					HandleIncomingMessage(reader);
 				}
+
+				OnDisconnectedFromServer?.Invoke();
 			}
 			catch (ThreadAbortException)
 			{
@@ -774,9 +793,14 @@ namespace VelNet
 			catch (SocketException socketException)
 			{
 				VelNetLogger.Error("Socket exception: " + socketException);
-				VelNetLogger.Error("Switching to offline mode");
-				offlineMode = true;
-				AddMessage(new ConnectedMessage());
+				if (autoSwitchToOfflineMode)
+				{
+					VelNetLogger.Error("Switching to offline mode");
+					offlineMode = true;
+					AddMessage(new ConnectedMessage());
+				}
+
+				OnFailedToConnectToServer?.Invoke();
 			}
 			catch (Exception ex)
 			{
@@ -1057,6 +1081,7 @@ namespace VelNet
 			catch (SocketException socketException)
 			{
 				VelNetLogger.Error("Socket exception: " + socketException);
+				OnDisconnectedFromServer?.Invoke();
 			}
 			catch (Exception ex)
 			{
@@ -1120,6 +1145,7 @@ namespace VelNet
 			catch (SocketException socketException)
 			{
 				VelNetLogger.Error("Socket exception: " + socketException);
+				OnDisconnectedFromServer?.Invoke();
 			}
 
 			return true;
