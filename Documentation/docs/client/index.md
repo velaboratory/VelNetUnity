@@ -23,3 +23,7 @@ An interesting problem is what to do when new clients join. This is partially le
 ### Message Groups
 
 Clients can manage network traffic using messaging groups. This is especially useful for audio, where you can maintain a list of people close enough to you to hear audio
+
+### Keep-Alive
+
+VelNet sends a GetRooms message at a regular interval to keep the connection alive (default is 2 seconds). This servers to prevent the connections from dying, but also allows the system to calculate ping time and keeps room information up to date.

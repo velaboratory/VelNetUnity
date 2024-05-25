@@ -28,7 +28,7 @@ This message contains:
  - `byte` - The length of the appName string
  - `byte[]` - UTF8 encoding of the appName string
 ### MESSAGE_GETROOMS = 1
-This message contains no data, just the single-byte header.
+This message contains only a timestamp. This timestamp is used to calculate ping of the connection.
 ### MESSAGE_JOINROOM = 2
 This message contains:
  - `byte` - The length of the roomName string
