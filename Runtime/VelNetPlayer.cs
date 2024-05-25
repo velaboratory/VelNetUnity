@@ -211,6 +211,13 @@ namespace VelNet
 
 					break;
 				}
+				case VelNetManager.MessageType.KeepAlive:
+				{
+					DateTime messageTime = DateTime.FromBinary(reader.ReadInt64());
+					DateTime currentTime = DateTime.UtcNow;
+					VelNetManager.Ping = (int)Math.Round((currentTime - messageTime).TotalMilliseconds);
+					break;
+				}
 
 				default:
 					throw new ArgumentOutOfRangeException();

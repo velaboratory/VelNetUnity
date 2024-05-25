@@ -45,9 +45,13 @@ namespace VelNet
 			MESSAGE_ALL = 4,
 			MESSAGE_GROUP = 5,
 			MESSAGE_SETGROUP = 6,
-			MESSAGE_GETROOMDATA = 9
+			MESSAGE_GETROOMDATA = 9,
+			MESSAGE_SELF = 10,
 		};
 
+		/// <summary>
+		/// These messages are all handled by VelNetPlayer and are contained within DATA_MESSAGE
+		/// </summary>
 		public enum MessageType : byte
 		{
 			ObjectSync,
@@ -57,21 +61,33 @@ namespace VelNet
 			InstantiateWithState,
 			Destroy,
 			DeleteSceneObjects,
-			Custom
+			Custom,
+			KeepAlive,
 		}
 
+		private const int serverCompatibleVersion = 2;
 		public string host;
 		public int port;
 
 		public static VelNetManager instance;
 
+		public int userid = -1;
 		private TcpClient socketConnection;
 		private Socket udpSocket;
 		public bool udpConnected;
 		private IPEndPoint RemoteEndPoint;
 		private Thread clientReceiveThread;
 		private Thread clientReceiveThreadUDP;
-		public int userid = -1;
+		public bool connected;
+		private bool wasConnected;
+		private double lastConnectionCheck;
+		private double lastKeepAliveCheck;
+		public float keepAliveInterval = 2f;
+		public static int Ping { get; internal set; }
+		public bool autoSwitchToOfflineMode;
+		private bool offlineMode;
+		public static bool OfflineMode => instance?.offlineMode ?? false;
+		private string offlineRoomName;
 
 		[Tooltip("Sends debug messages about connection and join events")]
 		public bool debugMessages;
@@ -149,13 +165,6 @@ namespace VelNet
 
 		#endregion
 
-		public bool connected;
-		private bool wasConnected;
-		private double lastConnectionCheck;
-		public bool autoSwitchToOfflineMode;
-		private bool offlineMode;
-		public static bool OfflineMode => instance?.offlineMode ?? false;
-		private string offlineRoomName;
 
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
 		public NetworkObject[] sceneObjects;
@@ -211,6 +220,7 @@ namespace VelNet
 
 		public class LoginMessage : Message
 		{
+			public int serverVersion;
 			public int userId;
 		}
 
@@ -363,6 +373,13 @@ namespace VelNet
 						}
 						case LoginMessage lm:
 						{
+							if (serverCompatibleVersion != lm.serverVersion)
+							{
+								VelNetLogger.Error(
+									$"Server version mismatch. Please update the server.\nServer Version: {lm.serverVersion}\tClient Version: {serverCompatibleVersion}");
+								DisconnectFromServer();
+							}
+
 							if (userid == lm.userId)
 							{
 								VelNetLogger.Error("Received duplicate login message " + userid);
@@ -548,9 +565,9 @@ namespace VelNet
 						}
 						case DataMessage dm:
 						{
-							if (players.ContainsKey(dm.senderId))
+							if (players.TryGetValue(dm.senderId, out VelNetPlayer player))
 							{
-								players[dm.senderId]?.HandleMessage(dm);
+								player.HandleMessage(dm);
 							}
 							else
 							{
@@ -565,9 +582,9 @@ namespace VelNet
 
 							if (masterPlayer == null)
 							{
-								if (players.ContainsKey(cm.masterId))
+								if (players.TryGetValue(cm.masterId, out VelNetPlayer player))
 								{
-									masterPlayer = players[cm.masterId];
+									masterPlayer = player;
 								}
 								else
 								{
@@ -641,6 +658,16 @@ namespace VelNet
 				}
 			}
 
+			if (IsConnected && Time.time - lastKeepAliveCheck > keepAliveInterval)
+			{
+				lastKeepAliveCheck = Time.time;
+				using MemoryStream mem = new MemoryStream();
+				using BinaryWriter writer = new BinaryWriter(mem);
+				writer.Write((byte)MessageType.KeepAlive);
+				writer.Write(DateTime.UtcNow.ToBinary());
+				SendToSelf(mem.ToArray());
+			}
+
 			// reconnection
 			if (Time.timeAsDouble - lastConnectionCheck > 2)
 			{
@@ -704,8 +731,13 @@ namespace VelNet
 		/// <summary>
 		/// Setup socket connection.
 		/// </summary>
-		private static void ConnectToServer()
+		public static void ConnectToServer()
 		{
+			if (IsConnected)
+			{
+				Debug.LogError("Already connected to server! Please disonnect first.");
+			}
+
 			try
 			{
 				instance.clientReceiveThread = new Thread(instance.ListenForData);
@@ -717,38 +749,47 @@ namespace VelNet
 			}
 		}
 
-		private void DisconnectFromServer()
+		public static void SetServer(string host, int port)
+		{
+			if (instance.host == host && instance.port == port) return;
+			instance.host = host;
+			instance.port = port;
+			DisconnectFromServer();
+			ConnectToServer();
+		}
+
+		public static void DisconnectFromServer()
 		{
 			VelNetLogger.Info("Disconnecting from server...");
 			string oldRoom = LocalPlayer?.room;
 			// delete all NetworkObjects that aren't scene objects or are null now
-			objects
+			instance.objects
 				.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
 				.Select(o => o.Key)
 				.ToList().ForEach(SomebodyDestroyedNetworkObject);
 
 			// then remove references to the ones that are left
-			objects.Clear();
+			instance.objects.Clear();
 
 			instance.groups.Clear();
 
-			foreach (NetworkObject s in sceneObjects)
+			foreach (NetworkObject s in instance.sceneObjects)
 			{
 				s.owner = null;
 			}
 
-			players.Clear();
-			masterPlayer = null;
+			instance.players.Clear();
+			instance.masterPlayer = null;
 
 
-			connected = false;
-			udpConnected = false;
-			socketConnection?.Close();
-			clientReceiveThreadUDP?.Abort();
-			clientReceiveThread?.Abort();
-			clientReceiveThread = null;
-			socketConnection = null;
-			udpSocket = null;
+			instance.connected = false;
+			instance.udpConnected = false;
+			instance.socketConnection?.Close();
+			instance.clientReceiveThreadUDP?.Abort();
+			instance.clientReceiveThread?.Abort();
+			instance.clientReceiveThread = null;
+			instance.socketConnection = null;
+			instance.udpSocket = null;
 
 			OnDisconnectedFromServer?.Invoke();
 		}
@@ -839,7 +880,8 @@ namespace VelNet
 						AddMessage(new LoginMessage
 						{
 							// not really the sender...
-							userId = GetIntFromBytes(reader.ReadBytes(4))
+							userId = GetIntFromBytes(reader.ReadBytes(4)),
+							serverVersion = GetIntFromBytes(reader.ReadBytes(4)),
 						});
 					}
 					catch (EndOfStreamException e)
@@ -1143,7 +1185,7 @@ namespace VelNet
 				// check if we have been disconnected, if so shut down velnet
 				if (!instance.socketConnection.Connected)
 				{
-					instance.DisconnectFromServer();
+					DisconnectFromServer();
 					VelNetLogger.Error("Disconnected from server. Most likely due to timeout.");
 					return false;
 				}
@@ -1157,7 +1199,7 @@ namespace VelNet
 			}
 			catch (IOException ioException)
 			{
-				instance.DisconnectFromServer();
+				DisconnectFromServer();
 				VelNetLogger.Error("Disconnected from server. Most likely due to timeout.\n" + ioException);
 				return false;
 			}
@@ -1198,15 +1240,22 @@ namespace VelNet
 
 		public static void GetRooms(Action<RoomsMessage> callback = null)
 		{
-			SendTcpMessage(new byte[] { (byte)MessageSendType.MESSAGE_GETROOMS }); // very simple message
+			MemoryStream mem = new MemoryStream();
+			BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageSendType.MESSAGE_GETROOMS);
+			writer.Write(DateTime.UtcNow.ToBinary());
+			SendTcpMessage(mem.ToArray());
 
 			if (callback != null)
 			{
 				RoomsReceived += RoomsReceivedCallback;
 			}
 
+			return;
+
 			void RoomsReceivedCallback(RoomsMessage msg)
 			{
+				// This might not be the actual message we sent, but they are all the same
 				callback(msg);
 				RoomsReceived -= RoomsReceivedCallback;
 			}
@@ -1295,6 +1344,16 @@ namespace VelNet
 			SendToRoom(mem.ToArray(), include_self, reliable, ordered);
 		}
 
+		public static void SendCustomMessageToSelf(byte[] message, bool reliable = true)
+		{
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.Custom);
+			writer.Write(message.Length);
+			writer.Write(message);
+			SendToSelf(mem.ToArray(), reliable);
+		}
+
 		public static void SendCustomMessageToGroup(string group, byte[] message, bool reliable = true)
 		{
 			using MemoryStream mem = new MemoryStream();
@@ -1303,6 +1362,30 @@ namespace VelNet
 			writer.Write(message.Length);
 			writer.Write(message);
 			SendToGroup(group, mem.ToArray(), reliable);
+		}
+
+		internal static bool SendToSelf(byte[] message, bool reliable = true)
+		{
+			const byte sendType = (byte)MessageSendType.MESSAGE_SELF;
+
+			if (reliable)
+			{
+				MemoryStream mem = new MemoryStream();
+				BinaryWriter writer = new BinaryWriter(mem);
+				writer.Write(sendType);
+				writer.WriteBigEndian(message.Length);
+				writer.Write(message);
+				return SendTcpMessage(mem.ToArray());
+			}
+			else
+			{
+				//udp message needs the type
+				toSend[0] = sendType; //we don't 
+				Array.Copy(GetBigEndianBytes(instance.userid), 0, toSend, 1, 4);
+				Array.Copy(message, 0, toSend, 5, message.Length);
+				SendUdpMessage(toSend, message.Length + 5); //shouldn't be over 1024...
+				return true;
+			}
 		}
 
 		internal static bool SendToRoom(byte[] message, bool include_self = false, bool reliable = true,

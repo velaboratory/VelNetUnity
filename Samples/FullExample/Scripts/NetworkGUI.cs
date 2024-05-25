@@ -14,8 +14,10 @@ namespace VelNet
 		public List<string> messageBuffer;
 		public Dropdown microphones;
 		public VelVoice velVoice;
+		public InputField hostInput;
+		public InputField portInput;
 
-		
+
 		// Start is called before the first frame update
 		private void Start()
 		{
@@ -23,9 +25,11 @@ namespace VelNet
 			microphones.AddOptions(new List<string>(Microphone.devices));
 			HandleMicrophoneSelection();
 #endif
+			hostInput.SetTextWithoutNotify(VelNetManager.instance.host);
+			portInput.SetTextWithoutNotify(VelNetManager.instance.port.ToString());
 		}
 
-		
+
 		public void HandleLogin()
 		{
 			if (userInput.text != "")
@@ -66,6 +70,16 @@ namespace VelNet
 		public void HandleMicrophoneSelection()
 		{
 			velVoice.StartMicrophone(microphones.options[microphones.value].text);
+		}
+
+		public void SetPort(string port)
+		{
+			VelNetManager.SetServer(VelNetManager.instance.host, int.Parse(port));
+		}
+
+		public void SetHost(string host)
+		{
+			VelNetManager.SetServer(host, VelNetManager.instance.port);
 		}
 	}
 }
