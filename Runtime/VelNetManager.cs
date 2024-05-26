@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -36,8 +35,6 @@ namespace VelNet
 
 		public enum MessageSendType
 		{
-			MESSAGE_OTHERS_ORDERED = 7,
-			MESSAGE_ALL_ORDERED = 8,
 			MESSAGE_LOGIN = 0,
 			MESSAGE_GETROOMS = 1,
 			MESSAGE_JOINROOM = 2,
@@ -45,6 +42,8 @@ namespace VelNet
 			MESSAGE_ALL = 4,
 			MESSAGE_GROUP = 5,
 			MESSAGE_SETGROUP = 6,
+			MESSAGE_OTHERS_ORDERED = 7,
+			MESSAGE_ALL_ORDERED = 8,
 			MESSAGE_GETROOMDATA = 9,
 			MESSAGE_SELF = 10,
 		};
@@ -95,7 +94,15 @@ namespace VelNet
 		[Tooltip("Automatically logs in with app name and hash of device id after connecting")]
 		public bool autoLogin = true;
 
-		[Tooltip("Uses the version number in the login to prevent crosstalk between different app versions")]
+		[Tooltip("Automatically try to reconnect if the server becomes disconnected")]
+		public bool autoReconnect = true;
+
+		/// <summary>
+		/// Is the game currently trying to connect. Don't try to connect twice at once, because that breaks everything.
+		/// </summary>
+		private bool connecting;
+
+		[Tooltip("Uses the game's version number in the login to prevent crosstalk between different app versions")]
 		public bool onlyConnectToSameVersion;
 
 		private static readonly Queue<Action> mainThreadExecutionQueue = new Queue<Action>();
@@ -669,7 +676,7 @@ namespace VelNet
 			}
 
 			// reconnection
-			if (Time.timeAsDouble - lastConnectionCheck > 2)
+			if (autoReconnect && Time.timeAsDouble - lastConnectionCheck > 2)
 			{
 				if (!IsConnected && wasConnected)
 				{
@@ -733,10 +740,12 @@ namespace VelNet
 		/// </summary>
 		public static void ConnectToServer()
 		{
-			if (IsConnected)
+			if (IsConnected || instance.connecting)
 			{
 				Debug.LogError("Already connected to server! Please disonnect first.");
 			}
+
+			instance.connecting = true;
 
 			try
 			{
@@ -746,6 +755,10 @@ namespace VelNet
 			catch (Exception e)
 			{
 				VelNetLogger.Error("On client connect exception " + e);
+			}
+			finally
+			{
+				instance.connecting = false;
 			}
 		}
 
@@ -820,7 +833,6 @@ namespace VelNet
 
 		private void ListenForData()
 		{
-			connected = true;
 			try
 			{
 				socketConnection = new TcpClient(host, port);
@@ -828,6 +840,8 @@ namespace VelNet
 				// Get a stream object for reading
 				NetworkStream stream = socketConnection.GetStream();
 				using BinaryReader reader = new BinaryReader(stream);
+				connected = true;
+				connecting = false;
 				//now we are connected, so add a message to the queue
 				AddMessage(new ConnectedMessage());
 				while (socketConnection.Connected)
@@ -863,8 +877,11 @@ namespace VelNet
 			{
 				VelNetLogger.Error(ex.ToString());
 			}
-
-			connected = false;
+			finally
+			{
+				connecting = false;
+				connected = false;
+			}
 		}
 
 		private void HandleIncomingMessage(BinaryReader reader)
@@ -1243,7 +1260,6 @@ namespace VelNet
 			MemoryStream mem = new MemoryStream();
 			BinaryWriter writer = new BinaryWriter(mem);
 			writer.Write((byte)MessageSendType.MESSAGE_GETROOMS);
-			writer.Write(DateTime.UtcNow.ToBinary());
 			SendTcpMessage(mem.ToArray());
 
 			if (callback != null)
