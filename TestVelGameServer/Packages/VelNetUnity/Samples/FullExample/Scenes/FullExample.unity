@@ -3007,14 +3007,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   host: velnet-demo.ugavel.com
   port: 5002
-  udpConnected: 0
   userid: -1
-  debugMessages: 1
-  autoLogin: 1
-  onlyConnectToSameVersion: 1
+  udpConnected: 0
   connected: 0
   keepAliveInterval: 2
   autoSwitchToOfflineMode: 0
+  debugMessages: 1
+  autoLogin: 1
+  autoReconnect: 0
+  onlyConnectToSameVersion: 1
   prefabs:
   - {fileID: 9102273340480352682, guid: e07dfcf3af0e6ad438df1df54cd960a5, type: 3}
   - {fileID: 419466048389313174, guid: c0c7ee35b5be203468523c819c9da422, type: 3}
@@ -3045,6 +3046,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd355fe5d57c0564b95415d4dd01e5a1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  ping: 0
 --- !u!1 &1154194181
 GameObject:
   m_ObjectHideFlags: 0

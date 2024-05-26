@@ -1,13 +1,16 @@
 using UnityEngine;
 using VelNet;
 
-public class GameManager : MonoBehaviour
+namespace VelNetExamples
 {
-	public GameObject playerPrefab;
-
-	private void Start()
+	public class GameManager : MonoBehaviour
 	{
-		VelNetManager.OnLoggedIn += () => VelNetManager.JoinRoom("FullExample");
-		VelNetManager.OnJoinedRoom += player => { VelNetManager.NetworkInstantiate(playerPrefab.name); };
+		public GameObject playerPrefab;
+
+		private void Start()
+		{
+			VelNetManager.OnLoggedIn += () => VelNetManager.JoinRoom("FullExample");
+			VelNetManager.OnJoinedRoom += player => { VelNetManager.NetworkInstantiate(playerPrefab.name); };
+		}
 	}
 }
