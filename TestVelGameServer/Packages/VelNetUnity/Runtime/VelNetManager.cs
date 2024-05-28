@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -740,9 +741,23 @@ namespace VelNet
 		/// </summary>
 		public static void ConnectToServer()
 		{
+			instance.StartCoroutine(instance.ConnectToServerCo());
+		}
+
+		private IEnumerator ConnectToServerCo()
+		{
 			if (IsConnected || instance.connecting)
 			{
-				Debug.LogError("Already connected to server! Please disonnect first.");
+				Debug.LogError("Already connected to server!");
+			}
+			
+			float maxWait = 5f;
+			// wait for an existing connection to finish
+			while (connecting && maxWait > 0)
+			{
+				Debug.LogError("Already connecting to server! Waiting...");
+				maxWait -= Time.deltaTime;
+				yield return null;
 			}
 
 			instance.connecting = true;
@@ -765,9 +780,15 @@ namespace VelNet
 		public static void SetServer(string host, int port)
 		{
 			if (instance.host == host && instance.port == port) return;
-			instance.host = host;
-			instance.port = port;
+			instance.StartCoroutine(instance.SetServerCo(host, port));
+		}
+
+		private IEnumerator SetServerCo(string newHost, int newPort)
+		{
 			DisconnectFromServer();
+			yield return null;
+			instance.host = newHost;
+			instance.port = newPort;
 			ConnectToServer();
 		}
 
