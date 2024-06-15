@@ -677,7 +677,7 @@ namespace VelNet
 			}
 
 			// reconnection
-			if (autoReconnect && Time.timeAsDouble - lastConnectionCheck > 2)
+			if (autoReconnect && Time.timeAsDouble - lastConnectionCheck > 5)
 			{
 				if (!IsConnected && wasConnected)
 				{
