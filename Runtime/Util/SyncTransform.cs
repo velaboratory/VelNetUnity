@@ -98,6 +98,7 @@ namespace VelNet
 					transform.rotation = targetRotation;
 				}
 			}
+			if(scale) transform.localScale = targetScale;
 		}
 
 		private void Update()
