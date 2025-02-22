@@ -40,7 +40,7 @@ namespace VelNet
 			{
 				foreach (KeyValuePair<string, NetworkObject> kvp in manager.objects)
 				{
-					if (kvp.Value.owner == this && kvp.Value.prefabName != "")
+					if (kvp.Value.owner == this && (kvp.Value.prefabName != "" || kvp.Value.isSceneObject))
 					{
 						using MemoryStream mem = new MemoryStream();
 						using BinaryWriter writer = new BinaryWriter(mem);
@@ -66,6 +66,14 @@ namespace VelNet
 					if (obj.IsMine)
 					{
 						obj.TakeOwnership();
+						using MemoryStream mem = new MemoryStream();
+						using BinaryWriter writer = new BinaryWriter(mem);
+						writer.Write((byte)VelNetManager.MessageType.ForceState);
+						writer.Write(obj.networkId);
+						
+						obj.PackState(writer);
+						// TODO this sends to everybody in the room, not just the new guy
+						VelNetManager.SendToRoom(mem.ToArray(), false, true);
 					}
 				}
 			}
@@ -194,6 +202,18 @@ namespace VelNet
 
 					NetworkObject networkObject = VelNetManager.ActuallyInstantiate(networkId, prefabName, this);
 					networkObject.UnpackState(reader);
+					break;
+				}
+				case VelNetManager.MessageType.ForceState:
+				{
+					string networkId = reader.ReadString();
+					
+					if (manager.objects.ContainsKey(networkId))
+					{
+
+						manager.objects[networkId].UnpackState(reader);
+						
+					}
 					break;
 				}
 				case VelNetManager.MessageType.Destroy: // I'm trying to destroy a gameobject I own

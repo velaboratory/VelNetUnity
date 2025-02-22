@@ -59,6 +59,7 @@ namespace VelNet
 			Instantiate,
 			InstantiateWithTransform,
 			InstantiateWithState,
+			ForceState,
 			Destroy,
 			DeleteSceneObjects,
 			Custom,
