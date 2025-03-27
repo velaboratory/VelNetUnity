@@ -1692,6 +1692,80 @@ namespace VelNet
 			return newObject;
 		}
 
+		//this function is used to allow you to configure the new object after it is instantiated locally, but before it is packed up and sent to others to instantiate
+		public static NetworkObject NetworkInstantiate(string prefabName, Action<NetworkObject> populateBeforePack)
+		{
+			VelNetPlayer owner = LocalPlayer;
+			string networkId = AllocateNetworkId();
+			if (instance.objects.ContainsKey(networkId))
+			{
+				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
+					instance.objects[networkId]);
+				return null;
+			}
+
+			NetworkObject newObject = ActuallyInstantiate(networkId, prefabName, owner);
+
+			try
+			{
+				OnLocalNetworkObjectSpawned?.Invoke(newObject);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error("Error in event handling.\n" + ex);
+			}
+
+			populateBeforePack?.Invoke(newObject);
+
+			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.InstantiateWithState);
+			writer.Write(newObject.networkId);
+			writer.Write(prefabName);
+			newObject.PackState(writer);
+			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+
+			return newObject;
+		}
+
+		//this function helps w/ the case where we are instantiating from an existing reading, such as where we serialized all objects to a big byte array, and don't want to create a special reader just for those bytes
+		public static NetworkObject NetworkInstantiate(string prefabName, BinaryReader reader)
+		{
+			VelNetPlayer owner = LocalPlayer;
+			string networkId = AllocateNetworkId();
+			if (instance.objects.ContainsKey(networkId))
+			{
+				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
+					instance.objects[networkId]);
+				return null;
+			}
+
+			NetworkObject newObject = ActuallyInstantiate(networkId, prefabName, owner);
+
+			try
+			{
+				OnLocalNetworkObjectSpawned?.Invoke(newObject);
+			}
+			catch (Exception ex)
+			{
+				VelNetLogger.Error("Error in event handling.\n" + ex);
+			}
+
+			newObject.UnpackState(reader);
+
+			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
+			using MemoryStream mem = new MemoryStream();
+			using BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write((byte)MessageType.InstantiateWithState);
+			writer.Write(newObject.networkId);
+			writer.Write(prefabName);
+			newObject.PackState(writer);
+			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+
+			return newObject;
+		}
+
 
 		internal static NetworkObject ActuallyInstantiate(string networkId, string prefabName, VelNetPlayer owner,
 			Vector3 position, Quaternion rotation)
