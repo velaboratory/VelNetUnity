@@ -10,6 +10,7 @@ namespace VelNet
 	public class SyncTransform : SyncState
 	{
 		[Space] public bool position = true;
+		public bool alwaysTeleport;
 		public bool rotation = true;
 		[Tooltip("Scale is always local")] public bool scale;
 
@@ -23,6 +24,8 @@ namespace VelNet
 		private Quaternion targetRotation;
 		private float distanceAtReceiveTime;
 		private float angleAtReceiveTime;
+
+
 
 		private void Start()
 		{
@@ -74,12 +77,12 @@ namespace VelNet
 			{
 				distanceAtReceiveTime = Vector3.Distance(targetPosition, transform.localPosition);
 				angleAtReceiveTime = Quaternion.Angle(targetRotation, transform.localRotation);
-				if (IsMine || teleportDistance != 0 && teleportDistance < distanceAtReceiveTime)
+				if (alwaysTeleport || IsMine || teleportDistance != 0 && teleportDistance < distanceAtReceiveTime)
 				{
 					transform.localPosition = targetPosition;
 				}
 
-				if (IsMine || teleportAngle != 0 && teleportAngle < angleAtReceiveTime)
+				if (alwaysTeleport || IsMine || teleportAngle != 0 && teleportAngle < angleAtReceiveTime)
 				{
 					transform.localRotation = targetRotation;
 				}
@@ -88,12 +91,12 @@ namespace VelNet
 			{
 				distanceAtReceiveTime = Vector3.Distance(targetPosition, transform.position);
 				angleAtReceiveTime = Quaternion.Angle(targetRotation, transform.rotation);
-				if (IsMine || teleportDistance != 0 && teleportDistance < distanceAtReceiveTime)
+				if (alwaysTeleport || IsMine || teleportDistance != 0 && teleportDistance < distanceAtReceiveTime)
 				{
 					transform.position = targetPosition;
 				}
 
-				if (IsMine || teleportAngle != 0 && teleportAngle < angleAtReceiveTime)
+				if (alwaysTeleport || IsMine || teleportAngle != 0 && teleportAngle < angleAtReceiveTime)
 				{
 					transform.rotation = targetRotation;
 				}
