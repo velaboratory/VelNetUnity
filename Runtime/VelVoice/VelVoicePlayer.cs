@@ -1,6 +1,6 @@
 using System.IO;
 using UnityEngine;
-
+using System;
 namespace VelNet.Voice
 {
 	public class VelVoicePlayer : NetworkComponent
@@ -20,6 +20,10 @@ namespace VelNet.Voice
 		public int playedAmount;
 		private int lastTime;
 
+		public Action<byte[]> DecodedVoiceDataReceived;
+		public Action<byte[]> EncodedVoiceDataReceived;
+		public Action<byte[]> EncodedVoiceDataSent;
+
 		/// <summary>
 		/// a buffer of 0s to force silence, because playing doesn't stop on demand
 		/// </summary>
@@ -29,7 +33,9 @@ namespace VelNet.Voice
 
 		public override void ReceiveBytes(byte[] message)
 		{
+			EncodedVoiceDataReceived?.Invoke(message);
 			float[] temp = voiceSystem.DecodeOpusData(message, message.Length);
+			DecodedVoiceDataReceived?.Invoke(message);
 			myClip.SetData(temp, bufferedAmount % source.clip.samples);
 			bufferedAmount += temp.Length;
 			myClip.SetData(empty, bufferedAmount % source.clip.samples); //buffer some empty data because otherwise you'll hear sound (but it'll be overwritten by the next sample)
@@ -59,7 +65,9 @@ namespace VelNet.Voice
 					MemoryStream mem = new MemoryStream();
 					BinaryWriter writer = new BinaryWriter(mem);
 					writer.Write(frame.array, 0, frame.count);
-					this.SendBytes(mem.ToArray(), false);
+					byte[] toSend = mem.ToArray();
+					this.SendBytes(toSend, false);
+					EncodedVoiceDataSent?.Invoke(toSend);
 				};
 			}
 
