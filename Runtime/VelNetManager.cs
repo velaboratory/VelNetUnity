@@ -292,7 +292,7 @@ namespace VelNet
 		{
 		}
 
-		private const int maxUnreadMessages = 1000;
+		//private const int maxUnreadMessages = 1000;
 		private readonly List<Message> receivedMessages = new List<Message>();
 
 		private void Awake()
@@ -324,20 +324,21 @@ namespace VelNet
 
 		private void AddMessage(Message m)
 		{
-			bool added = false;
+			//bool added = false;
 			lock (receivedMessages)
 			{
 				// this is to avoid backups when headset goes to sleep
-				if (receivedMessages.Count < maxUnreadMessages)
-				{
+				//if (receivedMessages.Count < maxUnreadMessages)
+				//{
 					receivedMessages.Add(m);
-					added = true;
-				}
+				//	added = true;
+				//}
 			}
 
 			try
 			{
-				if (added) MessageReceived?.Invoke(m);
+				//if (added) 
+				MessageReceived?.Invoke(m);
 			}
 			catch (Exception e)
 			{
