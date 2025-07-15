@@ -37,7 +37,7 @@ namespace VelNet.Voice
 		private int lastUsedDecoderPool;
 		private int encoderBufferIndex;
 		private int lastPosition;
-#if !UNITY_WEBGL && !UNITY_EDITOR
+#if !UNITY_WEBGL
 		private string device = "";
 #endif
 		private const int encoderFrameSize = 640;
@@ -103,7 +103,7 @@ namespace VelNet.Voice
 		/// </summary>
 		public void StartMicrophone()
 		{
-#if !UNITY_WEBGL && !UNITY_EDITOR
+#if !UNITY_WEBGL
 			StartMicrophone(Microphone.devices.FirstOrDefault());
 #endif
 		}
@@ -114,7 +114,7 @@ namespace VelNet.Voice
 		/// <param name="micDeviceName">The device name of the microphone to record with</param>
 		public void StartMicrophone(string micDeviceName)
 		{
-#if !UNITY_WEBGL && !UNITY_EDITOR
+#if !UNITY_WEBGL 
 			Debug.Log("Starting with microphone: " + micDeviceName);
 			if (micDeviceName == null) return;
 			device = micDeviceName;
@@ -155,7 +155,7 @@ namespace VelNet.Voice
 		// Update is called once per frame
 		private void Update()
 		{
-#if !UNITY_WEBGL && !UNITY_EDITOR
+#if !UNITY_WEBGL
 			if (clip != null)
 			{
 				
