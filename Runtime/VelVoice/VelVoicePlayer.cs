@@ -58,17 +58,7 @@ namespace VelNet.Voice
 
 			if (networkObject.IsMine)
 			{
-				voiceSystem.encodedFrameAvailable += (frame) =>
-				{
-					//float[] temp = new float[frame.count];
-					//System.Array.Copy(frame.array, temp, frame.count);
-					MemoryStream mem = new MemoryStream();
-					BinaryWriter writer = new BinaryWriter(mem);
-					writer.Write(frame.array, 0, frame.count);
-					byte[] toSend = mem.ToArray();
-					this.SendBytes(toSend, false);
-					EncodedVoiceDataSent?.Invoke(toSend);
-				};
+				voiceSystem.encodedFrameAvailable += handleEncodedFrame;
 			}
 
 			myClip = AudioClip.Create(this.name, 16000 * 10, 1, 16000, false);
@@ -76,6 +66,26 @@ namespace VelNet.Voice
 			source.loop = true;
 			source.Pause();
 		}
+		
+		private void OnDestroy(){
+			
+			if(voiceSystem != null){
+				voiceSystem.encodedFrameAvailable -= handleEncodedFrame;
+			}
+			
+		}
+		
+		private void handleEncodedFrame(frame) 
+		{
+			//float[] temp = new float[frame.count];
+			//System.Array.Copy(frame.array, temp, frame.count);
+			MemoryStream mem = new MemoryStream();
+			BinaryWriter writer = new BinaryWriter(mem);
+			writer.Write(frame.array, 0, frame.count);
+			byte[] toSend = mem.ToArray();
+			this.SendBytes(toSend, false);
+			EncodedVoiceDataSent?.Invoke(toSend);
+		};
 
 
 		// Update is called once per frame
