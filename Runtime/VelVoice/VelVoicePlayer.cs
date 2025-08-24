@@ -85,7 +85,7 @@ namespace VelNet.Voice
 			byte[] toSend = mem.ToArray();
 			this.SendBytes(toSend, false);
 			EncodedVoiceDataSent?.Invoke(toSend);
-		};
+		}
 
 
 		// Update is called once per frame
