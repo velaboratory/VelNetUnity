@@ -75,7 +75,7 @@ namespace VelNet.Voice
 			
 		}
 		
-		private void handleEncodedFrame(frame) 
+		private void handleEncodedFrame(VelVoice.FixedArray frame) 
 		{
 			//float[] temp = new float[frame.count];
 			//System.Array.Copy(frame.array, temp, frame.count);
