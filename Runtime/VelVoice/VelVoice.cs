@@ -22,7 +22,6 @@ namespace VelNet.Voice
 		}
 
 		private OpusEncoder opusEncoder;
-		private OpusDecoder opusDecoder;
 
 		//StreamWriter sw;
 		private AudioClip clip;
@@ -42,7 +41,7 @@ namespace VelNet.Voice
 #endif
 		private const int encoderFrameSize = 640;
 		private double micSampleTime;
-		private const int opusFreq = 16000;
+		public int opusFreq = 16000;
 		private const double encodeTime = 1 / (double)16000;
 
 		/// <summary>
@@ -77,7 +76,7 @@ namespace VelNet.Voice
 		private void Start()
 		{
 			opusEncoder = new OpusEncoder(opusFreq, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_VOIP);
-			opusDecoder = new OpusDecoder(opusFreq, 1);
+			
 			encoderBuffer = new float[opusFreq];
 			frameBuffer = new List<float[]>();
 
@@ -249,10 +248,10 @@ namespace VelNet.Voice
 #endif
 		}
 
-		public float[] DecodeOpusData(byte[] data, int count)
+		public float[] DecodeOpusData(OpusDecoder decoder, byte[] data, int count)
 		{
 			float[] t = GetNextEncoderPool();
-			opusDecoder.Decode(data, 0, count, t, 0, encoderFrameSize);
+			decoder.Decode(data, 0, count, t, 0, encoderFrameSize);
 			return t;
 		}
 
