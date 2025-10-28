@@ -1,6 +1,7 @@
 using System.IO;
 using UnityEngine;
 using System;
+using Concentus.Structs;
 namespace VelNet.Voice
 {
 	public class VelVoicePlayer : NetworkComponent
@@ -9,7 +10,7 @@ namespace VelNet.Voice
 		/// must be set for the player only
 		/// </summary>
 		public VelVoice voiceSystem;
-
+		private OpusDecoder opusDecoder;
 		/// <summary>
 		/// must be set for the clone only
 		/// </summary>
@@ -34,7 +35,7 @@ namespace VelNet.Voice
 		public override void ReceiveBytes(byte[] message)
 		{
 			EncodedVoiceDataReceived?.Invoke(message);
-			float[] temp = voiceSystem.DecodeOpusData(message, message.Length);
+			float[] temp = voiceSystem.DecodeOpusData(opusDecoder, message, message.Length);
 			DecodedVoiceDataReceived?.Invoke(message);
 			myClip.SetData(temp, bufferedAmount % source.clip.samples);
 			bufferedAmount += temp.Length;
@@ -49,12 +50,16 @@ namespace VelNet.Voice
 		// Start is called before the first frame update
 		private void Start()
 		{
-			voiceSystem = GameObject.FindObjectOfType<VelVoice>();
+			
+			voiceSystem = GameObject.FindAnyObjectByType<VelVoice>();
+			
 			if (voiceSystem == null)
 			{
 				Debug.LogError("No microphone found.  Make sure you have one in the scene.");
 				return;
 			}
+
+			opusDecoder = new OpusDecoder(voiceSystem.opusFreq, 1);
 
 			if (networkObject.IsMine)
 			{
