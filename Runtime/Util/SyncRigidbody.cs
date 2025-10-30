@@ -31,7 +31,7 @@ namespace VelNet
 		private float angleAtReceiveTime;
 		private Rigidbody rb;
 
-		private void Start()
+		private void Awake()
 		{
 			rb = GetComponent<Rigidbody>();
 			if (useLocalTransform)
