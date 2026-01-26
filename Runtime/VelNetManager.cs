@@ -1407,7 +1407,9 @@ namespace VelNet
 		{
 			const byte sendType = (byte)MessageSendType.MESSAGE_SELF;
 
-			if (reliable)
+			// CHANGE: Added "|| !instance.udpConnected"
+			// If we want reliable, OR if UDP isn't ready yet, force TCP.
+			if (reliable || !instance.udpConnected)
 			{
 				MemoryStream mem = new MemoryStream();
 				BinaryWriter writer = new BinaryWriter(mem);
@@ -1418,25 +1420,25 @@ namespace VelNet
 			}
 			else
 			{
-				//udp message needs the type
-				toSend[0] = sendType; //we don't 
+				// UDP connection is established and we want unreliable; use UDP.
+				toSend[0] = sendType; 
 				Array.Copy(GetBigEndianBytes(instance.userid), 0, toSend, 1, 4);
 				Array.Copy(message, 0, toSend, 5, message.Length);
-				SendUdpMessage(toSend, message.Length + 5); //shouldn't be over 1024...
+				SendUdpMessage(toSend, message.Length + 5); 
 				return true;
 			}
 		}
 
-		internal static bool SendToRoom(byte[] message, bool include_self = false, bool reliable = true,
-			bool ordered = false)
+		internal static bool SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
 		{
 			byte sendType = (byte)MessageSendType.MESSAGE_OTHERS;
 			if (include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_ALL_ORDERED;
 			if (include_self && !ordered) sendType = (byte)MessageSendType.MESSAGE_ALL;
 			if (!include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_OTHERS_ORDERED;
 
-
-			if (reliable)
+			// CHANGE: Added "|| !instance.udpConnected"
+			// If UDP is missing, fall back to TCP (which handles unbuffered types correctly on the server)
+			if (reliable || !instance.udpConnected)
 			{
 				MemoryStream mem = new MemoryStream();
 				BinaryWriter writer = new BinaryWriter(mem);
@@ -1447,11 +1449,10 @@ namespace VelNet
 			}
 			else
 			{
-				//udp message needs the type
-				toSend[0] = sendType; //we don't 
+				toSend[0] = sendType; 
 				Array.Copy(GetBigEndianBytes(instance.userid), 0, toSend, 1, 4);
 				Array.Copy(message, 0, toSend, 5, message.Length);
-				SendUdpMessage(toSend, message.Length + 5); //shouldn't be over 1024...
+				SendUdpMessage(toSend, message.Length + 5); 
 				return true;
 			}
 		}
@@ -1460,7 +1461,9 @@ namespace VelNet
 		internal static bool SendToGroup(string group, byte[] message, bool reliable = true)
 		{
 			byte[] utf8bytes = Encoding.UTF8.GetBytes(group);
-			if (reliable)
+
+			// CHANGE: Added "|| !instance.udpConnected"
+			if (reliable || !instance.udpConnected)
 			{
 				MemoryStream stream = new MemoryStream();
 				BinaryWriter writer = new BinaryWriter(stream);
@@ -1475,7 +1478,6 @@ namespace VelNet
 			{
 				toSend[0] = (byte)MessageSendType.MESSAGE_GROUP;
 				Array.Copy(GetBigEndianBytes(instance.userid), 0, toSend, 1, 4);
-				//also need to send the group
 				toSend[5] = (byte)utf8bytes.Length;
 				Array.Copy(utf8bytes, 0, toSend, 6, utf8bytes.Length);
 				Array.Copy(message, 0, toSend, 6 + utf8bytes.Length, message.Length);
