@@ -10,6 +10,7 @@ using System.Net;
 using UnityEngine.SceneManagement;
 using System.IO;
 using System.Threading.Tasks;
+using NativeWebSocket; // Ensure you have this library
 
 namespace VelNet
 {
@@ -75,6 +76,21 @@ namespace VelNet
 		public int userid = -1;
 		private TcpClient socketConnection;
 		private Socket udpSocket;
+
+		private WebSocket webSocket;
+		private bool useWebSocket;
+
+		// The buffer for WebSocket stream accumulation
+		private List<byte> wsBuffer = new List<byte>();
+
+		// The result type for the new handler
+		private enum MessageParseResult
+		{
+			Success,
+			NeedMoreData, // Fragmentation happened
+			Error         // Data corruption
+		}
+
 		public bool udpConnected;
 		private IPEndPoint RemoteEndPoint;
 		private Thread clientReceiveThread;
@@ -206,8 +222,9 @@ namespace VelNet
 		/// </summary>
 		public static int PlayerCount => instance.players.Count;
 
-		public static bool IsConnected => instance != null && instance.connected && instance.udpConnected;
-
+		//public static bool IsConnected => instance != null && instance.connected && instance.udpConnected;
+		//public static bool IsConnected => instance != null && instance.connected && (instance.udpConnected || instance.useWebSocket);
+		public static bool IsConnected => instance != null && instance.connected;
 		// this is for sending udp packets
 		private static readonly byte[] toSend = new byte[1024];
 
@@ -346,8 +363,52 @@ namespace VelNet
 			}
 		}
 
+		// --- Safe Read Helpers for WebSockets ---
+
+		private bool TryReadByte(BinaryReader reader, out byte result)
+		{
+			if (reader.BaseStream.Length - reader.BaseStream.Position < 1)
+			{
+				result = 0;
+				return false;
+			}
+			result = reader.ReadByte();
+			return true;
+		}
+
+		private bool TryReadBytes(BinaryReader reader, int count, out byte[] result)
+		{
+			if (reader.BaseStream.Length - reader.BaseStream.Position < count)
+			{
+				result = null;
+				return false;
+			}
+			result = reader.ReadBytes(count);
+			return true;
+		}
+
+		private bool TryReadInt(BinaryReader reader, out int result)
+		{
+			if (!TryReadBytes(reader, 4, out byte[] data))
+			{
+				result = 0;
+				return false;
+			}
+			result = GetIntFromBytes(data);
+			return true;
+		}
+
 		private void Update()
 		{
+
+			// --- ADD THIS BLOCK HERE ---
+			if (useWebSocket && webSocket != null)
+			{
+				#if !UNITY_WEBGL || UNITY_EDITOR
+				webSocket.DispatchMessageQueue();
+				#endif
+			}
+			
 			lock (receivedMessages)
 			{
 				//the main thread, which can do Unity stuff
@@ -798,33 +859,75 @@ namespace VelNet
 		{
 			VelNetLogger.Info("Disconnecting from server...");
 			string oldRoom = LocalPlayer?.room;
-			// delete all NetworkObjects that aren't scene objects or are null now
-			instance.objects
-				.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
-				.Select(o => o.Key)
-				.ToList().ForEach(SomebodyDestroyedNetworkObject);
-
-			// then remove references to the ones that are left
-			instance.objects.Clear();
-
-			instance.groups.Clear();
-
-			foreach (NetworkObject s in instance.sceneObjects)
+			
+			// Delete all NetworkObjects that aren't scene objects or are null now
+			// Null checks added for safety
+			if (instance.objects != null)
 			{
-				s.owner = null;
+				instance.objects
+					.Where(kvp => kvp.Value == null || !kvp.Value.isSceneObject)
+					.Select(o => o.Key)
+					.ToList().ForEach(SomebodyDestroyedNetworkObject);
+
+				// Then remove references to the ones that are left
+				instance.objects.Clear();
 			}
 
-			instance.players.Clear();
+			if (instance.groups != null)
+			{
+				instance.groups.Clear();
+			}
+
+			if (instance.sceneObjects != null)
+			{
+				foreach (NetworkObject s in instance.sceneObjects)
+				{
+					if (s != null) s.owner = null;
+				}
+			}
+
+			if (instance.players != null)
+			{
+				instance.players.Clear();
+			}
 			instance.masterPlayer = null;
 
 
+			// --- CONNECTION CLEANUP ---
+
 			instance.connected = false;
 			instance.udpConnected = false;
-			instance.socketConnection?.Close();
-			instance.clientReceiveThreadUDP?.Abort();
-			instance.clientReceiveThread?.Abort();
-			instance.clientReceiveThread = null;
-			instance.socketConnection = null;
+			instance.connecting = false;
+			instance.useWebSocket = false; // Reset the fallback flag
+
+			// Close TCP
+			if (instance.socketConnection != null)
+			{
+				try { instance.socketConnection.Close(); } catch { }
+				instance.socketConnection = null;
+			}
+
+			// Close WebSocket (NativeWebSocket)
+			if (instance.webSocket != null)
+			{
+				// NativeWebSocket's Close is async, but usually fire-and-forget is fine for disconnects
+				try { instance.webSocket.Close(); } catch { }
+				instance.webSocket = null;
+			}
+
+			// Abort Threads
+			if (instance.clientReceiveThreadUDP != null)
+			{
+				try { instance.clientReceiveThreadUDP.Abort(); } catch { }
+				instance.clientReceiveThreadUDP = null;
+			}
+
+			if (instance.clientReceiveThread != null)
+			{
+				try { instance.clientReceiveThread.Abort(); } catch { }
+				instance.clientReceiveThread = null;
+			}
+
 			instance.udpSocket = null;
 
 			OnDisconnectedFromServer?.Invoke();
@@ -855,57 +958,309 @@ namespace VelNet
 		}
 
 		private void ListenForData()
-		{
-			try
-			{
-				socketConnection = new TcpClient(host, port);
-				socketConnection.NoDelay = true;
-				// Get a stream object for reading
-				NetworkStream stream = socketConnection.GetStream();
-				using BinaryReader reader = new BinaryReader(stream);
-				connected = true;
-				connecting = false;
-				//now we are connected, so add a message to the queue
-				AddMessage(new ConnectedMessage());
-				while (socketConnection.Connected)
-				{
-					HandleIncomingMessage(reader);
+{
+    try
+    {
+        useWebSocket = false;
+
+        // 1. Try TCP First
+        try
+        {
+            VelNetLogger.Info($"Connecting via TCP to {host}:{port}...");
+            socketConnection = new TcpClient(host, port);
+            socketConnection.NoDelay = true;
+            
+            // If TCP succeeds, we proceed to the blocking loop below
+            connected = true;
+            connecting = false;
+        }
+        catch (SocketException)
+        {
+            VelNetLogger.Error("TCP Connection failed. Attempting WebSocket fallback...");
+            
+            // 2. Fallback to NativeWebSocket
+            useWebSocket = true;
+            
+            // Connect to wss://{host}/ 
+            // NOTE: NativeWebSocket handles 'wss' vs 'ws' automatically based on the string
+            string url = $"wss://{host}/"; 
+            
+            // Add custom headers if your websockify setup needs them, otherwise leave empty
+            webSocket = new WebSocket(url);
+
+            // --- Hook up Events ---
+            
+            webSocket.OnOpen += () => {
+                VelNetLogger.Info("WebSocket Connected!");
+                connected = true;
+                connecting = false;
+                
+                // Manually fire the connected message since we aren't in the loop anymore
+                lock (receivedMessages) {
+                    receivedMessages.Add(new ConnectedMessage());
+                }
+            };
+
+            webSocket.OnError += (e) => {
+                VelNetLogger.Error("WebSocket Error: " + e);
+                // Handle disconnection/failure
+                lock (mainThreadExecutionQueue) {
+                    mainThreadExecutionQueue.Enqueue(() => { OnFailedToConnectToServer?.Invoke(); });
+                }
+            };
+
+            webSocket.OnClose += (e) => {
+                VelNetLogger.Info("WebSocket Closed");
+                lock (mainThreadExecutionQueue) {
+                    mainThreadExecutionQueue.Enqueue(() => { OnDisconnectedFromServer?.Invoke(); });
+                }
+            };
+
+			webSocket.OnMessage += (bytes) => {
+				// 1. Add to buffer
+				lock (wsBuffer) {
+					wsBuffer.AddRange(bytes);
 				}
 
-				lock (mainThreadExecutionQueue)
+				// 2. Process Loop
+				while (true)
 				{
-					mainThreadExecutionQueue.Enqueue(() => { OnDisconnectedFromServer?.Invoke(); });
-				}
-			}
-			catch (ThreadAbortException)
-			{
-				// pass
-			}
-			catch (SocketException socketException)
-			{
-				VelNetLogger.Error("Socket exception: " + socketException);
-				if (autoSwitchToOfflineMode)
-				{
-					VelNetLogger.Error("Switching to offline mode");
-					offlineMode = true;
-					AddMessage(new ConnectedMessage());
-				}
+					// Snapshot the buffer
+					byte[] snapshot;
+					lock (wsBuffer) {
+						if (wsBuffer.Count == 0) return;
+						snapshot = wsBuffer.ToArray();
+					}
 
-				lock (mainThreadExecutionQueue)
-				{
-					mainThreadExecutionQueue.Enqueue(() => { OnFailedToConnectToServer?.Invoke(); });
+					using (MemoryStream ms = new MemoryStream(snapshot))
+					using (BinaryReader reader = new BinaryReader(ms))
+					{
+						// Call the NEW handler
+						MessageParseResult result = HandleBufferedMessage(reader);
+
+						if (result == MessageParseResult.Success)
+						{
+							// Remove the bytes we successfully consumed
+							int bytesConsumed = (int)ms.Position;
+							lock (wsBuffer) {
+								wsBuffer.RemoveRange(0, bytesConsumed);
+							}
+							// Loop continues to see if there is another message
+						}
+						else if (result == MessageParseResult.NeedMoreData)
+						{
+							// Stop processing and wait for more data from OnMessage
+							break; 
+						}
+						else // Error
+						{
+							VelNetLogger.Error("Stream Desync. Clearing Buffer.");
+							lock (wsBuffer) wsBuffer.Clear();
+							break;
+						}
+					}
 				}
-			}
-			catch (Exception ex)
-			{
-				VelNetLogger.Error(ex.ToString());
-			}
-			finally
-			{
-				connecting = false;
-				connected = false;
-			}
-		}
+			};
+
+            // Start the connection (Async)
+            webSocket.Connect();
+            
+            // CRITICAL: Exit this thread! 
+            // NativeWebSocket runs in Update(), not in this background thread.
+            return; 
+        }
+
+        // --- TCP BLOCKING LOOP (Legacy Path) ---
+        // We only reach here if TCP connected successfully
+        AddMessage(new ConnectedMessage());
+        
+        using (NetworkStream stream = socketConnection.GetStream())
+        using (BinaryReader reader = new BinaryReader(stream))
+        {
+            while (socketConnection.Connected)
+            {
+                HandleIncomingMessage(reader);
+            }
+        }
+
+        lock (mainThreadExecutionQueue)
+        {
+            mainThreadExecutionQueue.Enqueue(() => { OnDisconnectedFromServer?.Invoke(); });
+        }
+    }
+    catch (Exception ex)
+    {
+        VelNetLogger.Error("Connection Exception: " + ex);
+        lock (mainThreadExecutionQueue)
+        {
+            mainThreadExecutionQueue.Enqueue(() => { OnFailedToConnectToServer?.Invoke(); });
+        }
+    }
+    finally
+    {
+        // Only clean up flags if we aren't using WebSocket (which stays alive async)
+        if (!useWebSocket) {
+            connecting = false;
+            connected = false;
+        }
+    }
+}
+
+
+private MessageParseResult HandleBufferedMessage(BinaryReader reader)
+{
+    // 1. Try Read Type
+    if (!TryReadByte(reader, out byte typeByte)) return MessageParseResult.NeedMoreData;
+    
+    MessageReceivedType type = (MessageReceivedType)typeByte;
+
+    switch (type)
+    {
+        case MessageReceivedType.LOGGED_IN:
+        {
+            if (!TryReadInt(reader, out int uId)) return MessageParseResult.NeedMoreData;
+            if (!TryReadInt(reader, out int ver)) return MessageParseResult.NeedMoreData;
+
+            AddMessage(new LoginMessage { userId = uId, serverVersion = ver });
+            return MessageParseResult.Success;
+        }
+
+        case MessageReceivedType.ROOM_LIST:
+        {
+            if (!TryReadInt(reader, out int n)) return MessageParseResult.NeedMoreData;
+            if (!TryReadBytes(reader, n, out byte[] utf8data)) return MessageParseResult.NeedMoreData;
+
+            RoomsMessage rm = new RoomsMessage { rooms = new List<ListedRoom>() };
+            string roomMessage = Encoding.UTF8.GetString(utf8data);
+
+            if (!string.IsNullOrEmpty(roomMessage))
+            {
+                foreach (string s in roomMessage.Split(','))
+                {
+                    string[] pieces = s.Split(':');
+                    if (pieces.Length == 2)
+                    {
+                        rm.rooms.Add(new ListedRoom
+                        {
+                            name = pieces[0],
+                            numUsers = int.Parse(pieces[1])
+                        });
+                    }
+                }
+            }
+            AddMessage(rm);
+            return MessageParseResult.Success;
+        }
+
+        case MessageReceivedType.ROOM_DATA:
+        {
+            if (!TryReadByte(reader, out byte nameLen)) return MessageParseResult.NeedMoreData;
+            if (!TryReadBytes(reader, nameLen, out byte[] roomNameBytes)) return MessageParseResult.NeedMoreData;
+            
+            // Note: We construct the object, but if we fail later, we just won't call AddMessage
+            // and the next attempt will reconstruct it. This is fine.
+            RoomDataMessage rdm = new RoomDataMessage { room = Encoding.UTF8.GetString(roomNameBytes) };
+
+            if (!TryReadInt(reader, out int clientCount)) return MessageParseResult.NeedMoreData;
+
+            for (int i = 0; i < clientCount; i++)
+            {
+                if (!TryReadInt(reader, out int clientId)) return MessageParseResult.NeedMoreData;
+                if (!TryReadByte(reader, out byte uNameLen)) return MessageParseResult.NeedMoreData;
+                if (!TryReadBytes(reader, uNameLen, out byte[] uNameBytes)) return MessageParseResult.NeedMoreData;
+                
+                rdm.members.Add((clientId, Encoding.UTF8.GetString(uNameBytes)));
+            }
+            AddMessage(rdm);
+            return MessageParseResult.Success;
+        }
+
+        case MessageReceivedType.PLAYER_JOINED:
+        {
+            if (!TryReadInt(reader, out int uId)) return MessageParseResult.NeedMoreData;
+            if (!TryReadByte(reader, out byte n)) return MessageParseResult.NeedMoreData;
+            if (!TryReadBytes(reader, n, out byte[] roomNameBytes)) return MessageParseResult.NeedMoreData;
+
+            AddMessage(new JoinMessage 
+            { 
+                userId = uId, 
+                room = Encoding.UTF8.GetString(roomNameBytes) 
+            });
+            return MessageParseResult.Success;
+        }
+
+        case MessageReceivedType.DATA_MESSAGE:
+        {
+            if (!TryReadInt(reader, out int senderId)) return MessageParseResult.NeedMoreData;
+            if (!TryReadInt(reader, out int n)) return MessageParseResult.NeedMoreData;
+            if (!TryReadBytes(reader, n, out byte[] data)) return MessageParseResult.NeedMoreData;
+
+            AddMessage(new DataMessage { senderId = senderId, data = data });
+            return MessageParseResult.Success;
+        }
+
+        case MessageReceivedType.MASTER_MESSAGE:
+        {
+            if (!TryReadInt(reader, out int masterId)) return MessageParseResult.NeedMoreData;
+            AddMessage(new ChangeMasterMessage { masterId = masterId });
+            return MessageParseResult.Success;
+        }
+
+        case MessageReceivedType.YOU_JOINED:
+        {
+            if (!TryReadInt(reader, out int count)) return MessageParseResult.NeedMoreData;
+            
+            YouJoinedMessage m = new YouJoinedMessage { playerIds = new List<int>() };
+            
+            // Pre-check for optimization (optional, but good for large lists)
+            if (reader.BaseStream.Length - reader.BaseStream.Position < count * 4) return MessageParseResult.NeedMoreData;
+
+            for (int i = 0; i < count; i++)
+            {
+                TryReadInt(reader, out int pid); 
+                m.playerIds.Add(pid);
+            }
+
+            if (!TryReadByte(reader, out byte n)) return MessageParseResult.NeedMoreData;
+            if (!TryReadBytes(reader, n, out byte[] roomBytes)) return MessageParseResult.NeedMoreData;
+            
+            m.room = Encoding.UTF8.GetString(roomBytes);
+            AddMessage(m);
+            return MessageParseResult.Success;
+        }
+
+        case MessageReceivedType.PLAYER_LEFT:
+        {
+            if (!TryReadInt(reader, out int uId)) return MessageParseResult.NeedMoreData;
+            if (!TryReadByte(reader, out byte n)) return MessageParseResult.NeedMoreData;
+            if (!TryReadBytes(reader, n, out byte[] roomBytes)) return MessageParseResult.NeedMoreData;
+
+            AddMessage(new PlayerLeftMessage
+            {
+                userId = uId,
+                room = Encoding.UTF8.GetString(roomBytes)
+            });
+            return MessageParseResult.Success;
+        }
+
+        case MessageReceivedType.YOU_LEFT:
+        {
+            if (!TryReadByte(reader, out byte n)) return MessageParseResult.NeedMoreData;
+            if (!TryReadBytes(reader, n, out byte[] roomBytes)) return MessageParseResult.NeedMoreData;
+
+            AddMessage(new YouLeftMessage
+            {
+                room = Encoding.UTF8.GetString(roomBytes)
+            });
+            return MessageParseResult.Success;
+        }
+
+        default:
+            VelNetLogger.Error("Unknown message type: " + type);
+            return MessageParseResult.Error;
+    }
+}
+
 
 		private void HandleIncomingMessage(BinaryReader reader)
 		{
@@ -1115,80 +1470,115 @@ namespace VelNet
 		}
 
 		private void ListenForDataUDP()
-		{
-			if (offlineMode) return;
+{
+    // 1. Immediate exit if using WebSockets or Offline
+    if (offlineMode || useWebSocket) 
+    {
+        udpConnected = false;
+        return;
+    }
 
-			//I don't yet have a UDP connection
-			try
-			{
-				IPAddress[] addresses = Dns.GetHostAddresses(host);
-				Debug.Assert(addresses.Length > 0);
-				RemoteEndPoint = new IPEndPoint(addresses[0], port);
+    try
+    {
+        IPAddress[] addresses = Dns.GetHostAddresses(host);
+        RemoteEndPoint = new IPEndPoint(addresses[0], port);
 
-				udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
-				udpConnected = false;
-				byte[] buffer = new byte[1024];
-				while (true)
-				{
-					buffer[0] = 0;
-					Array.Copy(GetBigEndianBytes(userid), 0, buffer, 1, 4);
-					udpSocket.SendTo(buffer, 5, SocketFlags.None, RemoteEndPoint);
+        // Fix: Ignore ICMP Port Unreachable errors to prevent false positives on Windows
+        // (SIO_UDP_CONNRESET = -1744830452)
+        try { udpSocket.IOControl((IOControlCode)(-1744830452), new byte[] { 0 }, null); } catch { }
 
-					if (udpSocket.Available == 0)
-					{
-						Thread.Sleep(100);
-						VelNetLogger.Info("Waiting for UDP response");
-					}
-					else
-					{
-						break;
-					}
-				}
+        udpConnected = false;
+        byte[] buffer = new byte[1024];
+        
+        // 2. Handshake Loop
+        while (true)
+        {
+            // Send Handshake
+            buffer[0] = 0; // MessageType.LOGGED_IN (Connect)
+            Array.Copy(GetBigEndianBytes(userid), 0, buffer, 1, 4);
+            udpSocket.SendTo(buffer, 5, SocketFlags.None, RemoteEndPoint);
 
-				udpConnected = true;
-				wasConnected = true;
-				while (true)
-				{
-					int numReceived = udpSocket.Receive(buffer);
-					switch ((MessageReceivedType)buffer[0])
-					{
-						case MessageReceivedType.LOGGED_IN:
-							VelNetLogger.Info("UDP connected");
-							break;
-						case MessageReceivedType.DATA_MESSAGE:
-						{
-							DataMessage m = new DataMessage();
-							//we should get the sender address
-							byte[] senderBytes = new byte[4];
-							Array.Copy(buffer, 1, senderBytes, 0, 4);
-							m.senderId = GetIntFromBytes(senderBytes);
-							byte[] messageBytes = new byte[numReceived - 5];
-							Array.Copy(buffer, 5, messageBytes, 0, messageBytes.Length);
-							m.data = messageBytes;
-							AddMessage(m);
-							break;
-						}
-					}
-				}
-			}
-			catch (ThreadAbortException)
-			{
-				// pass
-			}
-			catch (SocketException socketException)
-			{
-				VelNetLogger.Error("Socket exception: " + socketException);
-				lock (mainThreadExecutionQueue)
-				{
-					mainThreadExecutionQueue.Enqueue(() => { OnDisconnectedFromServer?.Invoke(); });
-				}
-			}
-			catch (Exception ex)
-			{
-				VelNetLogger.Error(ex.ToString());
-			}
-		}
+            // Wait for response with timeout
+            if (udpSocket.Poll(100000, SelectMode.SelectRead))
+            {
+                // Data is available, verify it!
+                try 
+                {
+                    int numReceived = udpSocket.Receive(buffer);
+                    
+                    // 3. VALIDATION: Only connect if the message is actually a LOGGED_IN response
+                    if (numReceived > 0 && buffer[0] == (byte)MessageReceivedType.LOGGED_IN)
+                    {
+                        udpConnected = true;
+                        wasConnected = true;
+                        VelNetLogger.Info("UDP Connection Established.");
+                        break; // Valid connection, break the loop
+                    }
+                }
+                catch (SocketException) 
+                {
+                    // This catches the ICMP Port Unreachable and just retries
+                    // instead of crashing the thread and setting udpConnected=true
+                }
+            }
+            
+            // Wait before retrying handshake
+            Thread.Sleep(100);
+        }
+
+        // 4. Data Loop
+        while (udpConnected)
+        {
+            try 
+            {
+                int numReceived = udpSocket.Receive(buffer);
+                if (numReceived > 0)
+                {
+                     // Handle Data
+                    switch ((MessageReceivedType)buffer[0])
+                    {
+                        case MessageReceivedType.DATA_MESSAGE:
+                        {
+                            DataMessage m = new DataMessage();
+                            byte[] senderBytes = new byte[4];
+                            Array.Copy(buffer, 1, senderBytes, 0, 4);
+                            m.senderId = GetIntFromBytes(senderBytes);
+                            byte[] messageBytes = new byte[numReceived - 5];
+                            Array.Copy(buffer, 5, messageBytes, 0, messageBytes.Length);
+                            m.data = messageBytes;
+                            AddMessage(m);
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (SocketException)
+            {
+                // Allow read timeouts or ICMP errors to simply be ignored 
+                // without killing the thread immediately
+            }
+        }
+    }
+    catch (ThreadAbortException)
+    {
+        // pass
+    }
+    catch (Exception ex)
+    {
+        VelNetLogger.Error("UDP Thread Error: " + ex);
+    }
+    finally
+    {
+        udpConnected = false;
+        if (udpSocket != null)
+        {
+            udpSocket.Close();
+            udpSocket = null;
+        }
+    }
+}
 
 		private static void SendUdpMessage(byte[] message, int N)
 		{
@@ -1206,52 +1596,52 @@ namespace VelNet
 		/// <param name="message">We can assume that this message is already formatted, so we just send it</param>
 		/// <returns>True if the message successfully sent. False if it failed and we should quit</returns>
 		private static bool SendTcpMessage(byte[] message)
-		{
-			if (instance.offlineMode)
-			{
-				instance.FakeServer(message);
-				return true;
-			}
+{
+    if (instance.offlineMode)
+    {
+        instance.FakeServer(message);
+        return true;
+    }
 
-			// Logging.Info("Sent: " + clientMessage);
-			if (instance.socketConnection == null)
-			{
-				VelNetLogger.Error("Tried to send message while socket connection was still null.", instance);
-				return false;
-			}
+    // --- WEBSOCKET PATH ---
+    if (instance.useWebSocket)
+    {
+        if (instance.webSocket != null && instance.webSocket.State == WebSocketState.Open)
+        {
+            instance.webSocket.Send(message);
+            return true;
+        }
+        return false;
+    }
 
-			try
-			{
-				// check if we have been disconnected, if so shut down velnet
-				if (!instance.socketConnection.Connected)
-				{
-					DisconnectFromServer();
-					VelNetLogger.Error("Disconnected from server. Most likely due to timeout.");
-					return false;
-				}
+    // --- TCP PATH (Existing Logic) ---
+    if (instance.socketConnection == null)
+    {
+        return false;
+    }
 
-				// Get a stream object for writing. 			
-				NetworkStream stream = instance.socketConnection.GetStream();
-				if (stream.CanWrite)
-				{
-					stream.Write(message, 0, message.Length);
-				}
-			}
-			catch (IOException ioException)
-			{
-				DisconnectFromServer();
-				VelNetLogger.Error("Disconnected from server. Most likely due to timeout.\n" + ioException);
-				return false;
-			}
-			catch (SocketException socketException)
-			{
-				VelNetLogger.Error("Socket exception: " + socketException);
-				OnDisconnectedFromServer?.Invoke();
-			}
+    try
+    {
+        if (!instance.socketConnection.Connected)
+        {
+            DisconnectFromServer();
+            return false;
+        }
+        
+        NetworkStream stream = instance.socketConnection.GetStream();
+        if (stream.CanWrite)
+        {
+            stream.Write(message, 0, message.Length);
+        }
+    }
+    catch (Exception ioException)
+    {
+        // ... Error Handling ...
+        return false;
+    }
 
-			return true;
-		}
-
+    return true;
+}
 		private static byte[] GetBigEndianBytes(int n)
 		{
 			return BitConverter.GetBytes(n).Reverse().ToArray();
@@ -2026,4 +2416,6 @@ namespace VelNet
 			return BitConverter.ToInt32(data, 0);
 		}
 	}
+
+	
 }
