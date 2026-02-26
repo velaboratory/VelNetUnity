@@ -80,6 +80,8 @@ namespace VelNet
 		private WebSocket webSocket;
 		private bool useWebSocket;
 
+		private static int MAX_UDP_PACKET_SIZE = 65000; 
+
 		// The buffer for WebSocket stream accumulation
 		private List<byte> wsBuffer = new List<byte>();
 
@@ -226,7 +228,7 @@ namespace VelNet
 		//public static bool IsConnected => instance != null && instance.connected && (instance.udpConnected || instance.useWebSocket);
 		public static bool IsConnected => instance != null && instance.connected;
 		// this is for sending udp packets
-		private static readonly byte[] toSend = new byte[1024];
+		private static readonly byte[] toSend = new byte[MAX_UDP_PACKET_SIZE];
 
 		// Use this for initialization
 		public abstract class Message
