@@ -133,7 +133,14 @@ namespace VelNet
 
 		public readonly Dictionary<int, VelNetPlayer> players = new Dictionary<int, VelNetPlayer>();
 
-		private static readonly ConcurrentQueue<byte[]> udpSendQueue = new ConcurrentQueue<byte[]>();
+		private struct UdpSendPacket
+		{
+			public byte[] Buffer;
+			public int Length;
+		}
+
+		private static readonly ConcurrentQueue<UdpSendPacket> udpSendQueue = new ConcurrentQueue<UdpSendPacket>();
+		private static readonly ConcurrentQueue<byte[]> udpBufferPool = new ConcurrentQueue<byte[]>();
 
 		#region Callbacks
 
@@ -1585,11 +1592,11 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
             Thread.Sleep(100);
         }
 
-				// if (udpConnected)
-				// {
-				// 	clientSendThreadUDP = new Thread(SendUDPLoop);
-				// 	clientSendThreadUDP.Start();
-				// }
+				if (udpConnected)
+				{
+					clientSendThreadUDP = new Thread(SendUDPLoop);
+					clientSendThreadUDP.Start();
+				}
 
         // 4. Data Loop
         while (udpConnected)
@@ -1647,12 +1654,14 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			{
 				return;
 			}
-			instance.udpSocket.Send(message, N, SocketFlags.None);
-			// Must copy: message is a shared static buffer (toSend) that gets overwritten on the next call.
-			// The queue holds references, and the send loop runs on a separate thread.
-			//byte[] copy = new byte[N];
-			//Buffer.BlockCopy(message, 0, copy, 0, N);
-			//udpSendQueue.Enqueue(copy);
+			
+			if (!udpBufferPool.TryDequeue(out byte[] pooledBuffer) || pooledBuffer.Length < N)
+			{
+				pooledBuffer = new byte[Math.Max(1500, N)]; // Safe pre-allocation limit
+			}
+
+			Buffer.BlockCopy(message, 0, pooledBuffer, 0, N);
+			udpSendQueue.Enqueue(new UdpSendPacket { Buffer = pooledBuffer, Length = N });
 		}
 
 		private static void SendUDPLoop()
@@ -1660,15 +1669,19 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			Profiler.BeginThreadProfiling("VelNet", "UDP Send Loop");
 			while (instance.udpConnected)
 			{
-				if (udpSendQueue.TryDequeue(out byte[] message))
+				if (udpSendQueue.TryDequeue(out UdpSendPacket packet))
 				{
 					try
 					{
-						instance.udpSocket.Send(message, message.Length, SocketFlags.None);
+						instance.udpSocket.Send(packet.Buffer, packet.Length, SocketFlags.None);
 					}
 					catch (SocketException)
 					{
 						// Allow send errors to be ignored (e.g. if the connection is lost)
+					}
+					finally
+					{
+						udpBufferPool.Enqueue(packet.Buffer);
 					}
 				}
 				else
