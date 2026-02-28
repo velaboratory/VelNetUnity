@@ -65,6 +65,15 @@ namespace VelNet
 			position += 4;
 			return value;
 		}
+		public uint ReadUInt32()
+		{
+			uint value = (uint)(buffer[position]
+			            | (buffer[position + 1] << 8)
+			            | (buffer[position + 2] << 16)
+			            | (buffer[position + 3] << 24));
+			position += 4;
+			return value;
+		}
 
 		public long ReadInt64()
 		{
