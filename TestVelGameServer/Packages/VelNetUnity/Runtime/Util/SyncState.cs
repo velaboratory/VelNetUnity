@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections;
-using System.IO;
 using UnityEngine;
 
 namespace VelNet
@@ -16,20 +15,17 @@ namespace VelNet
 		public bool hybridOnChangeCompression = true;
 
 		private byte[] lastSentBytes;
+		private int lastSentLength;
 		private double lastSendTime;
 		private const double slowSendInterval = 2;
 
-		private MemoryStream writerMemory;
-		private BinaryWriter writer;
-		private MemoryStream readerMemory;
-		private BinaryReader reader;
+		private NetworkWriter writer;
+		private NetworkReader reader;
 
 		protected virtual void Awake()
 		{
-			writerMemory = new MemoryStream();
-			writer = new BinaryWriter(writerMemory);
-			readerMemory = new MemoryStream();
-			reader = new BinaryReader(readerMemory);
+			writer = new NetworkWriter();
+			reader = new NetworkReader();
 
 			StartCoroutine(SendMessageUpdate());
 		}
@@ -42,24 +38,37 @@ namespace VelNet
 				{
 					if (IsMine && enabled)
 					{
-						byte[] newBytes = PackState();
+						writer.Reset();
+						SendState(writer);
+
+						int newLength = writer.Length;
+						byte[] newBuffer = writer.Buffer;
 
 						if (hybridOnChangeCompression)
 						{
 							if (Time.timeAsDouble - lastSendTime > slowSendInterval ||
-							    !BinaryWriterExtensions.BytesSame(lastSentBytes, newBytes))
+							    !BinaryWriterExtensions.BytesSame(lastSentBytes, lastSentLength, newBuffer, newLength))
 							{
-								SendBytes(newBytes);
+								SendBytes(newBuffer, 0, newLength);
 								lastSendTime = Time.timeAsDouble;
 							}
 						}
 						else
 						{
-							SendBytes(newBytes);
+							SendBytes(newBuffer, 0, newLength);
 							lastSendTime = Time.timeAsDouble;
 						}
 
-						lastSentBytes = newBytes;
+						// Update lastSentBytes only if the data changed or first send
+						if (!BinaryWriterExtensions.BytesSame(lastSentBytes, lastSentLength, newBuffer, newLength))
+						{
+							if (lastSentBytes == null || lastSentBytes.Length < newLength)
+							{
+								lastSentBytes = new byte[newLength];
+							}
+							Array.Copy(newBuffer, lastSentBytes, newLength);
+							lastSentLength = newLength;
+						}
 					}
 				}
 				catch (Exception e)
@@ -72,35 +81,30 @@ namespace VelNet
 			// ReSharper disable once IteratorNeverReturns
 		}
 
-		public override void ReceiveBytes(byte[] message)
+		public override void ReceiveBytes(NetworkReader networkReader)
 		{
-			UnpackState(message);
+			UnpackState(networkReader);
 		}
 
-		protected abstract void SendState(BinaryWriter binaryWriter);
+		protected abstract void SendState(NetworkWriter networkWriter);
 
-		protected abstract void ReceiveState(BinaryReader binaryReader);
+		protected abstract void ReceiveState(NetworkReader networkReader);
 
-		public byte[] PackState()
+		public void PackState(NetworkWriter networkWriter)
 		{
-			writerMemory.Position = 0;
-			writerMemory.SetLength(0);
-			SendState(writer);
-			return writerMemory.ToArray();
+			SendState(networkWriter);
 		}
 
-		public void UnpackState(byte[] state)
+		public void UnpackState(NetworkReader networkReader)
 		{
-			readerMemory.Position = 0;
-			readerMemory.SetLength(0);
-			readerMemory.Write(state, 0, state.Length);
-			readerMemory.Position = 0;
-			ReceiveState(reader);
+			ReceiveState(networkReader);
 		}
 
 		public void ForceSync()
 		{
-			SendBytes(PackState());
+			writer.Reset();
+			SendState(writer);
+			SendBytes(writer.Buffer, 0, writer.Length);
 		}
 	}
 }

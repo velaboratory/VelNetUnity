@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Net.NetworkInformation;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -60,7 +58,7 @@ namespace VelNet
 		/// </summary>
 		public Action<VelNetPlayer> OwnershipChanged;
 
-		public bool SendBytes(NetworkComponent component, bool isRpc, byte[] message, bool reliable = true)
+		public bool SendBytes(NetworkComponent component, bool isRpc, byte[] buffer, int offset, int length, bool reliable = true)
 		{
 			// only needs to be owner if this isn't an RPC
 			// RPC calls can be called by non-owner
@@ -76,34 +74,33 @@ namespace VelNet
 				return false;
 			}
 
-			// send the message and an identifier for which component it belongs to
-			if (!syncedComponents.Contains(component))
+			int componentIndex = component.GetCachedComponentIndex();
+			if (componentIndex < 0)
 			{
 				Debug.LogError("Can't send message if this component is not registered with the NetworkObject.", this);
 				return false;
 			}
 
-			int componentIndex = syncedComponents.IndexOf(component);
-			switch (componentIndex)
+			if (componentIndex > 127)
 			{
-				case > 127:
-					Debug.LogError("Too many components.", component);
-					return false;
-				case < 0:
-					Debug.LogError("WAAAAAAAH. NetworkObject doesn't have a reference to this component.", component);
-					return false;
+				Debug.LogError("Too many components.", component);
+				return false;
 			}
 
-			byte componentByte = (byte)(componentIndex << 1);
-			// the leftmost bit determines if this is an rpc or not
-			// this leaves only 128 possible NetworkComponents per NetworkObject
-			componentByte |= (byte)(isRpc ? 1 : 0);
+			// Use the full cached header: [ObjectSync][networkId][componentByte]
+			byte[] header = isRpc ? component.cachedRpcSendHeader : component.cachedSendHeader;
+			int headerLen = component.cachedSendHeaderLength;
 
-			return VelNetPlayer.SendMessage(this, componentByte, message, reliable);
+			NetworkWriter w = VelNetManager.GetSendWriter();
+			w.Reset();
+			w.Write(header, 0, headerLen);
+			w.Write(length);
+			w.Write(buffer, offset, length);
+
+			return VelNetManager.SendToRoom(w.Buffer, 0, w.Length, false, reliable);
 		}
 
-
-		public bool SendBytesToGroup(NetworkComponent component, bool isRpc, string group, byte[] message, bool reliable = true)
+		public bool SendBytesToGroup(NetworkComponent component, bool isRpc, string group, byte[] buffer, int offset, int length, bool reliable = true)
 		{
 			// only needs to be owner if this isn't an RPC
 			// RPC calls can be called by non-owner
@@ -113,36 +110,43 @@ namespace VelNet
 				return false;
 			}
 
-			// send the message and an identifier for which component it belongs to
-			int componentIndex = syncedComponents.IndexOf(component);
-			switch (componentIndex)
+			int componentIndex = component.GetCachedComponentIndex();
+			if (componentIndex < 0)
 			{
-				case > 127:
-					Debug.LogError("Too many components.", component);
-					return false;
-				case < 0:
-					Debug.LogError("WAAAAAAAH. NetworkObject doesn't have a reference to this component.", component);
-					return false;
+				Debug.LogError("Can't send message if this component is not registered with the NetworkObject.", this);
+				return false;
 			}
 
-			byte componentByte = (byte)(componentIndex << 1);
-			componentByte |= (byte)(isRpc ? 1 : 0);
+			if (componentIndex > 127)
+			{
+				Debug.LogError("Too many components.", component);
+				return false;
+			}
 
-			return VelNetPlayer.SendGroupMessage(this, group, componentByte, message, reliable);
+			byte[] header = isRpc ? component.cachedRpcSendHeader : component.cachedSendHeader;
+			int headerLen = component.cachedSendHeaderLength;
+
+			NetworkWriter w = VelNetManager.GetSendWriter();
+			w.Reset();
+			w.Write(header, 0, headerLen);
+			w.Write(length);
+			w.Write(buffer, offset, length);
+
+			return VelNetManager.SendToGroup(group, w.Buffer, 0, w.Length, reliable);
 		}
 
-		public void ReceiveBytes(byte componentIdx, bool isRpc, byte[] message)
+		public void ReceiveBytes(byte componentIdx, bool isRpc, NetworkReader reader)
 		{
 			// send the message to the right component
 			try
 			{
 				if (isRpc)
 				{
-					syncedComponents[componentIdx].ReceiveRPC(message);
+					syncedComponents[componentIdx].ReceiveRPC(reader);
 				}
 				else
 				{
-					syncedComponents[componentIdx].ReceiveBytes(message);
+					syncedComponents[componentIdx].ReceiveBytes(reader);
 				}
 			}
 			catch (Exception e)
@@ -151,22 +155,27 @@ namespace VelNet
 			}
 		}
 
-		public void PackState(BinaryWriter writer)
+		public void PackState(NetworkWriter writer)
 		{
+			// Use a temporary writer per component to get the length prefix
+			NetworkWriter tempWriter = VelNetManager.GetTempWriter();
 			foreach (IPackState packState in syncedComponents.OfType<IPackState>())
 			{
-				byte[] state = packState.PackState();
-				writer.Write(state.Length);
-				writer.Write(state);
+				tempWriter.Reset();
+				packState.PackState(tempWriter);
+				writer.Write(tempWriter.Length);
+				writer.Write(tempWriter.Buffer, 0, tempWriter.Length);
 			}
 		}
 
-		public void UnpackState(BinaryReader reader)
+		public void UnpackState(NetworkReader reader)
 		{
 			foreach (IPackState packState in syncedComponents.OfType<IPackState>())
 			{
 				int length = reader.ReadInt32();
-				packState.UnpackState(reader.ReadBytes(length));
+				// Create a sub-reader for this component's state
+				NetworkReader componentReader = new NetworkReader(reader.ReadBytes(length));
+				packState.UnpackState(componentReader);
 			}
 		}
 

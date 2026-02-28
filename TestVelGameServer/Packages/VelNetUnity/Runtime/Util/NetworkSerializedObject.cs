@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using UnityEngine;
 
@@ -60,22 +60,25 @@ namespace VelNet
 			// ReSharper disable once IteratorNeverReturns
 		}
 
-		public override void ReceiveBytes(byte[] message)
+		public override void ReceiveBytes(NetworkReader reader)
 		{
+			byte[] message = reader.ReadBytes(reader.Remaining);
 			ReceiveState(message);
 		}
 
 		protected abstract byte[] SendState();
 
 		protected abstract void ReceiveState(byte[] message);
-		
-		public byte[] PackState()
+
+		public void PackState(NetworkWriter writer)
 		{
-			return SendState();
+			byte[] data = SendState();
+			if (data != null) writer.Write(data);
 		}
 
-		public void UnpackState(byte[] state)
+		public void UnpackState(NetworkReader reader)
 		{
+			byte[] state = reader.ReadBytes(reader.Remaining);
 			ReceiveState(state);
 		}
 	}

@@ -1,8 +1,6 @@
-﻿using System;
+using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using UnityEngine;
 
 namespace VelNet
@@ -68,11 +66,11 @@ namespace VelNet
 			// ReSharper disable once IteratorNeverReturns
 		}
 
-		public override void ReceiveBytes(byte[] message)
+		public override void ReceiveBytes(NetworkReader networkReader)
 		{
+			byte[] message = networkReader.ReadBytes(networkReader.Remaining);
 			using MemoryStream mem = new MemoryStream(message);
 			using BinaryReader reader = new BinaryReader(mem);
-
 			ReceiveState(reader);
 		}
 
@@ -80,20 +78,21 @@ namespace VelNet
 
 		protected abstract void ReceiveState(BinaryReader binaryReader);
 
-		public byte[] PackState()
+		public void PackState(NetworkWriter writer)
 		{
 			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			SendState(writer);
-			return mem.ToArray();
+			using BinaryWriter bw = new BinaryWriter(mem);
+			SendState(bw);
+			byte[] data = mem.ToArray();
+			writer.Write(data);
 		}
 
-		public void UnpackState(byte[] state)
+		public void UnpackState(NetworkReader reader)
 		{
+			byte[] state = reader.ReadBytes(reader.Remaining);
 			using MemoryStream mem = new MemoryStream(state);
-			using BinaryReader reader = new BinaryReader(mem);
-
-			ReceiveState(reader);
+			using BinaryReader br = new BinaryReader(mem);
+			ReceiveState(br);
 		}
 	}
 }

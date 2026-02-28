@@ -1,4 +1,3 @@
-using System.IO;
 using UnityEngine.UI;
 using VelNet;
 
@@ -7,14 +6,14 @@ public class SyncedTextbox : SyncState
 	public InputField text;
 
 
-	protected override void SendState(BinaryWriter binaryWriter)
+	protected override void SendState(NetworkWriter writer)
 	{
-		binaryWriter.Write(text.text);
+		writer.Write(text.text);
 	}
 
-	protected override void ReceiveState(BinaryReader binaryReader)
+	protected override void ReceiveState(NetworkReader reader)
 	{
-		text.text = binaryReader.ReadString();
+		text.text = reader.ReadString();
 	}
 
 	public void TakeOwnership()

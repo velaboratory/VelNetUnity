@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -19,6 +20,8 @@ namespace VelNet
 		public int maxUndoSteps = 50;
 		public bool debugLog;
 
+		private static readonly NetworkWriter undoWriter = new NetworkWriter(256);
+		private static readonly NetworkReader undoReader = new NetworkReader();
 
 		/// <summary>
 		/// Reset to the last UndoState and remove the state from history. This only takes ownership if the IPackState component is also a NetworkComponent
@@ -31,7 +34,8 @@ namespace VelNet
 				for (int i = 0; i < objects.Count; i++)
 				{
 					objects[i].networkObject.TakeOwnership();
-					objects[i].UnpackState(lastStates[i]);
+					undoReader.SetBuffer(lastStates[i], 0, lastStates[i].Length);
+					objects[i].UnpackState(undoReader);
 				}
 
 				undoBuffer.RemoveAt(undoBuffer.Count - 1);
@@ -54,7 +58,8 @@ namespace VelNet
 				for (int i = 0; i < objects.Count; i++)
 				{
 					objects[i].networkObject.TakeOwnership();
-					objects[i].UnpackState(lastStates[i]);
+					undoReader.SetBuffer(lastStates[i], 0, lastStates[i].Length);
+					objects[i].UnpackState(undoReader);
 				}
 
 				if (debugLog) Debug.Log($"Revert {objects.Count} objects");
@@ -70,7 +75,10 @@ namespace VelNet
 			byte[][] states = new byte[objects.Count][];
 			for (int i = 0; i < objects.Count; i++)
 			{
-				states[i] = objects[i].PackState();
+				undoWriter.Reset();
+				objects[i].PackState(undoWriter);
+				states[i] = new byte[undoWriter.Length];
+				Array.Copy(undoWriter.Buffer, states[i], undoWriter.Length);
 			}
 
 			undoBuffer.Add(states);
