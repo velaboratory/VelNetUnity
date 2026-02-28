@@ -83,7 +83,7 @@ namespace VelNet
 		private bool useWebSocket;
 
 		private static int MAX_UDP_PACKET_SIZE = 65000; 
-
+		private static int MAX_UDP_QUEUE_SIZE = 500; //will drop after this
 		// The buffer for WebSocket stream accumulation
 		private List<byte> wsBuffer = new List<byte>();
 
@@ -1653,6 +1653,11 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			if (instance.udpSocket == null || !instance.udpConnected)
 			{
 				return;
+			}
+
+			if(udpSendQueue.Count > MAX_UDP_QUEUE_SIZE)
+			{
+				return; // Backpressure: If we have too many messages queued, just drop this one to avoid OOM
 			}
 			
 			if (!udpBufferPool.TryDequeue(out byte[] pooledBuffer) || pooledBuffer.Length < N)
