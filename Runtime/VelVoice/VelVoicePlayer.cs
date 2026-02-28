@@ -1,4 +1,3 @@
-using System.IO;
 using UnityEngine;
 using System;
 using Concentus.Structs;
@@ -32,8 +31,9 @@ namespace VelNet.Voice
 
 		private float delayStartTime;
 
-		public override void ReceiveBytes(byte[] message)
+		public override void ReceiveBytes(NetworkReader reader)
 		{
+			byte[] message = reader.ReadBytes(reader.Remaining);
 			EncodedVoiceDataReceived?.Invoke(message);
 			float[] temp = voiceSystem.DecodeOpusData(opusDecoder, message, message.Length);
 			DecodedVoiceDataReceived?.Invoke(message);
@@ -80,16 +80,15 @@ namespace VelNet.Voice
 			
 		}
 		
-		private void handleEncodedFrame(VelVoice.FixedArray frame) 
+		private void handleEncodedFrame(VelVoice.FixedArray frame)
 		{
-			//float[] temp = new float[frame.count];
-			//System.Array.Copy(frame.array, temp, frame.count);
-			MemoryStream mem = new MemoryStream();
-			BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write(frame.array, 0, frame.count);
-			byte[] toSend = mem.ToArray();
-			this.SendBytes(toSend, false);
-			EncodedVoiceDataSent?.Invoke(toSend);
+			this.SendBytes(frame.array, 0, frame.count, false);
+			if (EncodedVoiceDataSent != null)
+			{
+				byte[] copy = new byte[frame.count];
+				Array.Copy(frame.array, copy, frame.count);
+				EncodedVoiceDataSent.Invoke(copy);
+			}
 		}
 
 

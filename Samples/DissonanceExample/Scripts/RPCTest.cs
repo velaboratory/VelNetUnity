@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
 using VelNet;
 
@@ -19,7 +18,7 @@ public class RPCTest : NetworkComponent
 		Debug.Log("RPC RECEIVED!");
 	}
 
-	public override void ReceiveBytes(byte[] message)
+	public override void ReceiveBytes(NetworkReader reader)
 	{
 		Debug.Log("WOW. BYTES");
 	}

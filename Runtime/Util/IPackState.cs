@@ -1,8 +1,8 @@
-﻿namespace VelNet
+namespace VelNet
 {
 	public interface IPackState
 	{
-		public byte[] PackState();
-		public void UnpackState(byte[] state);
+		public void PackState(NetworkWriter writer);
+		public void UnpackState(NetworkReader reader);
 	}
 }

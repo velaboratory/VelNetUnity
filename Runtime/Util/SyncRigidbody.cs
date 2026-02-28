@@ -1,6 +1,4 @@
-using System.IO;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace VelNet
 {
@@ -50,7 +48,7 @@ namespace VelNet
 		/// <summary>
 		/// This gets called at serializationRateHz when the object is locally owned
 		/// </summary>
-		protected override void SendState(BinaryWriter writer)
+		protected override void SendState(NetworkWriter writer)
 		{
 			if (useLocalTransform)
 			{
@@ -63,10 +61,9 @@ namespace VelNet
 				writer.Write(transform.rotation);
 			}
 
-			if (syncVelocity) writer.Write(rb.velocity);
+			if (syncVelocity) writer.Write(rb.linearVelocity);
 			if (syncAngularVelocity) writer.Write(rb.angularVelocity);
 
-			// writer.Write((new bool[] {rb.isKinematic, rb.useGravity}).GetBitmasks());
 			if (syncKinematic) writer.Write(rb.isKinematic);
 			if (syncGravity) writer.Write(rb.useGravity);
 		}
@@ -75,7 +72,7 @@ namespace VelNet
 		/// This gets called whenever a message about the state of this object is received.
 		/// Usually at serializationRateHz.
 		/// </summary>
-		protected override void ReceiveState(BinaryReader reader)
+		protected override void ReceiveState(NetworkReader reader)
 		{
 			targetPosition = reader.ReadVector3();
 			targetRotation = reader.ReadQuaternion();
@@ -83,8 +80,8 @@ namespace VelNet
 			if (syncVelocity) targetVel = reader.ReadVector3();
 			if (syncAngularVelocity) targetAngVel = reader.ReadVector3();
 
-			if (syncKinematic) rb.isKinematic = reader.ReadBoolean();
-			if (syncGravity) rb.useGravity = reader.ReadBoolean();
+			if (syncKinematic) rb.isKinematic = reader.ReadBool();
+			if (syncGravity) rb.useGravity = reader.ReadBool();
 
 			// record the distance from the target for interpolation
 			if (useLocalTransform)
@@ -116,11 +113,11 @@ namespace VelNet
 				}
 			}
 
-			float velDelta = Vector3.Distance(targetVel, rb.velocity);
+			float velDelta = Vector3.Distance(targetVel, rb.linearVelocity);
 			float angVelDelta = Vector3.Distance(targetAngVel, rb.angularVelocity);
 			if (velDelta > minVelDelta)
 			{
-				rb.velocity = targetVel;
+				rb.linearVelocity = targetVel;
 			}
 
 			if (angVelDelta > minAngVelDelta)

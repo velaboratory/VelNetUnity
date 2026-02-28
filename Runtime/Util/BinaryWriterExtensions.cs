@@ -108,18 +108,34 @@ namespace VelNet
 
 		public static bool BytesSame(byte[] b1, byte[] b2)
 		{
-			if (b1 == null && b2 != null) return false; // only one null
-			if (b1 != null && b2 == null) return false; // only one null
-			if (b1 == null) return true; // both null
+			if (b1 == null && b2 != null) return false;
+			if (b1 != null && b2 == null) return false;
+			if (b1 == null) return true;
+			if (b1.Length != b2.Length) return false;
 
-			// length doesn't match
-			if (b1.Length != b2.Length)
+			for (int i = 0; i < b1.Length; i++)
 			{
-				return false;
+				if (b1[i] != b2[i]) return false;
 			}
+			return true;
+		}
 
-			// check if any bytes are different
-			return !b1.Where((t, i) => t != b2[i]).Any();
+		/// <summary>
+		/// Compares b1 (with explicit length) against a buffer region. Zero-allocation.
+		/// Used by SyncState to compare against NetworkWriter's buffer without ToArray().
+		/// </summary>
+		public static bool BytesSame(byte[] b1, int b1Length, byte[] b2, int b2Length)
+		{
+			if (b1 == null && b2 != null) return false;
+			if (b1 != null && b2 == null) return false;
+			if (b1 == null) return true;
+			if (b1Length != b2Length) return false;
+
+			for (int i = 0; i < b1Length; i++)
+			{
+				if (b1[i] != b2[i]) return false;
+			}
+			return true;
 		}
 
 		/// <summary>

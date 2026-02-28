@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -69,15 +68,14 @@ namespace VelNet
 			}
 		}
 
-		protected override void SendState(BinaryWriter binaryWriter)
+		protected override void SendState(NetworkWriter writer)
 		{
-			binaryWriter.Write(color);
+			writer.Write(color);
 		}
 
-		protected override void ReceiveState(BinaryReader binaryReader)
+		protected override void ReceiveState(NetworkReader reader)
 		{
-			// Color newColor = binaryReader.ReadColor();
-			Color newColor = binaryReader.ReadColor();
+			Color newColor = reader.ReadColor();
 			if (newColor != color)
 			{
 				rend.material.color = newColor;

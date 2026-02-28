@@ -1,4 +1,3 @@
-using System.IO;
 using UnityEngine;
 
 namespace VelNet
@@ -46,7 +45,7 @@ namespace VelNet
 		/// <summary>
 		/// This gets called at serializationRateHz when the object is locally owned
 		/// </summary>
-		protected override void SendState(BinaryWriter writer)
+		protected override void SendState(NetworkWriter writer)
 		{
 			if (useLocalTransform)
 			{
@@ -66,7 +65,7 @@ namespace VelNet
 		/// This gets called whenever a message about the state of this object is received.
 		/// Usually at serializationRateHz.
 		/// </summary>
-		protected override void ReceiveState(BinaryReader reader)
+		protected override void ReceiveState(NetworkReader reader)
 		{
 			if (position) targetPosition = reader.ReadVector3();
 			if (rotation) targetRotation = reader.ReadQuaternion();

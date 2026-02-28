@@ -1,6 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
 using VelNet;
 
@@ -36,15 +34,15 @@ public class SyncedCustomObj : SyncState
 		if (IsMine)
 		{
 			// return to center
-			rb.velocity -= (transform.position).normalized * Time.fixedDeltaTime * returningForce;
+			rb.linearVelocity -= (transform.position).normalized * Time.fixedDeltaTime * returningForce;
 		}
 	}
 
-	protected override void SendState(BinaryWriter binaryWriter)
+	protected override void SendState(NetworkWriter writer)
 	{
 	}
 
-	protected override void ReceiveState(BinaryReader binaryReader)
+	protected override void ReceiveState(NetworkReader reader)
 	{
 	}
 }

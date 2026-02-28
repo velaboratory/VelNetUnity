@@ -10,7 +10,9 @@ using System.Net;
 using UnityEngine.SceneManagement;
 using System.IO;
 using System.Threading.Tasks;
-using NativeWebSocket; // Ensure you have this library
+using NativeWebSocket;
+using System.Collections.Concurrent;
+using UnityEngine.Profiling; // Ensure you have this library
 
 namespace VelNet
 {
@@ -97,6 +99,7 @@ namespace VelNet
 		private IPEndPoint RemoteEndPoint;
 		private Thread clientReceiveThread;
 		private Thread clientReceiveThreadUDP;
+		private Thread clientSendThreadUDP;
 		public bool connected;
 		private bool wasConnected;
 		private double lastConnectionCheck;
@@ -105,6 +108,7 @@ namespace VelNet
 		public static int Ping { get; internal set; }
 		public bool autoSwitchToOfflineMode;
 		private bool offlineMode;
+		private static bool inRoom;
 		public static bool OfflineMode => instance?.offlineMode ?? false;
 		private string offlineRoomName;
 
@@ -128,6 +132,8 @@ namespace VelNet
 		private static readonly Queue<Action> mainThreadExecutionQueue = new Queue<Action>();
 
 		public readonly Dictionary<int, VelNetPlayer> players = new Dictionary<int, VelNetPlayer>();
+
+		private static readonly ConcurrentQueue<byte[]> udpSendQueue = new ConcurrentQueue<byte[]>();
 
 		#region Callbacks
 
@@ -209,11 +215,29 @@ namespace VelNet
 
 		private VelNetPlayer masterPlayer;
 
-		public static VelNetPlayer LocalPlayer => instance != null
-			? instance.players.Where(p => p.Value.isLocal).Select(p => p.Value).FirstOrDefault()
-			: null;
+public static VelNetPlayer LocalPlayer
+{
+	get
+	{
+		if (instance == null)
+			return null;
 
-		public static bool InRoom => LocalPlayer != null && LocalPlayer.room != "-1" && LocalPlayer.room != "";
+		var players = instance.players.Values;
+		int count = players.Count;
+		VelNetPlayer[] array = new VelNetPlayer[count];
+		players.CopyTo(array, 0);
+
+		for (int i = 0; i < count; i++)
+		{
+			if (array[i].isLocal)
+				return array[i];
+		}
+
+		return null;
+	}
+}
+
+ public static bool InRoom => inRoom;
 		public static string Room => LocalPlayer?.room;
 
 		public static List<VelNetPlayer> Players => instance.players.Values.ToList();
@@ -229,6 +253,24 @@ namespace VelNet
 		public static bool IsConnected => instance != null && instance.connected;
 		// this is for sending udp packets
 		private static readonly byte[] toSend = new byte[MAX_UDP_PACKET_SIZE];
+
+		// Shared reusable writers for building outgoing messages (main thread only)
+		private static readonly NetworkWriter sendWriter = new NetworkWriter(1024);
+		private static readonly NetworkWriter tempWriter = new NetworkWriter(256);
+		// Small buffer for TCP transport header (sendType + big-endian length = 5 bytes)
+		private static readonly byte[] tcpHeader = new byte[5];
+
+		/// <summary>
+		/// Returns the shared send NetworkWriter for building outgoing messages.
+		/// Must only be used on the main thread. Caller must Reset() before use.
+		/// </summary>
+		internal static NetworkWriter GetSendWriter() => sendWriter;
+
+		/// <summary>
+		/// Returns a temporary NetworkWriter for intermediate serialization (e.g. PackState).
+		/// Must only be used on the main thread. Caller must Reset() before use.
+		/// </summary>
+		internal static NetworkWriter GetTempWriter() => tempWriter;
 
 		// Use this for initialization
 		public abstract class Message
@@ -475,6 +517,8 @@ namespace VelNet
 							clientReceiveThreadUDP?.Abort();
 							clientReceiveThreadUDP = new Thread(ListenForDataUDP);
 							clientReceiveThreadUDP.Start();
+							
+							
 
 							break;
 						}
@@ -527,6 +571,8 @@ namespace VelNet
 								};
 								players.Add(player.userid, player);
 							}
+
+							inRoom = true;
 
 							try
 							{
@@ -734,11 +780,10 @@ namespace VelNet
 			if (IsConnected && Time.time - lastKeepAliveCheck > keepAliveInterval)
 			{
 				lastKeepAliveCheck = Time.time;
-				using MemoryStream mem = new MemoryStream();
-				using BinaryWriter writer = new BinaryWriter(mem);
-				writer.Write((byte)MessageType.KeepAlive);
-				writer.Write(DateTime.UtcNow.ToBinary());
-				SendToSelf(mem.ToArray());
+				sendWriter.Reset();
+				sendWriter.Write((byte)MessageType.KeepAlive);
+				sendWriter.Write(DateTime.UtcNow.ToBinary());
+				SendToSelf(sendWriter.Buffer, 0, sendWriter.Length);
 			}
 
 			// reconnection
@@ -756,6 +801,7 @@ namespace VelNet
 
 		private void LeaveRoomInternal()
 		{
+			inRoom = false;
 			VelNetLogger.Info("Leaving Room");
 			string oldRoom = LocalPlayer?.room;
 			// delete all NetworkObjects that aren't scene objects or are null now
@@ -799,6 +845,7 @@ namespace VelNet
 			socketConnection?.Close();
 			clientReceiveThreadUDP?.Abort();
 			clientReceiveThread?.Abort();
+			clientSendThreadUDP?.Abort();
 		}
 
 		/// <summary>
@@ -956,7 +1003,13 @@ namespace VelNet
 
 		private static int GetIntFromBytes(byte[] bytes)
 		{
-			return BitConverter.ToInt32(BitConverter.IsLittleEndian ? bytes.Reverse().ToArray() : bytes, 0);
+			// Big-endian to int without allocation
+			return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+		}
+
+		private static int ReadBigEndianInt(byte[] buffer, int offset)
+		{
+			return (buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3];
 		}
 
 		private void ListenForData()
@@ -1486,11 +1539,12 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
         RemoteEndPoint = new IPEndPoint(addresses[0], port);
 
         udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-
+		udpSocket.Blocking = false;
+		udpSocket.SendBufferSize = 4*1024*1024;
         // Fix: Ignore ICMP Port Unreachable errors to prevent false positives on Windows
         // (SIO_UDP_CONNRESET = -1744830452)
         try { udpSocket.IOControl((IOControlCode)(-1744830452), new byte[] { 0 }, null); } catch { }
-
+		udpSocket.DontFragment = true;
         udpConnected = false;
         byte[] buffer = new byte[1024];
         
@@ -1499,8 +1553,9 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
         {
             // Send Handshake
             buffer[0] = 0; // MessageType.LOGGED_IN (Connect)
-            Array.Copy(GetBigEndianBytes(userid), 0, buffer, 1, 4);
-            udpSocket.SendTo(buffer, 5, SocketFlags.None, RemoteEndPoint);
+            WriteBigEndianInt(buffer, 1, userid);
+			udpSocket.Connect(RemoteEndPoint);
+            udpSocket.Send(buffer, 5, SocketFlags.None);
 
             // Wait for response with timeout
             if (udpSocket.Poll(100000, SelectMode.SelectRead))
@@ -1530,6 +1585,12 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
             Thread.Sleep(100);
         }
 
+				// if (udpConnected)
+				// {
+				// 	clientSendThreadUDP = new Thread(SendUDPLoop);
+				// 	clientSendThreadUDP.Start();
+				// }
+
         // 4. Data Loop
         while (udpConnected)
         {
@@ -1544,9 +1605,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
                         case MessageReceivedType.DATA_MESSAGE:
                         {
                             DataMessage m = new DataMessage();
-                            byte[] senderBytes = new byte[4];
-                            Array.Copy(buffer, 1, senderBytes, 0, 4);
-                            m.senderId = GetIntFromBytes(senderBytes);
+                            m.senderId = ReadBigEndianInt(buffer, 1);
                             byte[] messageBytes = new byte[numReceived - 5];
                             Array.Copy(buffer, 5, messageBytes, 0, messageBytes.Length);
                             m.data = messageBytes;
@@ -1588,8 +1647,36 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			{
 				return;
 			}
+			instance.udpSocket.Send(message, N, SocketFlags.None);
+			// Must copy: message is a shared static buffer (toSend) that gets overwritten on the next call.
+			// The queue holds references, and the send loop runs on a separate thread.
+			//byte[] copy = new byte[N];
+			//Buffer.BlockCopy(message, 0, copy, 0, N);
+			//udpSendQueue.Enqueue(copy);
+		}
 
-			instance.udpSocket.SendTo(message, N, SocketFlags.None, instance.RemoteEndPoint);
+		private static void SendUDPLoop()
+		{
+			Profiler.BeginThreadProfiling("VelNet", "UDP Send Loop");
+			while (instance.udpConnected)
+			{
+				if (udpSendQueue.TryDequeue(out byte[] message))
+				{
+					try
+					{
+						instance.udpSocket.Send(message, message.Length, SocketFlags.None);
+					}
+					catch (SocketException)
+					{
+						// Allow send errors to be ignored (e.g. if the connection is lost)
+					}
+				}
+				else
+				{
+					Thread.Sleep(10); // No messages to send, wait a bit before checking again
+				}
+			}
+			Profiler.EndThreadProfiling();
 		}
 
 		/// <summary> 	
@@ -1597,11 +1684,14 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		/// </summary>
 		/// <param name="message">We can assume that this message is already formatted, so we just send it</param>
 		/// <returns>True if the message successfully sent. False if it failed and we should quit</returns>
-		private static bool SendTcpMessage(byte[] message)
+		private static bool SendTcpMessage(byte[] buffer, int offset, int length)
 {
     if (instance.offlineMode)
     {
-        instance.FakeServer(message);
+        // FakeServer needs a standalone byte[] for its MemoryStream-based parsing
+        byte[] copy = new byte[length];
+        Array.Copy(buffer, offset, copy, 0, length);
+        instance.FakeServer(copy);
         return true;
     }
 
@@ -1610,13 +1700,23 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
     {
         if (instance.webSocket != null && instance.webSocket.State == WebSocketState.Open)
         {
-            instance.webSocket.Send(message);
+            // WebSocket.Send requires a byte[], so we must copy if not already a standalone array
+            if (offset == 0 && length == buffer.Length)
+            {
+                instance.webSocket.Send(buffer);
+            }
+            else
+            {
+                byte[] copy = new byte[length];
+                Array.Copy(buffer, offset, copy, 0, length);
+                instance.webSocket.Send(copy);
+            }
             return true;
         }
         return false;
     }
 
-    // --- TCP PATH (Existing Logic) ---
+    // --- TCP PATH ---
     if (instance.socketConnection == null)
     {
         return false;
@@ -1629,24 +1729,82 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
             DisconnectFromServer();
             return false;
         }
-        
+
         NetworkStream stream = instance.socketConnection.GetStream();
         if (stream.CanWrite)
         {
-            stream.Write(message, 0, message.Length);
+            stream.Write(buffer, offset, length);
         }
     }
-    catch (Exception ioException)
+    catch (Exception)
     {
-        // ... Error Handling ...
         return false;
     }
 
     return true;
 }
-		private static byte[] GetBigEndianBytes(int n)
+		/// <summary>
+		/// Sends a TCP message as two parts (header + body) to avoid concatenating into a single buffer.
+		/// </summary>
+		private static bool SendTcpMessageTwoPart(byte[] header, int headerOffset, int headerLength, byte[] body, int bodyOffset, int bodyLength)
 		{
-			return BitConverter.GetBytes(n).Reverse().ToArray();
+			if (instance.offlineMode)
+			{
+				// FakeServer expects the full message as one byte[]
+				byte[] combined = new byte[headerLength + bodyLength];
+				Array.Copy(header, headerOffset, combined, 0, headerLength);
+				Array.Copy(body, bodyOffset, combined, headerLength, bodyLength);
+				instance.FakeServer(combined);
+				return true;
+			}
+
+			if (instance.useWebSocket)
+			{
+				if (instance.webSocket != null && instance.webSocket.State == WebSocketState.Open)
+				{
+					byte[] combined = new byte[headerLength + bodyLength];
+					Array.Copy(header, headerOffset, combined, 0, headerLength);
+					Array.Copy(body, bodyOffset, combined, headerLength, bodyLength);
+					instance.webSocket.Send(combined);
+					return true;
+				}
+				return false;
+			}
+
+			if (instance.socketConnection == null) return false;
+
+			try
+			{
+				if (!instance.socketConnection.Connected)
+				{
+					DisconnectFromServer();
+					return false;
+				}
+
+				NetworkStream stream = instance.socketConnection.GetStream();
+				if (stream.CanWrite)
+				{
+					stream.Write(header, headerOffset, headerLength);
+					stream.Write(body, bodyOffset, bodyLength);
+				}
+			}
+			catch (Exception)
+			{
+				return false;
+			}
+
+			return true;
+		}
+
+		/// <summary>
+		/// Writes a big-endian int directly into a buffer at the specified offset. Zero-allocation.
+		/// </summary>
+		private static void WriteBigEndianInt(byte[] buffer, int offset, int value)
+		{
+			buffer[offset] = (byte)(value >> 24);
+			buffer[offset + 1] = (byte)(value >> 16);
+			buffer[offset + 2] = (byte)(value >> 8);
+			buffer[offset + 3] = (byte)value;
 		}
 
 		/// <summary>
@@ -1656,26 +1814,22 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		/// <param name="deviceId">Should be unique per device that connects. e.g. md5(deviceUniqueIdentifier)</param>
 		public static void Login(string appName, string deviceId)
 		{
-			MemoryStream stream = new MemoryStream();
-			BinaryWriter writer = new BinaryWriter(stream);
-
 			byte[] id = Encoding.UTF8.GetBytes(deviceId);
 			byte[] app = Encoding.UTF8.GetBytes(appName);
-			writer.Write((byte)MessageSendType.MESSAGE_LOGIN);
-			writer.Write((byte)id.Length);
-			writer.Write(id);
-			writer.Write((byte)app.Length);
-			writer.Write(app);
-
-			SendTcpMessage(stream.ToArray());
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageSendType.MESSAGE_LOGIN);
+			sendWriter.Write((byte)id.Length);
+			sendWriter.Write(id);
+			sendWriter.Write((byte)app.Length);
+			sendWriter.Write(app);
+			SendTcpMessage(sendWriter.Buffer, 0, sendWriter.Length);
 		}
 
 		public static void GetRooms(Action<RoomsMessage> callback = null)
 		{
-			MemoryStream mem = new MemoryStream();
-			BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageSendType.MESSAGE_GETROOMS);
-			SendTcpMessage(mem.ToArray());
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageSendType.MESSAGE_GETROOMS);
+			SendTcpMessage(sendWriter.Buffer, 0, sendWriter.Length);
 
 			if (callback != null)
 			{
@@ -1700,14 +1854,12 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 				return;
 			}
 
-			MemoryStream stream = new MemoryStream();
-			BinaryWriter writer = new BinaryWriter(stream);
-
 			byte[] R = Encoding.UTF8.GetBytes(roomName);
-			writer.Write((byte)MessageSendType.MESSAGE_GETROOMDATA);
-			writer.Write((byte)R.Length);
-			writer.Write(R);
-			SendTcpMessage(stream.ToArray());
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageSendType.MESSAGE_GETROOMDATA);
+			sendWriter.Write((byte)R.Length);
+			sendWriter.Write(R);
+			SendTcpMessage(sendWriter.Buffer, 0, sendWriter.Length);
 		}
 
 		/// <summary>
@@ -1732,14 +1884,12 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 				return;
 			}
 
-			MemoryStream stream = new MemoryStream();
-			BinaryWriter writer = new BinaryWriter(stream);
-
 			byte[] roomBytes = Encoding.UTF8.GetBytes(roomName);
-			writer.Write((byte)MessageSendType.MESSAGE_JOINROOM);
-			writer.Write((byte)roomBytes.Length);
-			writer.Write(roomBytes);
-			SendTcpMessage(stream.ToArray());
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageSendType.MESSAGE_JOINROOM);
+			sendWriter.Write((byte)roomBytes.Length);
+			sendWriter.Write(roomBytes);
+			SendTcpMessage(sendWriter.Buffer, 0, sendWriter.Length);
 		}
 
 
@@ -1767,113 +1917,103 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		public static void SendCustomMessage(byte[] message, bool include_self = false, bool reliable = true,
 			bool ordered = false)
 		{
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.Custom);
-			writer.Write(message.Length);
-			writer.Write(message);
-			SendToRoom(mem.ToArray(), include_self, reliable, ordered);
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.Custom);
+			sendWriter.Write(message.Length);
+			sendWriter.Write(message);
+			SendToRoom(sendWriter.Buffer, 0, sendWriter.Length, include_self, reliable, ordered);
 		}
 
 		public static void SendCustomMessageToSelf(byte[] message, bool reliable = true)
 		{
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.Custom);
-			writer.Write(message.Length);
-			writer.Write(message);
-			SendToSelf(mem.ToArray(), reliable);
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.Custom);
+			sendWriter.Write(message.Length);
+			sendWriter.Write(message);
+			SendToSelf(sendWriter.Buffer, 0, sendWriter.Length, reliable);
 		}
 
 		public static void SendCustomMessageToGroup(string group, byte[] message, bool reliable = true)
 		{
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.Custom);
-			writer.Write(message.Length);
-			writer.Write(message);
-			SendToGroup(group, mem.ToArray(), reliable);
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.Custom);
+			sendWriter.Write(message.Length);
+			sendWriter.Write(message);
+			SendToGroup(group, sendWriter.Buffer, 0, sendWriter.Length, reliable);
 		}
 
-		internal static bool SendToSelf(byte[] message, bool reliable = true)
+		internal static bool SendToSelf(byte[] buffer, int offset, int length, bool reliable = true)
 		{
 			const byte sendType = (byte)MessageSendType.MESSAGE_SELF;
 
-			// CHANGE: Added "|| !instance.udpConnected"
-			// If we want reliable, OR if UDP isn't ready yet, force TCP.
 			if (reliable || !instance.udpConnected)
 			{
-				MemoryStream mem = new MemoryStream();
-				BinaryWriter writer = new BinaryWriter(mem);
-				writer.Write(sendType);
-				writer.WriteBigEndian(message.Length);
-				writer.Write(message);
-				return SendTcpMessage(mem.ToArray());
+				// TCP: write transport header + message body directly
+				tcpHeader[0] = sendType;
+				WriteBigEndianInt(tcpHeader, 1, length);
+				// Write header then body as two writes to avoid copying
+				return SendTcpMessageTwoPart(tcpHeader, 0, 5, buffer, offset, length);
 			}
 			else
 			{
-				// UDP connection is established and we want unreliable; use UDP.
-				toSend[0] = sendType; 
-				Array.Copy(GetBigEndianBytes(instance.userid), 0, toSend, 1, 4);
-				Array.Copy(message, 0, toSend, 5, message.Length);
-				SendUdpMessage(toSend, message.Length + 5); 
+				// UDP: pack into static toSend buffer
+				toSend[0] = sendType;
+				WriteBigEndianInt(toSend, 1, instance.userid);
+				Array.Copy(buffer, offset, toSend, 5, length);
+				SendUdpMessage(toSend, length + 5);
 				return true;
 			}
 		}
 
-		internal static bool SendToRoom(byte[] message, bool include_self = false, bool reliable = true, bool ordered = false)
+		internal static bool SendToRoom(byte[] buffer, int offset, int length, bool include_self = false, bool reliable = true, bool ordered = false)
 		{
 			byte sendType = (byte)MessageSendType.MESSAGE_OTHERS;
 			if (include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_ALL_ORDERED;
 			if (include_self && !ordered) sendType = (byte)MessageSendType.MESSAGE_ALL;
 			if (!include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_OTHERS_ORDERED;
 
-			// CHANGE: Added "|| !instance.udpConnected"
-			// If UDP is missing, fall back to TCP (which handles unbuffered types correctly on the server)
 			if (reliable || !instance.udpConnected)
 			{
-				MemoryStream mem = new MemoryStream();
-				BinaryWriter writer = new BinaryWriter(mem);
-				writer.Write(sendType);
-				writer.WriteBigEndian(message.Length);
-				writer.Write(message);
-				return SendTcpMessage(mem.ToArray());
+				tcpHeader[0] = sendType;
+				WriteBigEndianInt(tcpHeader, 1, length);
+				return SendTcpMessageTwoPart(tcpHeader, 0, 5, buffer, offset, length);
 			}
 			else
 			{
-				toSend[0] = sendType; 
-				Array.Copy(GetBigEndianBytes(instance.userid), 0, toSend, 1, 4);
-				Array.Copy(message, 0, toSend, 5, message.Length);
-				SendUdpMessage(toSend, message.Length + 5); 
+				toSend[0] = sendType;
+				WriteBigEndianInt(toSend, 1, instance.userid);
+				//Array.Copy(buffer, offset, toSend, 5, length);
+				Buffer.BlockCopy(buffer, offset, toSend, 5, length);
+				SendUdpMessage(toSend, length + 5);
 				return true;
 			}
 		}
 
 
-		internal static bool SendToGroup(string group, byte[] message, bool reliable = true)
+		internal static bool SendToGroup(string group, byte[] buffer, int offset, int length, bool reliable = true)
 		{
 			byte[] utf8bytes = Encoding.UTF8.GetBytes(group);
 
-			// CHANGE: Added "|| !instance.udpConnected"
 			if (reliable || !instance.udpConnected)
 			{
-				MemoryStream stream = new MemoryStream();
-				BinaryWriter writer = new BinaryWriter(stream);
-				writer.Write((byte)MessageSendType.MESSAGE_GROUP);
-				writer.WriteBigEndian(message.Length);
-				writer.Write(message);
-				writer.Write((byte)utf8bytes.Length);
-				writer.Write(utf8bytes);
-				return SendTcpMessage(stream.ToArray());
+				// TCP: build full message into sendWriter since SendToGroup has a more complex format
+				// (message body + group name appended after)
+				sendWriter.Reset();
+				sendWriter.Write((byte)MessageSendType.MESSAGE_GROUP);
+				sendWriter.WriteBigEndianInt(length);
+				sendWriter.Write(buffer, offset, length);
+				sendWriter.Write((byte)utf8bytes.Length);
+				sendWriter.Write(utf8bytes);
+				return SendTcpMessage(sendWriter.Buffer, 0, sendWriter.Length);
 			}
 			else
 			{
 				toSend[0] = (byte)MessageSendType.MESSAGE_GROUP;
-				Array.Copy(GetBigEndianBytes(instance.userid), 0, toSend, 1, 4);
+				WriteBigEndianInt(toSend, 1, instance.userid);
 				toSend[5] = (byte)utf8bytes.Length;
 				Array.Copy(utf8bytes, 0, toSend, 6, utf8bytes.Length);
-				Array.Copy(message, 0, toSend, 6 + utf8bytes.Length, message.Length);
-				SendUdpMessage(toSend, 6 + utf8bytes.Length + message.Length);
+				Array.Copy(buffer, offset, toSend, 6 + utf8bytes.Length, length);
+				SendUdpMessage(toSend, 6 + utf8bytes.Length + length);
 				return true;
 			}
 		}
@@ -1888,19 +2028,17 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 				instance.groups[groupName] = clientIds.ToList();
 			}
 
-			MemoryStream stream = new MemoryStream();
-			BinaryWriter writer = new BinaryWriter(stream);
 			byte[] groupNameBytes = Encoding.UTF8.GetBytes(groupName);
-			writer.Write((byte)6);
-			writer.Write((byte)groupNameBytes.Length);
-			writer.Write(groupNameBytes);
-			writer.WriteBigEndian(clientIds.Count * 4);
+			sendWriter.Reset();
+			sendWriter.Write((byte)6);
+			sendWriter.Write((byte)groupNameBytes.Length);
+			sendWriter.Write(groupNameBytes);
+			sendWriter.WriteBigEndianInt(clientIds.Count * 4);
 			foreach (int c in clientIds)
 			{
-				writer.WriteBigEndian(c);
+				sendWriter.WriteBigEndianInt(c);
 			}
-
-			SendTcpMessage(stream.ToArray());
+			SendTcpMessage(sendWriter.Buffer, 0, sendWriter.Length);
 		}
 
 		[Obsolete("Use NetworkInstantiate instead. This matches the naming convention of NetworkDestroy")]
@@ -1947,12 +2085,11 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			}
 
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.Instantiate);
-			writer.Write(newObject.networkId);
-			writer.Write(prefabName);
-			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.Instantiate);
+			sendWriter.Write(newObject.networkId);
+			sendWriter.Write(prefabName);
+			SendToRoom(sendWriter.Buffer, 0, sendWriter.Length, include_self: false, reliable: true);
 
 			return newObject;
 		}
@@ -1987,14 +2124,13 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			}
 
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.InstantiateWithTransform);
-			writer.Write(newObject.networkId);
-			writer.Write(prefabName);
-			writer.Write(position);
-			writer.Write(rotation);
-			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.InstantiateWithTransform);
+			sendWriter.Write(newObject.networkId);
+			sendWriter.Write(prefabName);
+			sendWriter.Write(position);
+			sendWriter.Write(rotation);
+			SendToRoom(sendWriter.Buffer, 0, sendWriter.Length, include_self: false, reliable: true);
 
 			return newObject;
 		}
@@ -2027,18 +2163,16 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 				VelNetLogger.Error("Error in event handling.\n" + ex);
 			}
 
-			using MemoryStream initialStateMem = new MemoryStream(initialState);
-			using BinaryReader reader = new BinaryReader(initialStateMem);
-			newObject.UnpackState(reader);
+			NetworkReader stateReader = new NetworkReader(initialState);
+			newObject.UnpackState(stateReader);
 
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.InstantiateWithState);
-			writer.Write(newObject.networkId);
-			writer.Write(prefabName);
-			writer.Write(initialState);
-			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.InstantiateWithState);
+			sendWriter.Write(newObject.networkId);
+			sendWriter.Write(prefabName);
+			sendWriter.Write(initialState);
+			SendToRoom(sendWriter.Buffer, 0, sendWriter.Length, include_self: false, reliable: true);
 
 			return newObject;
 		}
@@ -2113,19 +2247,18 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			populateBeforePack?.Invoke(newObject);
 
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.InstantiateWithState);
-			writer.Write(newObject.networkId);
-			writer.Write(prefabName);
-			newObject.PackState(writer);
-			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.InstantiateWithState);
+			sendWriter.Write(newObject.networkId);
+			sendWriter.Write(prefabName);
+			newObject.PackState(sendWriter);
+			SendToRoom(sendWriter.Buffer, 0, sendWriter.Length, include_self: false, reliable: true);
 
 			return newObject;
 		}
 
 		//this function helps w/ the case where we are instantiating from an existing reading, such as where we serialized all objects to a big byte array, and don't want to create a special reader just for those bytes
-		public static NetworkObject NetworkInstantiate(string prefabName, BinaryReader reader)
+		public static NetworkObject NetworkInstantiate(string prefabName, NetworkReader reader)
 		{
 			VelNetPlayer owner = LocalPlayer;
 			string networkId = AllocateNetworkId();
@@ -2150,13 +2283,12 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			newObject.UnpackState(reader);
 
 			// only sent to others, as I already instantiated this.  Nice that it happens immediately.
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.InstantiateWithState);
-			writer.Write(newObject.networkId);
-			writer.Write(prefabName);
-			newObject.PackState(writer);
-			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.InstantiateWithState);
+			sendWriter.Write(newObject.networkId);
+			sendWriter.Write(prefabName);
+			newObject.PackState(sendWriter);
+			SendToRoom(sendWriter.Buffer, 0, sendWriter.Length, include_self: false, reliable: true);
 
 			return newObject;
 		}
@@ -2229,12 +2361,11 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			// Delete locally immediately
 			SomebodyDestroyedNetworkObject(networkId);
 
-			// Only sent to others, as we already deleted this. 
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.Destroy);
-			writer.Write(networkId);
-			SendToRoom(mem.ToArray(), include_self: false, reliable: true);
+			// Only sent to others, as we already deleted this.
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.Destroy);
+			sendWriter.Write(networkId);
+			SendToRoom(sendWriter.Buffer, 0, sendWriter.Length, include_self: false, reliable: true);
 		}
 
 
@@ -2314,11 +2445,10 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 
 			// must be ordered, so that ownership transfers are not confused.
 			// Also sent to all players, so that multiple simultaneous requests will result in the same outcome.
-			using MemoryStream mem = new MemoryStream();
-			using BinaryWriter writer = new BinaryWriter(mem);
-			writer.Write((byte)MessageType.TakeOwnership);
-			writer.Write(networkId);
-			SendToRoom(mem.ToArray(), false, true);
+			sendWriter.Reset();
+			sendWriter.Write((byte)MessageType.TakeOwnership);
+			sendWriter.Write(networkId);
+			SendToRoom(sendWriter.Buffer, 0, sendWriter.Length, false, true);
 
 			return true;
 		}
@@ -2406,16 +2536,19 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 	{
 		public static void WriteBigEndian(this BinaryWriter writer, int value)
 		{
-			byte[] data = BitConverter.GetBytes(value);
-			Array.Reverse(data);
-			writer.Write(data);
+			writer.Write((byte)(value >> 24));
+			writer.Write((byte)(value >> 16));
+			writer.Write((byte)(value >> 8));
+			writer.Write((byte)value);
 		}
 
 		public static int ReadBigEndian(this BinaryReader reader)
 		{
-			byte[] data = reader.ReadBytes(4);
-			Array.Reverse(data);
-			return BitConverter.ToInt32(data, 0);
+			byte b0 = reader.ReadByte();
+			byte b1 = reader.ReadByte();
+			byte b2 = reader.ReadByte();
+			byte b3 = reader.ReadByte();
+			return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
 		}
 	}
 
