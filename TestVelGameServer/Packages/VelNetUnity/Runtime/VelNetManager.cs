@@ -1546,7 +1546,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
         RemoteEndPoint = new IPEndPoint(addresses[0], port);
 
         udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-		udpSocket.Blocking = false;
+		//udpSocket.Blocking = false;
 		udpSocket.SendBufferSize = 4*1024*1024;
         // Fix: Ignore ICMP Port Unreachable errors to prevent false positives on Windows
         // (SIO_UDP_CONNRESET = -1744830452)
@@ -1686,7 +1686,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 				}
 				else
 				{
-					Thread.Sleep(10); // No messages to send, wait a bit before checking again
+					Thread.Sleep(3); // No messages to send, wait a bit before checking again
 				}
 			}
 			Profiler.EndThreadProfiling();
