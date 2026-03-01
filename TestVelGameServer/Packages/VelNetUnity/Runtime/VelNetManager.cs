@@ -209,22 +209,23 @@ namespace VelNet
 		public static Action<NetworkObject> OnNetworkObjectSpawned;
 
 		/// <summary>
-		/// Called after a network object is destroyed
-		/// string is the networkId of the destroyed object
+		/// Called after a network object is destroyed.
+		/// The long parameter is the networkId of the destroyed object.
 		/// </summary>
-		public static Action<string> OnNetworkObjectDestroyed;
+		public static Action<long> OnNetworkObjectDestroyed;
 
 		#endregion
 
 
 		public List<NetworkObject> prefabs = new List<NetworkObject>();
 		public NetworkObject[] sceneObjects;
-		public List<string> deletedSceneObjects = new List<string>();
+		public List<long> deletedSceneObjects = new List<long>();
 
 		/// <summary>
-		/// Maintains a list of all known objects on the server (ones that have ids)
+		/// Maintains a list of all known objects on the server (ones that have ids).
+		/// Keyed by networkId (long): upper 32 bits = userId, lower 32 bits = objectId.
 		/// </summary>
-		public readonly Dictionary<string, NetworkObject> objects = new Dictionary<string, NetworkObject>();
+		public readonly Dictionary<long, NetworkObject> objects = new Dictionary<long, NetworkObject>();
 
 		/// <summary>
 		/// Maintains a list of all known groups on the server
@@ -634,8 +635,8 @@ public static VelNetPlayer LocalPlayer
 
 							// we got a left message, kill it
 							// change ownership of all objects to master
-							List<string> deleteObjects = new List<string>();
-							foreach (KeyValuePair<string, NetworkObject> kvp in objects)
+							List<long> deleteObjects = new List<long>();
+							foreach (KeyValuePair<long, NetworkObject> kvp in objects)
 							{
 								if (kvp.Value.owner == players[lm.userId]) // the owner is the player that left
 								{
@@ -741,7 +742,7 @@ public static VelNetPlayer LocalPlayer
 											sceneObjects[i]);
 									}
 
-									sceneObjects[i].networkId = -1 + "-" + sceneObjects[i].sceneNetworkId;
+									sceneObjects[i].networkId = PackNetworkId(-1, sceneObjects[i].sceneNetworkId);
 									sceneObjects[i].owner = masterPlayer;
 									sceneObjects[i].isSceneObject = true; // needed for special handling when deleted
 									try
@@ -772,7 +773,7 @@ public static VelNetPlayer LocalPlayer
 							masterPlayer.SetAsMasterPlayer();
 
 							// master player should take over any objects that do not have an owner
-							foreach (KeyValuePair<string, NetworkObject> kvp in objects)
+							foreach (KeyValuePair<long, NetworkObject> kvp in objects)
 							{
 								kvp.Value.owner ??= masterPlayer;
 							}
@@ -2143,7 +2144,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		public static NetworkObject NetworkInstantiate(string prefabName)
 		{
 			VelNetPlayer owner = LocalPlayer;
-			string networkId = AllocateNetworkId();
+			long networkId = AllocateNetworkId();
 			if (instance.objects.ContainsKey(networkId))
 			{
 				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
@@ -2182,7 +2183,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		public static NetworkObject NetworkInstantiate(string prefabName, Vector3 position, Quaternion rotation)
 		{
 			VelNetPlayer owner = LocalPlayer;
-			string networkId = AllocateNetworkId();
+			long networkId = AllocateNetworkId();
 			if (instance.objects.ContainsKey(networkId))
 			{
 				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
@@ -2222,7 +2223,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		public static NetworkObject NetworkInstantiate(string prefabName, byte[] initialState)
 		{
 			VelNetPlayer owner = LocalPlayer;
-			string networkId = AllocateNetworkId();
+			long networkId = AllocateNetworkId();
 			if (instance.objects.ContainsKey(networkId))
 			{
 				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
@@ -2262,7 +2263,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		/// <param name="prefabName"></param>
 		/// <param name="owner"></param>
 		/// <returns></returns>
-		internal static NetworkObject ActuallyInstantiate(string networkId, string prefabName, VelNetPlayer owner)
+		internal static NetworkObject ActuallyInstantiate(long networkId, string prefabName, VelNetPlayer owner)
 		{
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
 			if (prefab == null)
@@ -2303,7 +2304,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		public static NetworkObject NetworkInstantiate(string prefabName, Action<NetworkObject> populateBeforePack)
 		{
 			VelNetPlayer owner = LocalPlayer;
-			string networkId = AllocateNetworkId();
+			long networkId = AllocateNetworkId();
 			if (instance.objects.ContainsKey(networkId))
 			{
 				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
@@ -2339,7 +2340,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		public static NetworkObject NetworkInstantiate(string prefabName, NetworkReader reader)
 		{
 			VelNetPlayer owner = LocalPlayer;
-			string networkId = AllocateNetworkId();
+			long networkId = AllocateNetworkId();
 			if (instance.objects.ContainsKey(networkId))
 			{
 				VelNetLogger.Error("Can't instantiate object. Obj with that network ID was already instantiated.",
@@ -2372,7 +2373,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		}
 
 
-		internal static NetworkObject ActuallyInstantiate(string networkId, string prefabName, VelNetPlayer owner,
+		internal static NetworkObject ActuallyInstantiate(long networkId, string prefabName, VelNetPlayer owner,
 			Vector3 position, Quaternion rotation)
 		{
 			NetworkObject prefab = instance.prefabs.Find(p => p.name == prefabName);
@@ -2413,9 +2414,34 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			return newObject;
 		}
 
-		private static string AllocateNetworkId()
+		/// <summary>
+		/// Packs a userId and objectId into a single long networkId.
+		/// Upper 32 bits = userId, lower 32 bits = objectId.
+		/// </summary>
+		public static long PackNetworkId(int userId, int objectId)
 		{
-			return LocalPlayer.userid + "-" + LocalPlayer.lastObjectId++;
+			return ((long)userId << 32) | (uint)objectId;
+		}
+
+		/// <summary>
+		/// Unpacks the userId from a long networkId (upper 32 bits).
+		/// </summary>
+		public static int GetUserId(long networkId)
+		{
+			return (int)(networkId >> 32);
+		}
+
+		/// <summary>
+		/// Unpacks the objectId from a long networkId (lower 32 bits).
+		/// </summary>
+		public static int GetObjectId(long networkId)
+		{
+			return (int)(networkId & 0xFFFFFFFF);
+		}
+
+		private static long AllocateNetworkId()
+		{
+			return PackNetworkId(LocalPlayer.userid, LocalPlayer.lastObjectId++);
 		}
 
 		public static void NetworkDestroy(NetworkObject obj)
@@ -2423,7 +2449,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			NetworkDestroy(obj.networkId);
 		}
 
-		public static void NetworkDestroy(string networkId)
+		public static void NetworkDestroy(long networkId)
 		{
 			if (!instance.objects.ContainsKey(networkId)) return;
 			NetworkObject obj = instance.objects[networkId];
@@ -2447,7 +2473,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		}
 
 
-		public static void SomebodyDestroyedNetworkObject(string networkId)
+		public static void SomebodyDestroyedNetworkObject(long networkId)
 		{
 			if (!instance.objects.ContainsKey(networkId)) return;
 			NetworkObject obj = instance.objects[networkId];
@@ -2481,7 +2507,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		/// </summary>
 		/// <param name="networkId">Network ID of the object to transfer</param>
 		/// <returns>True if successfully transferred, False if transfer message not sent</returns>
-		public static bool TakeOwnership(string networkId)
+		public static bool TakeOwnership(long networkId)
 		{
 			if (!InRoom)
 			{

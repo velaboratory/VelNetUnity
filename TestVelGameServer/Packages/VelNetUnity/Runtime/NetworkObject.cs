@@ -21,9 +21,12 @@ namespace VelNet
 		public bool IsMine => owner?.isLocal ?? false;
 
 		/// <summary>
-		/// This is forged from the combination of the creator's id (-1 in the case of a scene object) and an object id, so it's always unique for a room
+		/// Unique identifier for this object within a room.
+		/// Encoded as a long: upper 32 bits = owner's userId, lower 32 bits = per-player object counter.
+		/// Scene objects use userId -1 (0xFFFFFFFF in upper bits).
+		/// Use <see cref="VelNetManager.PackNetworkId"/> / <see cref="VelNetManager.UnpackNetworkId"/> to encode/decode.
 		/// </summary>
-		public string networkId;
+		public long networkId;
 
 		/// <summary>
 		/// This is used internally to handle spawning of objects for players that joined late.

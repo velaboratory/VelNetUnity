@@ -50,7 +50,7 @@ namespace VelNet
 
 				if (Input.GetKeyDown(KeyCode.BackQuote))
 				{
-					foreach (KeyValuePair<string, NetworkObject> kvp in VelNetManager.instance.objects)
+					foreach (KeyValuePair<long, NetworkObject> kvp in VelNetManager.instance.objects)
 					{
 						kvp.Value.TakeOwnership();
 					}
@@ -58,7 +58,7 @@ namespace VelNet
 
 				if (Input.GetKeyDown(KeyCode.Backspace))
 				{
-					foreach (string key in VelNetManager.instance.objects
+					foreach (long key in VelNetManager.instance.objects
 						         .Where(kvp => !kvp.Value.ownershipLocked)
 						         .Select(kvp => kvp.Key).ToArray())
 					{
