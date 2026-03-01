@@ -1553,7 +1553,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
         try { udpSocket.IOControl((IOControlCode)(-1744830452), new byte[] { 0 }, null); } catch { }
 		udpSocket.DontFragment = true;
         udpConnected = false;
-        byte[] buffer = new byte[1024];
+        byte[] buffer = new byte[MAX_UDP_PACKET_SIZE];
         
         // 2. Handshake Loop
         while (true)
