@@ -123,7 +123,8 @@ namespace VelNet
 					string objectKey = messageReader.ReadString();
 					byte componentIdx = messageReader.ReadByte();
 					int messageLength = messageReader.ReadInt32();
-					if (manager.objects.ContainsKey(objectKey))
+
+					if (manager.objects.TryGetValue(objectKey, out var no))
 					{
 						bool isRpc = (componentIdx & 1) == 1;
 						componentIdx = (byte)(componentIdx >> 1);
@@ -132,9 +133,9 @@ namespace VelNet
 						componentReader.SetBuffer(m.data, messageReader.Position, messageLength);
 
 						// rpcs can be sent by non-owners
-						if (isRpc || manager.objects[objectKey].owner == this)
+						if (isRpc || no.owner == this)
 						{
-							manager.objects[objectKey].ReceiveBytes(componentIdx, isRpc, componentReader);
+							no.ReceiveBytes(componentIdx, isRpc, componentReader);
 						}
 					}
 
