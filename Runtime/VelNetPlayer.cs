@@ -39,7 +39,7 @@ namespace VelNet
 			if (isLocal)
 			{
 				NetworkWriter w = VelNetManager.GetSendWriter();
-				foreach (KeyValuePair<string, NetworkObject> kvp in manager.objects)
+				foreach (KeyValuePair<long, NetworkObject> kvp in manager.objects)
 				{
 					if (kvp.Value.owner == this && (kvp.Value.prefabName != "" || kvp.Value.isSceneObject))
 					{
@@ -120,7 +120,7 @@ namespace VelNet
 				// sync update for an object "I" may own
 				case VelNetManager.MessageType.ObjectSync:
 				{
-					string objectKey = messageReader.ReadString();
+					long objectKey = messageReader.ReadInt64();
 					byte componentIdx = messageReader.ReadByte();
 					int messageLength = messageReader.ReadInt32();
 
@@ -143,7 +143,7 @@ namespace VelNet
 				}
 				case VelNetManager.MessageType.TakeOwnership:
 				{
-					string networkId = messageReader.ReadString();
+					long networkId = messageReader.ReadInt64();
 
 					if (manager.objects.ContainsKey(networkId))
 					{
@@ -162,7 +162,7 @@ namespace VelNet
 				}
 				case VelNetManager.MessageType.Instantiate:
 				{
-					string networkId = messageReader.ReadString();
+					long networkId = messageReader.ReadInt64();
 					string prefabName = messageReader.ReadString();
 					if (manager.objects.ContainsKey(networkId))
 					{
@@ -175,7 +175,7 @@ namespace VelNet
 				}
 				case VelNetManager.MessageType.InstantiateWithTransform:
 				{
-					string networkId = messageReader.ReadString();
+					long networkId = messageReader.ReadInt64();
 					string prefabName = messageReader.ReadString();
 					Vector3 position = messageReader.ReadVector3();
 					Quaternion rotation = messageReader.ReadQuaternion();
@@ -190,7 +190,7 @@ namespace VelNet
 				}
 				case VelNetManager.MessageType.InstantiateWithState:
 				{
-					string networkId = messageReader.ReadString();
+					long networkId = messageReader.ReadInt64();
 					string prefabName = messageReader.ReadString();
 					if (manager.objects.ContainsKey(networkId))
 					{
@@ -203,7 +203,7 @@ namespace VelNet
 				}
 				case VelNetManager.MessageType.ForceState:
 				{
-					string networkId = messageReader.ReadString();
+					long networkId = messageReader.ReadInt64();
 
 					if (manager.objects.ContainsKey(networkId))
 					{
@@ -213,7 +213,7 @@ namespace VelNet
 				}
 				case VelNetManager.MessageType.Destroy:
 				{
-					VelNetManager.SomebodyDestroyedNetworkObject(messageReader.ReadString());
+					VelNetManager.SomebodyDestroyedNetworkObject(messageReader.ReadInt64());
 					break;
 				}
 				case VelNetManager.MessageType.DeleteSceneObjects:
@@ -221,7 +221,7 @@ namespace VelNet
 					int len = messageReader.ReadInt32();
 					for (int k = 1; k < len; k++)
 					{
-						VelNetManager.SomebodyDestroyedNetworkObject(messageReader.ReadString());
+						VelNetManager.SomebodyDestroyedNetworkObject(messageReader.ReadInt64());
 					}
 
 					break;
@@ -275,7 +275,7 @@ namespace VelNet
 			w.Reset();
 			w.Write((byte)VelNetManager.MessageType.DeleteSceneObjects);
 			w.Write(manager.deletedSceneObjects.Count);
-			foreach (string o in manager.deletedSceneObjects)
+			foreach (long o in manager.deletedSceneObjects)
 			{
 				w.Write(o);
 			}
@@ -284,7 +284,7 @@ namespace VelNet
 		}
 
 		[Obsolete("Use VelNetManager.NetworkDestroy() instead.")]
-		public void NetworkDestroy(string networkId)
+		public void NetworkDestroy(long networkId)
 		{
 			// must be the local owner of the object to destroy it
 			if (!manager.objects.ContainsKey(networkId) || manager.objects[networkId].owner != this || !isLocal) return;
@@ -298,7 +298,7 @@ namespace VelNet
 
 		/// <returns>True if successful, False if failed to transfer ownership</returns>
 		[Obsolete("Use VelNetManager.TakeOwnership() instead.")]
-		public bool TakeOwnership(string networkId)
+		public bool TakeOwnership(long networkId)
 		{
 			// must exist and be the the local player
 			if (!manager.objects.ContainsKey(networkId) || !isLocal) return false;
