@@ -1,7 +1,7 @@
 {
   "name": "edu.uga.engr.vel.velnet",
   "displayName": "VelNet",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "unity": "2020.3",
   "description": "A custom networking library for Unity.",
   "keywords": [
