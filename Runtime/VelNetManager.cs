@@ -82,7 +82,7 @@ namespace VelNet
 		private WebSocket webSocket;
 		private bool useWebSocket;
 
-		private static int MAX_UDP_PACKET_SIZE = 65000; 
+		private static int MAX_UDP_PACKET_SIZE = 1400;
 		private static int MAX_UDP_QUEUE_SIZE = 500; //will drop after this
 		// The buffer for WebSocket stream accumulation
 		private List<byte> wsBuffer = new List<byte>();
@@ -1655,14 +1655,20 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 				return;
 			}
 
+			if (N > MAX_UDP_PACKET_SIZE)
+			{
+				VelNetLogger.Error($"UDP message too large ({N} bytes, max {MAX_UDP_PACKET_SIZE}). Dropping packet. Send this data reliably (TCP) instead.");
+				return;
+			}
+
 			if(udpSendQueue.Count > MAX_UDP_QUEUE_SIZE)
 			{
 				return; // Backpressure: If we have too many messages queued, just drop this one to avoid OOM
 			}
-			
+
 			if (!udpBufferPool.TryDequeue(out byte[] pooledBuffer) || pooledBuffer.Length < N)
 			{
-				pooledBuffer = new byte[Math.Max(1500, N)]; // Safe pre-allocation limit
+				pooledBuffer = new byte[Math.Max(MAX_UDP_PACKET_SIZE, N)];
 			}
 
 			Buffer.BlockCopy(message, 0, pooledBuffer, 0, N);
@@ -1974,11 +1980,20 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			}
 			else
 			{
+				int totalSize = length + 5;
+				if (totalSize > MAX_UDP_PACKET_SIZE)
+				{
+					VelNetLogger.Error($"UDP message too large ({totalSize} bytes, max {MAX_UDP_PACKET_SIZE}). Falling back to TCP.");
+					tcpHeader[0] = sendType;
+					WriteBigEndianInt(tcpHeader, 1, length);
+					return SendTcpMessageTwoPart(tcpHeader, 0, 5, buffer, offset, length);
+				}
+
 				// UDP: pack into static toSend buffer
 				toSend[0] = sendType;
 				WriteBigEndianInt(toSend, 1, instance.userid);
 				Array.Copy(buffer, offset, toSend, 5, length);
-				SendUdpMessage(toSend, length + 5);
+				SendUdpMessage(toSend, totalSize);
 				return true;
 			}
 		}
@@ -1998,11 +2013,19 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			}
 			else
 			{
+				int totalSize = length + 5;
+				if (totalSize > MAX_UDP_PACKET_SIZE)
+				{
+					VelNetLogger.Error($"UDP message too large ({totalSize} bytes, max {MAX_UDP_PACKET_SIZE}). Falling back to TCP.");
+					tcpHeader[0] = sendType;
+					WriteBigEndianInt(tcpHeader, 1, length);
+					return SendTcpMessageTwoPart(tcpHeader, 0, 5, buffer, offset, length);
+				}
+
 				toSend[0] = sendType;
 				WriteBigEndianInt(toSend, 1, instance.userid);
-				//Array.Copy(buffer, offset, toSend, 5, length);
 				Buffer.BlockCopy(buffer, offset, toSend, 5, length);
-				SendUdpMessage(toSend, length + 5);
+				SendUdpMessage(toSend, totalSize);
 				return true;
 			}
 		}
@@ -2026,12 +2049,25 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			}
 			else
 			{
+				int totalSize = 6 + utf8bytes.Length + length;
+				if (totalSize > MAX_UDP_PACKET_SIZE)
+				{
+					VelNetLogger.Error($"UDP message too large ({totalSize} bytes, max {MAX_UDP_PACKET_SIZE}). Falling back to TCP.");
+					sendWriter.Reset();
+					sendWriter.Write((byte)MessageSendType.MESSAGE_GROUP);
+					sendWriter.WriteBigEndianInt(length);
+					sendWriter.Write(buffer, offset, length);
+					sendWriter.Write((byte)utf8bytes.Length);
+					sendWriter.Write(utf8bytes);
+					return SendTcpMessage(sendWriter.Buffer, 0, sendWriter.Length);
+				}
+
 				toSend[0] = (byte)MessageSendType.MESSAGE_GROUP;
 				WriteBigEndianInt(toSend, 1, instance.userid);
 				toSend[5] = (byte)utf8bytes.Length;
 				Array.Copy(utf8bytes, 0, toSend, 6, utf8bytes.Length);
 				Array.Copy(buffer, offset, toSend, 6 + utf8bytes.Length, length);
-				SendUdpMessage(toSend, 6 + utf8bytes.Length + length);
+				SendUdpMessage(toSend, totalSize);
 				return true;
 			}
 		}
