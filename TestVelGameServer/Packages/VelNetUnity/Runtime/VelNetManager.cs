@@ -199,6 +199,16 @@ namespace VelNet
 		public static Action<int, byte[]> CustomMessageReceived;
 
 		/// <summary>
+		/// Fires for every room data message THIS client sends to others (SendToRoom with
+		/// include_self == false), carrying the inner payload — the same bytes a remote client
+		/// receives as DataMessage.data. The server never echoes our own messages back to us,
+		/// so this is the only place a local observer (e.g. a session recorder) can capture our
+		/// own outgoing state. The buffer is a POOLED send buffer that is reused on the next
+		/// send: handlers MUST copy the bytes synchronously and must not retain the reference.
+		/// </summary>
+		public static Action<byte[], int, int> LocalRoomMessageSent;
+
+		/// <summary>
 		/// I just spawned a local network object
 		/// </summary>
 		public static Action<NetworkObject> OnLocalNetworkObjectSpawned;
@@ -2025,6 +2035,12 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			if (include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_ALL_ORDERED;
 			if (include_self && !ordered) sendType = (byte)MessageSendType.MESSAGE_ALL;
 			if (!include_self && ordered) sendType = (byte)MessageSendType.MESSAGE_OTHERS_ORDERED;
+
+			// Mirror this outgoing payload to any local observer (e.g. a session recorder). Only
+			// OTHERS sends: ALL/loopback (include_self) sends already come back via MessageReceived,
+			// so firing for those too would double-record. buffer is a pooled send buffer, so the
+			// handler must copy synchronously.
+			if (!include_self) LocalRoomMessageSent?.Invoke(buffer, offset, length);
 
 			if (reliable || !instance.udpConnected)
 			{
