@@ -1101,6 +1101,7 @@ public static VelNetPlayer LocalPlayer
             };
 
 			webSocket.OnMessage += (bytes) => {
+				System.Threading.Interlocked.Add(ref bytesIn, bytes.Length);
 				// 1. Add to buffer
 				lock (wsBuffer) {
 					wsBuffer.AddRange(bytes);
@@ -1158,7 +1159,7 @@ public static VelNetPlayer LocalPlayer
         // We only reach here if TCP connected successfully
         AddMessage(new ConnectedMessage());
         
-        using (NetworkStream stream = socketConnection.GetStream())
+        using (System.IO.Stream stream = new CountingReadStream(socketConnection.GetStream()))
         using (BinaryReader reader = new BinaryReader(stream))
         {
             while (socketConnection.Connected)
@@ -1626,6 +1627,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
             try 
             {
                 int numReceived = udpSocket.Receive(buffer);
+                if (numReceived > 0) System.Threading.Interlocked.Add(ref bytesIn, numReceived);
                 if (numReceived > 0)
                 {
                      // Handle Data
@@ -1676,8 +1678,32 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		/// This is a safety net — callers (SendToSelf, SendToRoom, SendToGroup) should
 		/// check the size first and fall back to TCP for oversized messages.
 		/// </summary>
+		// Traffic counters for the perf HUD. Written from socket/send threads, read on
+		// the main thread; use Interlocked so the totals don't tear.
+		public static long bytesIn = 0;
+		public static long bytesOut = 0;
+		// Counts every byte read off a raw-TCP socket (the websocket + UDP paths are
+		// counted at their own handlers). The receive BinaryReader reads through this.
+		private sealed class CountingReadStream : System.IO.Stream
+		{
+			private readonly System.IO.Stream inner;
+			public CountingReadStream(System.IO.Stream s) { inner = s; }
+			public override int Read(byte[] b, int o, int c) { int n = inner.Read(b, o, c); if (n > 0) System.Threading.Interlocked.Add(ref bytesIn, n); return n; }
+			public override bool CanRead => inner.CanRead;
+			public override bool CanSeek => inner.CanSeek;
+			public override bool CanWrite => inner.CanWrite;
+			public override long Length => inner.Length;
+			public override long Position { get => inner.Position; set => inner.Position = value; }
+			public override void Flush() => inner.Flush();
+			public override long Seek(long o, System.IO.SeekOrigin r) => inner.Seek(o, r);
+			public override void SetLength(long v) => inner.SetLength(v);
+			public override void Write(byte[] b, int o, int c) => inner.Write(b, o, c);
+			protected override void Dispose(bool disposing) { if (disposing) inner.Dispose(); base.Dispose(disposing); }
+		}
+
 		private static void SendUdpMessage(byte[] message, int N)
 		{
+			System.Threading.Interlocked.Add(ref bytesOut, N);
 			if (instance.udpSocket == null || !instance.udpConnected)
 			{
 				return;
@@ -1740,6 +1766,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		/// <returns>True if the message successfully sent. False if it failed and we should quit</returns>
 		private static bool SendTcpMessage(byte[] buffer, int offset, int length)
 {
+    System.Threading.Interlocked.Add(ref bytesOut, length);
     if (instance.offlineMode)
     {
         // FakeServer needs a standalone byte[] for its MemoryStream-based parsing
@@ -1802,6 +1829,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		/// </summary>
 		private static bool SendTcpMessageTwoPart(byte[] header, int headerOffset, int headerLength, byte[] body, int bodyOffset, int bodyLength)
 		{
+			System.Threading.Interlocked.Add(ref bytesOut, headerLength + bodyLength);
 			if (instance.offlineMode)
 			{
 				// FakeServer expects the full message as one byte[]
