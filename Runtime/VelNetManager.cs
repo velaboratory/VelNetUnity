@@ -107,6 +107,19 @@ namespace VelNet
 		}
 
 		public bool udpConnected;
+
+		/// <summary>
+		/// Global failsafe: when true this client uses TCP for EVERYTHING and never
+		/// brings up UDP at all. Every "unreliable" send (state sync, voice) is routed
+		/// over the reliable TCP socket, the UDP handshake/threads are never started,
+		/// and — because the server only ever learns this client's udp_port from that
+		/// handshake — the relay's own fallback wraps all inbound unreliable traffic
+		/// (other players' poses/voice) into TCP for us too. The cost is latency and
+		/// head-of-line blocking; the payoff is correctness on networks where UDP is
+		/// silently dropped. Set from the loading menu BEFORE connecting.
+		/// </summary>
+		public static bool forceReliable;
+
 		private IPEndPoint RemoteEndPoint;
 		private Thread clientReceiveThread;
 		private Thread clientReceiveThreadUDP;
@@ -560,12 +573,18 @@ public static VelNetPlayer LocalPlayer
 								VelNetLogger.Error(e.ToString(), this);
 							}
 
-							//start the udp thread 
-							clientReceiveThreadUDP?.Abort();
-							clientReceiveThreadUDP = new Thread(ListenForDataUDP);
-							clientReceiveThreadUDP.Start();
-							
-							
+							//start the udp thread (skipped entirely in force-reliable mode — we stay TCP-only)
+							if (!forceReliable)
+							{
+								clientReceiveThreadUDP?.Abort();
+								clientReceiveThreadUDP = new Thread(ListenForDataUDP);
+								clientReceiveThreadUDP.Start();
+							}
+							else
+							{
+								VelNetLogger.Info("Force-reliable mode: skipping UDP; all traffic over TCP.");
+							}
+
 
 							break;
 						}
@@ -1582,8 +1601,8 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 
 		private void ListenForDataUDP()
 {
-    // 1. Immediate exit if using WebSockets or Offline
-    if (offlineMode || useWebSocket) 
+    // 1. Immediate exit if using WebSockets, Offline, or the force-reliable failsafe
+    if (offlineMode || useWebSocket || forceReliable)
     {
         udpConnected = false;
         return;
@@ -2094,7 +2113,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		{
 			const byte sendType = (byte)MessageSendType.MESSAGE_SELF;
 
-			if (reliable || !instance.udpConnected)
+			if (reliable || forceReliable || !instance.udpConnected)
 			{
 				// TCP: write transport header + message body directly
 				tcpHeader[0] = sendType;
@@ -2136,7 +2155,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			// handler must copy synchronously.
 			if (!include_self) LocalRoomMessageSent?.Invoke(buffer, offset, length);
 
-			if (reliable || !instance.udpConnected)
+			if (reliable || forceReliable || !instance.udpConnected)
 			{
 				tcpHeader[0] = sendType;
 				WriteBigEndianInt(tcpHeader, 1, length);
@@ -2168,7 +2187,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		{
 			byte[] utf8bytes = Encoding.UTF8.GetBytes(group);
 
-			if (reliable || !instance.udpConnected)
+			if (reliable || forceReliable || !instance.udpConnected)
 			{
 				// TCP: build full message into sendWriter since SendToGroup has a more complex format
 				// (message body + group name appended after)
