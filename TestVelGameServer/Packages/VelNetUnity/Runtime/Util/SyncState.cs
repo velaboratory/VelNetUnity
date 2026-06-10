@@ -14,6 +14,12 @@ namespace VelNet
 		/// </summary>
 		public bool hybridOnChangeCompression = true;
 
+		[Tooltip("Send the periodic state over TCP instead of UDP. Leave OFF: state re-sends at " +
+		         "least every 2s, so a lost UDP packet self-heals — and high-rate state on the TCP " +
+		         "stream stalls it for real events (and backs up its send queue) on a slow uplink. " +
+		         "Unreliable sends automatically fall back to TCP when UDP is unavailable.")]
+		public bool sendReliable = false;
+
 		private byte[] lastSentBytes;
 		private int lastSentLength;
 		private double lastSendTime;
@@ -49,13 +55,13 @@ namespace VelNet
 							if (Time.timeAsDouble - lastSendTime > slowSendInterval ||
 							    !BinaryWriterExtensions.BytesSame(lastSentBytes, lastSentLength, newBuffer, newLength))
 							{
-								SendBytes(newBuffer, 0, newLength);
+								SendBytes(newBuffer, 0, newLength, sendReliable);
 								lastSendTime = Time.timeAsDouble;
 							}
 						}
 						else
 						{
-							SendBytes(newBuffer, 0, newLength);
+							SendBytes(newBuffer, 0, newLength, sendReliable);
 							lastSendTime = Time.timeAsDouble;
 						}
 
