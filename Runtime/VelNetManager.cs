@@ -111,6 +111,7 @@ namespace VelNet
 		private Thread clientReceiveThread;
 		private Thread clientReceiveThreadUDP;
 		private Thread clientSendThreadUDP;
+		private Thread clientSendThreadTCP;
 		public bool connected;
 		private bool wasConnected;
 		private double lastConnectionCheck;
@@ -152,6 +153,23 @@ namespace VelNet
 
 		private static readonly ConcurrentQueue<UdpSendPacket> udpSendQueue = new ConcurrentQueue<UdpSendPacket>();
 		private static readonly ConcurrentQueue<byte[]> udpBufferPool = new ConcurrentQueue<byte[]>();
+
+		// TCP send queue: every reliable send is enqueued here and drained in FIFO order by a
+		// dedicated send thread (mirrors the UDP path above). NetworkStream.Write on a full
+		// socket send buffer BLOCKS the calling thread — which was the main/render thread — so
+		// large reliable bursts (long strokes, plane textures, late-join scene state) on a
+		// constrained uplink (Quest WiFi) froze rendering until the OS drained the buffer.
+		// A single consumer preserves message order, and a two-part (header+body) message is
+		// copied into ONE buffer so it can no longer interleave. TCP is reliable, so unlike the
+		// UDP queue nothing is ever dropped; a slow link just grows the queue (warned on enqueue).
+		private struct TcpSendPacket
+		{
+			public byte[] Buffer;
+			public int Length;
+		}
+
+		private static readonly ConcurrentQueue<TcpSendPacket> tcpSendQueue = new ConcurrentQueue<TcpSendPacket>();
+		private static readonly ConcurrentQueue<byte[]> tcpBufferPool = new ConcurrentQueue<byte[]>();
 
 		#region Callbacks
 
@@ -875,6 +893,7 @@ public static VelNetPlayer LocalPlayer
 			clientReceiveThreadUDP?.Abort();
 			clientReceiveThread?.Abort();
 			clientSendThreadUDP?.Abort();
+			clientSendThreadTCP?.Abort();
 		}
 
 		/// <summary>
@@ -1057,6 +1076,13 @@ public static VelNetPlayer LocalPlayer
             // If TCP succeeds, we proceed to the blocking loop below
             connected = true;
             connecting = false;
+
+            // Fresh connection: drop anything still queued for a previous (dead) session —
+            // replaying it into this one would corrupt state — then start the dedicated
+            // TCP send thread for this connection (see tcpSendQueue).
+            while (tcpSendQueue.TryDequeue(out TcpSendPacket stale)) tcpBufferPool.Enqueue(stale.Buffer);
+            clientSendThreadTCP = new Thread(SendTCPLoop);
+            clientSendThreadTCP.Start();
         }
         catch (SocketException)
         {
@@ -1759,7 +1785,72 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			Profiler.EndThreadProfiling();
 		}
 
-		/// <summary> 	
+		/// <summary>
+		/// Copy a message (optionally header+body) into one pooled buffer and hand it to the
+		/// TCP send thread. Copying is required because callers reuse their buffers (e.g. the
+		/// shared sendWriter) immediately after this returns.
+		/// </summary>
+		private static bool EnqueueTcpMessage(byte[] a, int aOffset, int aLength, byte[] b = null, int bOffset = 0, int bLength = 0)
+		{
+			int total = aLength + bLength;
+			if (!tcpBufferPool.TryDequeue(out byte[] buf) || buf.Length < total)
+			{
+				buf = new byte[Math.Max(total, 1024)];
+			}
+			Array.Copy(a, aOffset, buf, 0, aLength);
+			if (b != null) Array.Copy(b, bOffset, buf, aLength, bLength);
+			tcpSendQueue.Enqueue(new TcpSendPacket { Buffer = buf, Length = total });
+
+			// Visibility on a backed-up uplink (reliable messages are never dropped).
+			int queued = tcpSendQueue.Count;
+			if (queued > 500 && Environment.TickCount - lastTcpQueueWarnTick > 5000)
+			{
+				lastTcpQueueWarnTick = Environment.TickCount;
+				VelNetLogger.Error($"TCP send queue backed up: {queued} messages waiting (slow uplink?)");
+			}
+			return true;
+		}
+
+		private static int lastTcpQueueWarnTick;
+
+		private static void SendTCPLoop()
+		{
+			Profiler.BeginThreadProfiling("VelNet", "TCP Send Thread");
+			while (instance != null && instance.socketConnection != null && instance.socketConnection.Connected)
+			{
+				if (tcpSendQueue.TryDequeue(out TcpSendPacket packet))
+				{
+					try
+					{
+						NetworkStream stream = instance.socketConnection.GetStream();
+						if (stream.CanWrite)
+						{
+							stream.Write(packet.Buffer, 0, packet.Length);
+						}
+					}
+					catch (Exception)
+					{
+						// Connection died mid-send. The receive thread notices the broken
+						// socket and runs the normal disconnect path; our loop condition
+						// exits us. Don't trigger a disconnect from this thread.
+					}
+					finally
+					{
+						if (tcpBufferPool.Count < 64)
+						{
+							tcpBufferPool.Enqueue(packet.Buffer);
+						}
+					}
+				}
+				else
+				{
+					Thread.Sleep(3); // No messages to send, wait a bit before checking again
+				}
+			}
+			Profiler.EndThreadProfiling();
+		}
+
+		/// <summary>
 		/// Send message to server using socket connection.
 		/// </summary>
 		/// <param name="message">We can assume that this message is already formatted, so we just send it</param>
@@ -1798,31 +1889,20 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
     }
 
     // --- TCP PATH ---
+    // Queued for the dedicated send thread (see tcpSendQueue): NetworkStream.Write on a
+    // full socket send buffer blocks the calling thread, and this is called from the main
+    // thread — large reliable bursts (strokes, textures, late-join state) on a slow uplink
+    // froze rendering until the OS drained the buffer.
     if (instance.socketConnection == null)
     {
         return false;
     }
-
-    try
+    if (!instance.socketConnection.Connected)
     {
-        if (!instance.socketConnection.Connected)
-        {
-            DisconnectFromServer();
-            return false;
-        }
-
-        NetworkStream stream = instance.socketConnection.GetStream();
-        if (stream.CanWrite)
-        {
-            stream.Write(buffer, offset, length);
-        }
-    }
-    catch (Exception)
-    {
+        DisconnectFromServer();
         return false;
     }
-
-    return true;
+    return EnqueueTcpMessage(buffer, offset, length);
 }
 		/// <summary>
 		/// Sends a TCP message as two parts (header + body) to avoid concatenating into a single buffer.
@@ -1854,28 +1934,14 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 			}
 
 			if (instance.socketConnection == null) return false;
-
-			try
+			if (!instance.socketConnection.Connected)
 			{
-				if (!instance.socketConnection.Connected)
-				{
-					DisconnectFromServer();
-					return false;
-				}
-
-				NetworkStream stream = instance.socketConnection.GetStream();
-				if (stream.CanWrite)
-				{
-					stream.Write(header, headerOffset, headerLength);
-					stream.Write(body, bodyOffset, bodyLength);
-				}
-			}
-			catch (Exception)
-			{
+				DisconnectFromServer();
 				return false;
 			}
-
-			return true;
+			// Queued as ONE pooled buffer: non-blocking for the caller (main thread), and the
+			// header+body pair can no longer interleave with another write.
+			return EnqueueTcpMessage(header, headerOffset, headerLength, body, bodyOffset, bodyLength);
 		}
 
 		/// <summary>
