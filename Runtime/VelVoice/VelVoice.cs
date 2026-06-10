@@ -67,6 +67,26 @@ namespace VelNet.Voice
 		private int numSilent;
 
 		public int minSilencePacketsToStop = 10;
+
+		[Tooltip("Frames of sub-threshold audio (~40ms each) remembered while the silence gate is " +
+		         "closed and replayed when voice resumes. Quiet speech onsets ('h', 's', soft first " +
+		         "syllables) sit below the gate threshold, so without this the start of each " +
+		         "utterance after a silence gets clipped — noticeably hurting speech recognition. " +
+		         "0 disables.")]
+		public int preRollFrames = 6;
+
+		/// <summary>
+		/// While true the silence gate is bypassed entirely (every frame is sent).
+		/// Set by explicit captures (text transcription / AI edit) so deliberate
+		/// recordings are never gated, whatever the mic level.
+		/// </summary>
+		[System.NonSerialized] public bool bypassSilenceGate;
+
+		// Pre-roll ring. Owns its buffers — pool frames can't be held across packets.
+		private float[][] preRoll;
+		private int preRollCount;
+		private int preRollHead;
+
 		private double averageVolume;
 		private Thread t;
 		public Action<FixedArray> encodedFrameAvailable = delegate { };
@@ -202,7 +222,7 @@ namespace VelNet.Voice
 						{
 							averageVolume = averageVolume / encoderFrameSize;
 
-							if (averageVolume < silenceThreshold)
+							if (averageVolume < silenceThreshold && !bypassSilenceGate)
 							{
 								numSilent++;
 							}
@@ -215,6 +235,23 @@ namespace VelNet.Voice
 
 							if (numSilent < minSilencePacketsToStop)
 							{
+								// Re-opening after a gated stretch: replay the pre-roll first so
+								// the quiet onset preceding the trigger frame is delivered too.
+								if (preRollCount > 0)
+								{
+									lock (frameBuffer)
+									{
+										for (int p = 0; p < preRollCount; p++)
+										{
+											float[] pf = GetNextEncoderPool();
+											System.Array.Copy(preRoll[(preRollHead + p) % preRoll.Length], pf, encoderFrameSize);
+											frameBuffer.Add(pf);
+										}
+									}
+									preRollCount = 0;
+									preRollHead = 0;
+								}
+
 								float[] frame = GetNextEncoderPool(); //these are predefined sizes, so we don't have to allocate a new array
 								//lock the frame buffer
 
@@ -226,6 +263,21 @@ namespace VelNet.Voice
 									frameBuffer.Add(frame);
 									waiter.Set(); //signal the encode frame
 								}
+							}
+							else if (preRollFrames > 0)
+							{
+								// Gated: remember this frame so a voice onset can be replayed.
+								if (preRoll == null || preRoll.Length != preRollFrames)
+								{
+									preRoll = new float[preRollFrames][];
+									for (int p = 0; p < preRollFrames; p++) preRoll[p] = new float[encoderFrameSize];
+									preRollCount = 0;
+									preRollHead = 0;
+								}
+								int slot = (preRollHead + preRollCount) % preRoll.Length;
+								System.Array.Copy(encoderBuffer, preRoll[slot], encoderFrameSize);
+								if (preRollCount < preRoll.Length) preRollCount++;
+								else preRollHead = (preRollHead + 1) % preRoll.Length;
 							}
 
 							encoderBufferIndex = 0;
