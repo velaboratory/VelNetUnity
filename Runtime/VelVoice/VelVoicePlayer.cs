@@ -34,6 +34,9 @@ namespace VelNet.Voice
 		private readonly float[] empty = new float[1000];
 
 		private float delayStartTime;
+		// Low-pass-filtered playback backlog used to drive the catch-up pitch, so a transient burst
+		// of frames at the start of an utterance doesn't spike the pitch (the high-pitched onset bug).
+		private float smoothedOffset;
 
 		// ---- threaded decode ----------------------------------------------------
 		// Opus decode used to run inside ReceiveBytes, which VelNetManager dispatches on
@@ -226,14 +229,21 @@ namespace VelNet.Voice
 				int offset = bufferedAmount - playedAmount;
 				if ((offset > 1000) || (Time.time - delayStartTime) > .1f) //this seems to make the quality better
 				{
-					int temp = Mathf.Max(0, offset - 2000);
-					source.pitch = Mathf.Min(2, 1 + temp / 18000.0f); //okay to behind by 2000.  These numbers correspond to about 2x speed at a seconds behind
-
-
 					if (!source.isPlaying)
 					{
+						// New utterance: seed the smoothed backlog at the target so the initial burst
+						// (sender pre-roll + any main-thread hitch dumping several decoded frames into one
+						// Update) plays at NORMAL pitch. The old code drove pitch straight from the raw
+						// offset, so a burst jumped it toward 2x -> a high-pitched onset that only
+						// "normalized" once the burst drained.
+						smoothedOffset = 2000f;
 						source.Play();
 					}
+					// Smooth the backlog so transient bursts don't move the pitch; only a SUSTAINED
+					// backlog (real clock drift) nudges it, and gently (<= ~6%, was up to 2x).
+					smoothedOffset = Mathf.Lerp(smoothedOffset, offset, 0.02f);
+					float temp = Mathf.Max(0f, smoothedOffset - 2000f); //okay to be behind by 2000
+					source.pitch = Mathf.Min(1.06f, 1f + temp / 18000.0f);
 				}
 				else
 				{
