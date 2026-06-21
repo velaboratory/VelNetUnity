@@ -2,6 +2,12 @@
 
 All notable changes to VelNet (Unity) are documented here.
 
+## [2.0.17] - 2026-06-21
+### Fixed
+- Add the missing `.meta` for `velnet_logo.png`. Unity can't generate a meta inside an immutable
+  (npm-installed) package, so 2.0.16 logged "Asset ... velnet_logo.png has no meta file, but it's in
+  an immutable folder. The asset will be ignored." in consumers.
+
 ## [2.0.16] - 2026-06-21
 ### Changed
 - **Repository restructured to a standalone package.** The package now lives at the repo root
