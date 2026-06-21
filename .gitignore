@@ -3,5 +3,6 @@ my.secrets
 .git.bfg-report/
 Documentation-old/
 env/
-Documentation/public/
+Documentation~/public/
+Documentation~/.cache/
 node_modules/

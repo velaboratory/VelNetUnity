@@ -1,0 +1,24 @@
+name: Publish to npm.ugavel.com (Verdaccio)
+
+# The repo root IS the package (package.json at root), so a push to main that bumps the
+# version publishes it to the VEL npm registry — exactly like velutils / velshareunity.
+# npm refuses to republish an existing version, so this is effectively "publish on bump".
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish-npm:
+    name: npm publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          registry-url: http://npm.ugavel.com/
+      - name: actually publish
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.VERDACCIO_TOKEN}}

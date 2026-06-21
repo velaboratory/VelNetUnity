@@ -1,10 +1,10 @@
 env:
-  SUBFOLDER: Documentation
+  SUBFOLDER: Documentation~
 
 on:
   push:
     paths:
-      - Documentation/**
+      - Documentation~/**
 
 jobs:
   publish-docs:
