@@ -12,6 +12,8 @@ velutils / velshareunity. Don't re-introduce an embedded Unity project; test aga
 ## Layout
 - `Runtime/` — the library. `VelNetManager.cs`, `VelNetPlayer.cs`, `NetworkObject.cs`,
   `NetworkComponent.cs`, `Util/` (e.g. `NetworkReader`/`NetworkWriter`), `VelVoice/`, `Plugins/`.
+  `WebSocket/` is a vendored copy of NativeWebSocket (since 2.0.18) for the TCP-failed fallback; keep its names,
+  GUIDs and `VelNetWebSocket*` JS entry points distinct from the real package so both can be installed.
 - `Editor/` — editor-only tooling.
 - `Samples~/` — Basic / Full / VelVoice / Dissonance example scenes (`~` ⇒ Unity won't import them).
 - `Documentation~/` — MkDocs site (published to Cloudflare Pages by `.github/workflows/docs-cf.yml`).

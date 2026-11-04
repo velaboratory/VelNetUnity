@@ -10,7 +10,7 @@ using System.Net;
 using UnityEngine.SceneManagement;
 using System.IO;
 using System.Threading.Tasks;
-using NativeWebSocket;
+using VelNet.WebSockets;
 using System.Collections.Concurrent;
 using UnityEngine.Profiling; // Ensure you have this library
 
@@ -1023,10 +1023,10 @@ public static VelNetPlayer LocalPlayer
 				instance.socketConnection = null;
 			}
 
-			// Close WebSocket (NativeWebSocket)
+			// Close WebSocket (vendored NativeWebSocket)
 			if (instance.webSocket != null)
 			{
-				// NativeWebSocket's Close is async, but usually fire-and-forget is fine for disconnects
+				// The WebSocket Close is async, but usually fire-and-forget is fine for disconnects
 				try { instance.webSocket.Close(); } catch { }
 				instance.webSocket = null;
 			}
@@ -1107,7 +1107,7 @@ public static VelNetPlayer LocalPlayer
         {
             VelNetLogger.Error("TCP Connection failed. Attempting WebSocket fallback...");
             
-            // 2. Fallback to NativeWebSocket
+            // 2. Fallback to WebSocket (vendored NativeWebSocket, Runtime/WebSocket)
             useWebSocket = true;
             
             // Connect to wss://{host}/ 

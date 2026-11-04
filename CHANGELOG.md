@@ -2,6 +2,14 @@
 
 All notable changes to VelNet (Unity) are documented here.
 
+## [2.0.18] - 2026-11-04
+### Changed
+- **No more NativeWebSocket dependency.** The WebSocket fallback (used when the TCP connection fails) now
+  uses a copy of NativeWebSocket built into VelNet (`Runtime/WebSocket/`, namespace `VelNet.WebSockets`,
+  internal types, JS entry points `VelNetWebSocket*`). Installing VelNet alone now compiles; before, a project
+  also had to add `com.endel.nativewebsocket` from git. Projects that install NativeWebSocket themselves
+  keep working: the two copies don't share names, GUIDs or JS symbols. See `THIRD-PARTY-NOTICES.md`.
+
 ## [2.0.17] - 2026-06-21
 ### Fixed
 - Add the missing `.meta` for `velnet_logo.png`. Unity can't generate a meta inside an immutable
