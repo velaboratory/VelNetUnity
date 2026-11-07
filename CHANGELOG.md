@@ -2,6 +2,15 @@
 
 All notable changes to VelNet (Unity) are documented here.
 
+## [2.0.19] - 2026-11-06
+### Fixed
+- **Application.Quit no longer hangs on Android/IL2CPP (ANR, then killed ~10 s later).** The UDP receive
+  thread sat in a blocking `Socket.Receive` that nothing ever closed: `OnApplicationQuit` closed only TCP,
+  `DisconnectFromServer` just dropped the UDP socket reference, and `Thread.Abort` can't interrupt a
+  blocking syscall. IL2CPP's shutdown joins every managed thread with no timeout, so quit waited forever.
+  Quit, disconnect and re-login now shut down and close the UDP socket; each UDP thread owns its socket,
+  so a reconnect can't orphan the old thread. VelNet threads are now named and background.
+
 ## [2.0.18] - 2026-11-04
 ### Changed
 - **No more NativeWebSocket dependency.** The WebSocket fallback (used when the TCP connection fails) now

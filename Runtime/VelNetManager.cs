@@ -576,8 +576,9 @@ public static VelNetPlayer LocalPlayer
 							//start the udp thread (skipped entirely in force-reliable mode — we stay TCP-only)
 							if (!forceReliable)
 							{
+								CloseUdpSocket(); // a previous UDP thread exits once its socket is closed
 								clientReceiveThreadUDP?.Abort();
-								clientReceiveThreadUDP = new Thread(ListenForDataUDP);
+								clientReceiveThreadUDP = new Thread(ListenForDataUDP) { IsBackground = true, Name = "VelNet UDP rx" };
 								clientReceiveThreadUDP.Start();
 							}
 							else
@@ -908,6 +909,12 @@ public static VelNetPlayer LocalPlayer
 
 		private void OnApplicationQuit()
 		{
+			// Close EVERY socket a receive thread can be blocked on. IL2CPP's shutdown (Runtime::Shutdown ->
+			// Thread::AbortAllThreads) joins every managed thread, background or not, with no timeout, and
+			// Thread.Abort is only honoured at managed waits (Sleep, WaitOne, Monitor), never inside a blocking
+			// Socket.Receive. The UDP receive thread left in recvfrom hung Application.Quit on Quest until
+			// Android's ANR kill (~10 s). Closing the socket wakes the blocked Receive.
+			CloseUdpSocket();
 			socketConnection?.Close();
 			clientReceiveThreadUDP?.Abort();
 			clientReceiveThread?.Abort();
@@ -943,7 +950,7 @@ public static VelNetPlayer LocalPlayer
 
 			try
 			{
-				instance.clientReceiveThread = new Thread(instance.ListenForData);
+				instance.clientReceiveThread = new Thread(instance.ListenForData) { IsBackground = true, Name = "VelNet TCP rx" };
 				instance.clientReceiveThread.Start();
 			}
 			catch (Exception e)
@@ -1044,7 +1051,7 @@ public static VelNetPlayer LocalPlayer
 				instance.clientReceiveThread = null;
 			}
 
-			instance.udpSocket = null;
+			instance.CloseUdpSocket(); // was `udpSocket = null`, which left the UDP thread blocked in Receive forever
 
 			OnDisconnectedFromServer?.Invoke();
 		}
@@ -1100,7 +1107,7 @@ public static VelNetPlayer LocalPlayer
             // replaying it into this one would corrupt state — then start the dedicated
             // TCP send thread for this connection (see tcpSendQueue).
             while (tcpSendQueue.TryDequeue(out TcpSendPacket stale)) tcpBufferPool.Enqueue(stale.Buffer);
-            clientSendThreadTCP = new Thread(SendTCPLoop);
+            clientSendThreadTCP = new Thread(SendTCPLoop) { IsBackground = true, Name = "VelNet TCP tx" };
             clientSendThreadTCP.Start();
         }
         catch (SocketException)
@@ -1600,122 +1607,145 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		}
 
 		private void ListenForDataUDP()
-{
-    // 1. Immediate exit if using WebSockets, Offline, or the force-reliable failsafe
-    if (offlineMode || useWebSocket || forceReliable)
-    {
-        udpConnected = false;
-        return;
-    }
+		{
+			// 1. Immediate exit if using WebSockets, Offline, or the force-reliable failsafe
+			if (offlineMode || useWebSocket || forceReliable)
+			{
+				udpConnected = false;
+				return;
+			}
 
-    try
-    {
-        IPAddress[] addresses = Dns.GetHostAddresses(host);
-        RemoteEndPoint = new IPEndPoint(addresses[0], port);
+			// This thread OWNS `sock`. The udpSocket field only publishes it to the send path and to
+			// CloseUdpSocket (quit / disconnect / re-login), which may swap it out while we unwind.
+			Socket sock = null;
+			try
+			{
+				IPAddress[] addresses = Dns.GetHostAddresses(host);
+				RemoteEndPoint = new IPEndPoint(addresses[0], port);
 
-        udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-		//udpSocket.Blocking = false;
-		udpSocket.SendBufferSize = 4*1024*1024;
-        // Fix: Ignore ICMP Port Unreachable errors to prevent false positives on Windows
-        // (SIO_UDP_CONNRESET = -1744830452)
-        try { udpSocket.IOControl((IOControlCode)(-1744830452), new byte[] { 0 }, null); } catch { }
-		udpSocket.DontFragment = true;
-        udpConnected = false;
-        byte[] buffer = new byte[MAX_UDP_PACKET_SIZE];
-        
-        // 2. Handshake Loop
-        while (true)
-        {
-            // Send Handshake
-            buffer[0] = 0; // MessageType.LOGGED_IN (Connect)
-            WriteBigEndianInt(buffer, 1, userid);
-			udpSocket.Connect(RemoteEndPoint);
-            udpSocket.Send(buffer, 5, SocketFlags.None);
+				sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+				sock.SendBufferSize = 4 * 1024 * 1024;
+				// Fix: Ignore ICMP Port Unreachable errors to prevent false positives on Windows
+				// (SIO_UDP_CONNRESET = -1744830452)
+				try { sock.IOControl((IOControlCode)(-1744830452), new byte[] { 0 }, null); } catch { }
+				sock.DontFragment = true;
+				udpConnected = false;
+				Socket previous = Interlocked.Exchange(ref udpSocket, sock);
+				if (previous != null) CloseQuietly(previous);
+				byte[] buffer = new byte[MAX_UDP_PACKET_SIZE];
 
-            // Wait for response with timeout
-            if (udpSocket.Poll(100000, SelectMode.SelectRead))
-            {
-                // Data is available, verify it!
-                try 
-                {
-                    int numReceived = udpSocket.Receive(buffer);
-                    
-                    // 3. VALIDATION: Only connect if the message is actually a LOGGED_IN response
-                    if (numReceived > 0 && buffer[0] == (byte)MessageReceivedType.LOGGED_IN)
-                    {
-                        udpConnected = true;
-                        wasConnected = true;
-                        VelNetLogger.Info("UDP Connection Established.");
-                        break; // Valid connection, break the loop
-                    }
-                }
-                catch (SocketException) 
-                {
-                    // This catches the ICMP Port Unreachable and just retries
-                    // instead of crashing the thread and setting udpConnected=true
-                }
-            }
-            
-            // Wait before retrying handshake
-            Thread.Sleep(100);
-        }
-
-				if (udpConnected)
+				// 2. Handshake Loop (ends if our socket is closed or replaced)
+				while (udpSocket == sock)
 				{
-					clientSendThreadUDP = new Thread(SendUDPLoop);
+					// Send Handshake
+					buffer[0] = 0; // MessageType.LOGGED_IN (Connect)
+					WriteBigEndianInt(buffer, 1, userid);
+					sock.Connect(RemoteEndPoint);
+					sock.Send(buffer, 5, SocketFlags.None);
+
+					// Wait for response with timeout
+					if (sock.Poll(100000, SelectMode.SelectRead))
+					{
+						try
+						{
+							int numReceived = sock.Receive(buffer);
+
+							// 3. VALIDATION: Only connect if the message is actually a LOGGED_IN response
+							if (numReceived > 0 && buffer[0] == (byte)MessageReceivedType.LOGGED_IN)
+							{
+								udpConnected = true;
+								wasConnected = true;
+								VelNetLogger.Info("UDP Connection Established.");
+								break; // Valid connection, break the loop
+							}
+						}
+						catch (SocketException)
+						{
+							// ICMP Port Unreachable: just retry instead of crashing the thread
+						}
+					}
+
+					// Wait before retrying handshake
+					Thread.Sleep(100);
+				}
+
+				if (udpConnected && udpSocket == sock)
+				{
+					clientSendThreadUDP = new Thread(SendUDPLoop) { IsBackground = true, Name = "VelNet UDP tx" };
 					clientSendThreadUDP.Start();
 				}
 
-        // 4. Data Loop
-        while (udpConnected)
-        {
-            try 
-            {
-                int numReceived = udpSocket.Receive(buffer);
-                if (numReceived > 0) System.Threading.Interlocked.Add(ref bytesIn, numReceived);
-                if (numReceived > 0)
-                {
-                     // Handle Data
-                    switch ((MessageReceivedType)buffer[0])
-                    {
-                        case MessageReceivedType.DATA_MESSAGE:
-                        {
-                            DataMessage m = new DataMessage();
-                            m.senderId = ReadBigEndianInt(buffer, 1);
-                            byte[] messageBytes = new byte[numReceived - 5];
-                            Array.Copy(buffer, 5, messageBytes, 0, messageBytes.Length);
-                            m.data = messageBytes;
-                            AddMessage(m);
-                            break;
-                        }
-                    }
-                }
-            }
-            catch (SocketException)
-            {
-                // Allow read timeouts or ICMP errors to simply be ignored 
-                // without killing the thread immediately
-            }
-        }
-    }
-    catch (ThreadAbortException)
-    {
-        // pass
-    }
-    catch (Exception ex)
-    {
-        VelNetLogger.Error("UDP Thread Error: " + ex);
-    }
-    finally
-    {
-        udpConnected = false;
-        if (udpSocket != null)
-        {
-            udpSocket.Close();
-            udpSocket = null;
-        }
-    }
-}
+				// 4. Data Loop. CloseUdpSocket clears udpConnected and then shuts the socket down, which
+				// wakes the blocking Receive (returns 0 or throws), so the loop condition ends us.
+				while (udpConnected && udpSocket == sock)
+				{
+					try
+					{
+						int numReceived = sock.Receive(buffer);
+						if (numReceived > 0) System.Threading.Interlocked.Add(ref bytesIn, numReceived);
+						if (numReceived > 0)
+						{
+							// Handle Data
+							switch ((MessageReceivedType)buffer[0])
+							{
+								case MessageReceivedType.DATA_MESSAGE:
+								{
+									DataMessage m = new DataMessage();
+									m.senderId = ReadBigEndianInt(buffer, 1);
+									byte[] messageBytes = new byte[numReceived - 5];
+									Array.Copy(buffer, 5, messageBytes, 0, messageBytes.Length);
+									m.data = messageBytes;
+									AddMessage(m);
+									break;
+								}
+							}
+						}
+					}
+					catch (SocketException)
+					{
+						// Read timeouts / ICMP errors: keep listening (the loop condition handles closing)
+					}
+				}
+			}
+			catch (ThreadAbortException)
+			{
+				// pass
+			}
+			catch (ObjectDisposedException)
+			{
+				// our socket was closed (quit / disconnect / re-login): normal exit
+			}
+			catch (Exception ex)
+			{
+				if (sock == null || udpSocket == sock) VelNetLogger.Error("UDP Thread Error: " + ex);
+			}
+			finally
+			{
+				// Clear the shared state only if it is still ours: a re-login may already have started
+				// a newer UDP thread with its own socket.
+				if (sock == null || Interlocked.CompareExchange(ref udpSocket, null, sock) == sock)
+					udpConnected = false;
+				if (sock != null) CloseQuietly(sock);
+			}
+		}
+
+		/// <summary>Shuts a socket down, then closes it. Never throws. shutdown() is what wakes a thread
+		/// blocked in Receive on Linux/Android; a bare close() does not (IL2CPP's Close happens to shut
+		/// down first, other runtimes may not).</summary>
+		private static void CloseQuietly(Socket s)
+		{
+			try { s.Shutdown(SocketShutdown.Both); } catch { /* unconnected or already closed */ }
+			try { s.Close(); } catch { }
+		}
+
+		/// <summary>Stops the UDP receive and send threads: clears udpConnected, then closes the socket
+		/// they use, which wakes a Receive blocked on it. Safe to call any time; never throws.</summary>
+		private void CloseUdpSocket()
+		{
+			udpConnected = false;
+			Socket s = Interlocked.Exchange(ref udpSocket, null);
+			if (s != null) CloseQuietly(s);
+		}
 
 		/// <summary>
 		/// Enqueues a UDP packet for sending on the send thread.
@@ -1779,7 +1809,7 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 		private static void SendUDPLoop()
 		{
 			Profiler.BeginThreadProfiling("VelNet", "UDP Send Loop");
-			while (instance.udpConnected)
+			while (instance != null && instance.udpConnected)
 			{
 				if (udpSendQueue.TryDequeue(out UdpSendPacket packet))
 				{
@@ -1787,9 +1817,9 @@ private MessageParseResult HandleBufferedMessage(BinaryReader reader)
 					{
 						instance.udpSocket.Send(packet.Buffer, packet.Length, SocketFlags.None);
 					}
-					catch (SocketException)
+					catch (Exception)
 					{
-						// Allow send errors to be ignored (e.g. if the connection is lost)
+						// Ignore send errors: connection lost, or the socket was closed/replaced (quit, disconnect, re-login)
 					}
 					finally
 					{

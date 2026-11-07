@@ -36,6 +36,17 @@ velutils / velshareunity. Don't re-introduce an embedded Unity project; test aga
 - **`SendToRoom` never echoes to the sender** — a client never receives its own messages. (This is why
   the recorder must run as a dedicated extra observer client to capture everyone.)
 
+## ⚠️ Threads & quitting (IL2CPP / Android)
+`VelNetManager` runs up to four threads, named `VelNet TCP rx/tx` and `VelNet UDP rx/tx` in native stacks.
+**Every socket one of them can block on must be shut down and closed on quit, disconnect and re-login**
+(`CloseUdpSocket`; closing the `TcpClient` does the same for TCP). IL2CPP's shutdown
+(`Runtime::Shutdown` → `Thread::AbortAllThreads`) joins every managed thread, background or not, with no
+timeout. Under IL2CPP, `Thread.Abort` is only a request that runs at a managed wait (Sleep, WaitOne,
+Monitor), never inside a blocking `Socket.Receive`, and `IsBackground` changes nothing. Closing the socket
+wakes the blocked `recvfrom`. Before 2.0.19 nothing closed the UDP socket, so every `Application.Quit` on
+Quest hung until Android's ANR kill (~10 s). Each UDP thread owns its socket (the `udpSocket` field only
+publishes it), so a reconnect can't orphan the previous thread in `Receive`.
+
 ## ⚠️ Foot-guns — read before editing a `NetworkComponent`
 
 These bite precisely when "just adding a feature," and several **silently corrupt old recordings**
